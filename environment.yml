@@ -1,0 +1,16 @@
+name: PGCN
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - caveclient
+  - pandas
+  - pyarrow
+  - networkx
+  - numpy
+  - tqdm
+  - tenacity
+  - pydantic
+  - rich
+  - pytest
