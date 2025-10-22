@@ -4,13 +4,18 @@ channels:
   - defaults
 dependencies:
   - python=3.11
-  - caveclient
   - pandas
   - pyarrow
-  - networkx
   - numpy
+  - networkx
   - tqdm
-  - tenacity
   - pydantic
   - rich
   - pytest
+  - pip
+  - pip:
+      - caveclient
+      - neuprint-python
+      - tenacity
+      - streamlit
+      - scikit-learn

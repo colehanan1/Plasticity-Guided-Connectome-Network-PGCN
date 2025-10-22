@@ -1,43 +1,60 @@
-"""
-Tests for cache functionality.
+"""Tests for the connectome cache scaffolding."""
 
-This module tests caching mechanisms for connectome data.
-"""
+from __future__ import annotations
 
-import pytest
+import json
 from pathlib import Path
 
+import pandas as pd
+import pytest
 
-class TestCache:
-    """Test cases for cache functionality."""
-    
-    def test_cache_directory_exists(self):
-        """Test that cache directory exists."""
-        cache_dir = Path("data/cache")
-        assert cache_dir.exists(), "Cache directory should exist"
-        assert cache_dir.is_dir(), "Cache path should be a directory"
-    
-    def test_cache_initialization(self):
-        """Test cache initialization."""
-        # TODO: Implement cache initialization test
-        pass
-    
-    def test_cache_write(self):
-        """Test writing data to cache."""
-        # TODO: Implement cache write test
-        pass
-    
-    def test_cache_read(self):
-        """Test reading data from cache."""
-        # TODO: Implement cache read test
-        pass
-    
-    def test_cache_invalidation(self):
-        """Test cache invalidation mechanism."""
-        # TODO: Implement cache invalidation test
-        pass
+from pgcn.connectome_pipeline import CacheArtifacts, ConnectomePipeline
 
 
-def test_cache_basic():
-    """Basic test to verify test infrastructure works."""
-    assert True, "Basic test should pass"
+@pytest.fixture()
+def sample_cache(tmp_path: Path) -> CacheArtifacts:
+    pipeline = ConnectomePipeline(cache_dir=tmp_path)
+    artifacts = pipeline.run(use_sample_data=True)
+    return artifacts
+
+
+def test_schema_presence(sample_cache: CacheArtifacts) -> None:
+    nodes = pd.read_parquet(sample_cache.nodes)
+    edges = pd.read_parquet(sample_cache.edges)
+    dan_edges = pd.read_parquet(sample_cache.dan_edges)
+    meta = json.loads(sample_cache.meta.read_text())
+
+    assert set(["node_id", "type", "x", "y", "z"]).issubset(nodes.columns)
+    assert set(["source_id", "target_id", "synapse_weight"]).issubset(edges.columns)
+    assert set(["source_id", "target_id", "synapse_weight"]).issubset(dan_edges.columns)
+    assert {
+        "datastack",
+        "materialization_version",
+        "synapse_table",
+        "cell_tables",
+    }.issubset(meta.keys())
+
+
+def test_graph_non_empty(sample_cache: CacheArtifacts) -> None:
+    nodes = pd.read_parquet(sample_cache.nodes)
+    edges = pd.read_parquet(sample_cache.edges)
+    dan_edges = pd.read_parquet(sample_cache.dan_edges)
+
+    assert not nodes.empty
+    assert not edges.empty
+    assert not dan_edges.empty
+    assert (edges["synapse_weight"] > 0).all()
+    assert (dan_edges["synapse_weight"] > 0).all()
+
+
+def test_no_direct_pn_to_mbon_edges(sample_cache: CacheArtifacts) -> None:
+    nodes = pd.read_parquet(sample_cache.nodes)
+    edges = pd.read_parquet(sample_cache.edges)
+
+    type_lookup = nodes.set_index("node_id")["type"].to_dict()
+    pn_mbon_edges = [
+        (src, tgt)
+        for src, tgt in edges[["source_id", "target_id"]].itertuples(index=False)
+        if type_lookup.get(int(src)) == "PN" and type_lookup.get(int(tgt)) == "MBON"
+    ]
+    assert not pn_mbon_edges, "Core subgraph must exclude direct PN→MBON edges"

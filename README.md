@@ -1,68 +1,92 @@
-# Plasticity-Guided-Connectome-Network-PGCN-
+# Plasticity-Guided Connectome Network (PGCN)
 
-A bio-inspired RNN that fuses Drosophila connectome constraints with valence-modulated plasticity. Uses reservoir computing: fixed realistic circuits for innate odor paths plus learnable dopamine-gated synapses. Captures learning dynamics and aversive-conditioning limits from hardwired biases.
+The Plasticity-Guided Connectome Network repository provides a reproducible
+pipeline for extracting and analysing the FlyWire projection-neuron
+subgraph (PN→KC→MBON core plus DAN ancillary pathways). The codebase pins
+FlyWire materialization versions, writes schema-stable cache artefacts, and
+exposes command line interfaces for cache generation and structural metrics.
 
-## Project Structure
+## Quickstart
+
+1. **Create the Conda environment**
+
+   ```bash
+   conda env create -f environment.yml
+   conda activate PGCN
+   ```
+
+2. **Build the connectome cache**
+
+   ```bash
+   pgcn-cache --datastack flywire_fafb_production --mv 783 --out data/cache/
+   ```
+
+   Use `--use-sample-data` for an offline deterministic cache suitable for
+   testing when FlyWire authentication is unavailable.
+
+3. **Compute structural metrics**
+
+   ```bash
+   pgcn-metrics --cache-dir data/cache/
+   ```
+
+4. **Run the unit tests**
+
+   ```bash
+   pytest -q
+   ```
+
+## Repository Structure
 
 ```
-.
-├── src/                    # Source code
-│   └── connectome_pipeline.py
-├── tests/                  # Test suite
+PGCN/
+├── src/pgcn/                     # Python package
+│   ├── __init__.py
+│   ├── connectome_pipeline.py     # Cache construction and CLI
+│   └── metrics.py                 # Structural metrics and CLI
+├── tests/                        # Pytest suite
 │   └── test_cache.py
-├── data/                   # Data directory
-│   └── cache/             # Cached connectome data
-├── README.md              # This file
-├── data_schema.md         # Data structure documentation
-├── environment.yml        # Conda environment specification
-└── .gitignore            # Git ignore rules
+├── data/
+│   └── cache/                    # Cache output directory (git-kept, empty)
+├── environment.yml               # Conda specification (name=PGCN)
+├── pyproject.toml                # Packaging, formatting, and entry points
+├── Makefile                      # Common workflows
+├── README.md                     # This document
+└── data_schema.md                # Cache and metrics schema reference
 ```
 
-## Setup
+## Cache Outputs
 
-### Creating the Conda Environment
+`pgcn-cache` writes the following artefacts into the selected cache directory:
 
-```bash
-conda env create -f environment.yml
-conda activate PGCN
-```
+- `nodes.parquet`: node-level metadata with `node_id`, `type`, `glomerulus`,
+  `synapse_count`, and centroid coordinates (`x`, `y`, `z`).
+- `edges.parquet`: PN→KC and KC→MBON edges with synapse weights.
+- `dan_edges.parquet`: DAN→KC and DAN→MBON edges with synapse weights.
+- `meta.json`: datastack, materialization version, and table provenance.
 
-### Running Tests
+All parquet files follow the schemas defined in `data_schema.md`.
 
-```bash
-pytest tests/
-```
+## Metrics Outputs
 
-## Usage
+`pgcn-metrics` expects a cache directory and produces:
 
-```python
-from src.connectome_pipeline import ConnectomePipeline
+- `kc_overlap.parquet`: glomerulus-wise Kenyon-cell Jaccard overlaps.
+- `pn_kc_mbon_paths.parquet`: PN→KC→MBON two-hop path summary.
+- `weighted_centrality.parquet`: weighted in/out degree and betweenness.
+- `dan_valence.parquet`: PAM/PPL1/DAN-other valence labels.
+- `metrics_meta.json`: row counts for quick validation.
 
-# Initialize pipeline
-pipeline = ConnectomePipeline(cache_dir="data/cache")
+## Authentication Notes
 
-# Fetch connectome data
-pipeline.fetch_connectome("flywire")
+FlyWire access requires a valid CAVE token stored at
+`~/.cloudvolume/secrets/cave-secret.json`. The pipeline validates the token,
+selects materialization version 783 when available, and records the active
+version in the cache metadata. When version 783 is missing the latest
+available version is selected and the fallback is logged explicitly.
 
-# Process and build network
-pipeline.process_data()
-pipeline.build_network()
-```
+## Testing Strategy
 
-## Data
-
-See [data_schema.md](data_schema.md) for details on data structure and formats.
-
-## Dependencies
-
-- Python 3.11
-- caveclient - FlyWire data access
-- pandas - Data manipulation
-- pyarrow - Efficient data serialization
-- networkx - Graph/network analysis
-- numpy - Numerical computing
-- tqdm - Progress bars
-- tenacity - Retry logic
-- pydantic - Data validation
-- rich - Rich terminal output
-- pytest - Testing framework
+Unit tests fabricate a deterministic cache to verify schema integrity,
+positive weights, and the absence of direct PN→MBON edges. The `--use-sample-data`
+flag mirrors this behaviour for developers working offline.
