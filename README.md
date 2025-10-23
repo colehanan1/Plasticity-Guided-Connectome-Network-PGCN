@@ -36,6 +36,45 @@ exposes command line interfaces for cache generation and structural metrics.
    pytest -q
    ```
 
+## Chemical Odor Generalisation Toolkit
+
+The repository ships an optional chemical modelling stack for reproducing
+odor-generalisation analyses. The modules live under `pgcn.chemical` and
+`pgcn.models` and are fully importable once PyTorch is available.
+
+1. **Install the modelling extra (adds PyTorch)**
+
+   ```bash
+   pip install "pgcn[models]" --find-links https://download.pytorch.org/whl/cpu
+   ```
+
+   The package itself does not bundle PyTorch because GPU/CPU builds vary by
+   platform. The command above installs the CPU wheel; replace the URL with the
+   CUDA-specific index if you require GPU acceleration.
+
+2. **Run the chemical unit tests**
+
+   ```bash
+   pytest tests/test_chemical.py -q
+   ```
+
+3. **Execute the reference modelling snippet**
+
+   ```bash
+   python - <<'PY'
+   from pgcn.models import ChemicallyInformedDrosophilaModel
+
+   model = ChemicallyInformedDrosophilaModel()
+   prediction = model.predict("ethyl_butyrate", "hexanol")
+   print(f"Predicted generalisation probability: {prediction:.3f}")
+   PY
+   ```
+
+   Substitute any other training/testing odor combination that appears in
+   `pgcn.chemical.COMPLETE_ODOR_MAPPINGS` to probe cross-generalisation
+   behaviour. The model automatically loads the curated chemical descriptors and
+   similarity priors included in the repository.
+
 ## Repository Structure
 
 ```

@@ -28,6 +28,9 @@ dev = [
     "ruff",
     "black",
 ]
+models = [
+    "torch>=2.2,<3",
+]
 
 [project.scripts]
 pgcn-cache = "pgcn.connectome_pipeline:main"
