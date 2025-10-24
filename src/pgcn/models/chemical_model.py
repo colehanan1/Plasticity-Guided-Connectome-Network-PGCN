@@ -49,6 +49,7 @@ class ChemicallyInformedDrosophilaModel(BaseModule):
         self.interaction_layer = nn.Bilinear(16, 16, 32)
 
         reservoir_config = reservoir_config or ReservoirConfig()
+        self.interaction_projector = nn.Linear(32, reservoir_config.n_pn)
         self.reservoir = DrosophilaReservoir(
             n_pn=reservoir_config.n_pn,
             n_kc=reservoir_config.n_kc,
@@ -73,7 +74,8 @@ class ChemicallyInformedDrosophilaModel(BaseModule):
         condition_projection = self.condition_projector(condition_embedding)
 
         interaction = self.interaction_layer(train_repr, test_repr) + condition_projection
-        reservoir_out = self.reservoir(interaction)
+        pn_drive = self.interaction_projector(interaction)
+        reservoir_out = self.reservoir(pn_drive)
         logits = self.classifier(reservoir_out)
         return torch.sigmoid(logits.squeeze(-1))
 
