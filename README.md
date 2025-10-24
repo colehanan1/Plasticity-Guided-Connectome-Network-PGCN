@@ -58,6 +58,14 @@ exposes command line interfaces for cache generation and structural metrics.
    pgcn-cache --datastack flywire_fafb_production --mv 783 --out data/cache/
    ```
 
+   > **HTTP 403?** The FlyWire API rejected the token because it lacks `view`
+   > permission for the FAFB dataset. Revisit the
+   > [FlyWire setup guide](https://fafbseg-py.readthedocs.io/en/latest/source/tutorials/flywire_setup.html)
+   > and confirm that your account has been granted dataset membership. Once the
+   > request is approved, rerun `pgcn-auth --token "<token>"` to refresh the local
+   > secret and repeat the cache build. Until then you can keep moving by
+   > supplying `--use-sample-data`.
+
    Use `--use-sample-data` for an offline deterministic cache when a FlyWire
    account or network access is unavailable:
 
