@@ -56,7 +56,13 @@ class DrosophilaReservoir(BaseModule):
         generator = torch.Generator().manual_seed(42)
         with torch.no_grad():
             weight = torch.randn(self.n_kc, self.n_pn, generator=generator) * 0.1
-            mask = torch.rand_like(weight, generator=generator)
+            mask = torch.rand(
+                self.n_kc,
+                self.n_pn,
+                generator=generator,
+                device=weight.device,
+                dtype=weight.dtype,
+            )
             threshold = torch.quantile(mask, 1.0 - self.kc_sparsity)
             mask = (mask >= threshold).float()
             self.pn_to_kc.weight.copy_(weight * mask)
