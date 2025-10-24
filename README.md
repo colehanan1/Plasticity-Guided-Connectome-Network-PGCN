@@ -17,11 +17,24 @@ exposes command line interfaces for cache generation and structural metrics.
 
 2. **Provision your FlyWire token**
 
-   Use the bundled helper to create the secret JSON at the location expected by
-   `pgcn-cache`:
+   First (re)install the project in editable mode so the latest console scripts
+   are registered on your `$PATH`:
+
+   ```bash
+   python -m pip install -e .[dev]
+   ```
+
+   The `[dev]` extra is optional but convenient if you plan to run tests. When
+   you prefer not to install development dependencies, drop the extras suffix.
+
+   You can now write the token to the expected secret path either via the
+   installed entry point **or** via the repository-local runner that works even
+   before installation:
 
    ```bash
    pgcn-auth --token "<paste-your-flywire-token-here>"
+   # or
+   ./scripts/pgcn-auth --token "<paste-your-flywire-token-here>"
    ```
 
    Replace the placeholder with the token string copied from the
@@ -32,9 +45,12 @@ exposes command line interfaces for cache generation and structural metrics.
 
    ```bash
    pgcn-auth --token-file /path/to/my_token.txt
+   # or
+   ./scripts/pgcn-auth --token-file /path/to/my_token.txt
    ```
 
-   Rerun with `--force` whenever you need to rotate credentials.
+   Use `--force` whenever you intentionally rotate credentials and need to
+   overwrite the existing JSON.
 
 3. **Build the connectome cache**
 
