@@ -37,6 +37,8 @@ try:  # pragma: no cover - optional dependency resolved at runtime
 except ImportError:  # pragma: no cover - exercised when caveclient missing
     CAVEclient = None  # type: ignore
 
+from .flywire_access import diagnose_flywire_access
+
 
 console = Console()
 
@@ -123,6 +125,7 @@ class ConnectomePipeline:
             self.logger.warning("Generating deterministic sample cache data.")
             return self._write_sample_cache()
 
+        self._preflight_access_check()
         client = self._init_client()
         mv = self._resolve_materialization_version(client)
         tables = self._discover_tables(client, mv)
@@ -184,6 +187,49 @@ class ConnectomePipeline:
             ) from exc
         self._client = client
         return client
+
+    def _preflight_access_check(self) -> None:
+        status = diagnose_flywire_access(
+            self.datastack,
+            extra_token_paths=[self.token_path],
+        )
+
+        if status.success:
+            dataset = status.dataset or "unknown"
+            summary = f"Verified access to {self.datastack} (dataset={dataset})."
+            if status.versions_ok and status.versions_count is not None:
+                summary += f" {status.versions_count} materialization versions detected."
+            console.log(summary)
+            return
+
+        if status.token_error:
+            raise PipelineError(
+                "FlyWire token unavailable. Provide credentials via `pgcn-auth --token` and rerun, "
+                "or fall back to `pgcn-cache --use-sample-data` for offline operation."
+            )
+
+        if status.info_error:
+            if "HTTP 403" in status.info_error:
+                raise PipelineError(
+                    "FlyWire token is valid but lacks 'view' permission for the FAFB dataset. "
+                    "Confirm you generated the token under the authorised FlyWire account, "
+                    "store it in ~/.cloudvolume/secrets/global.daf-apis.com-cave-secret.json, and "
+                    "request FAFB access before rerunning."
+                )
+            if "HTTP 401" in status.info_error:
+                raise PipelineError(
+                    "FlyWire rejected the provided token (HTTP 401). Refresh the secret via `pgcn-auth` "
+                    "or regenerate it at https://global.daf-apis.com/auth/api/v1/user/create_token before retrying."
+                )
+            raise PipelineError(
+                "Failed to contact FlyWire services during preflight access check. "
+                f"Details: {status.info_error}"
+            )
+
+        raise PipelineError(
+            "FlyWire preflight check failed for an unknown reason. Inspect `pgcn-access-check` output "
+            "for additional detail before retrying."
+        )
 
     def _read_token(self) -> str:
         try:
