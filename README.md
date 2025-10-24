@@ -36,6 +36,16 @@ exposes command line interfaces for cache generation and structural metrics.
    pytest -q
    ```
 
+5. **Validate reservoir weight hydration**
+
+   ```bash
+   pytest tests/test_reservoir.py -q
+   ```
+
+   The dedicated reservoir tests fabricate a minimal connectome cache and a
+   precomputed PN→KC matrix to confirm that weights are normalised, masks are
+   preserved, and gradients remain frozen.
+
 ## Chemical Odor Generalisation Toolkit
 
 The repository ships an optional chemical modelling stack for reproducing
@@ -78,6 +88,55 @@ odor-generalisation analyses. The modules live under `pgcn.chemical` and
    `pgcn.chemical.COMPLETE_ODOR_MAPPINGS` to probe cross-generalisation
    behaviour. The model automatically loads the curated chemical descriptors and
    similarity priors included in the repository.
+
+4. **Hydrate the Drosophila reservoir from a connectome cache**
+
+   With the cache generated via `pgcn-cache`, the reservoir will ingest the
+   PN→KC weights directly and respect the native sparsity mask:
+
+   ```bash
+   python - <<'PY'
+   from pathlib import Path
+
+   from pgcn.models.reservoir import DrosophilaReservoir
+
+   reservoir = DrosophilaReservoir(cache_dir=Path("data/cache"))
+   print("PN→KC weight shape:", tuple(reservoir.pn_to_kc.weight.shape))
+   density = reservoir.pn_kc_mask.float().mean().item()
+   print("Mask density:", density)
+   print("Gradients frozen:", not reservoir.pn_to_kc.weight.requires_grad)
+   PY
+   ```
+
+   The reported mask density reflects the Kenyon cell sparsity encoded in the
+   cache (≈5 % for hemibrain-derived datasets), and the PN→KC parameters should
+   report frozen gradients.
+
+5. **Load a pre-parsed PN→KC matrix**
+
+   When working with precomputed connectivity matrices (for example, custom
+   normalisations or ablation studies), feed them directly into the reservoir:
+
+   ```bash
+   python - <<'PY'
+   import numpy as np
+
+   from pgcn.models.reservoir import DrosophilaReservoir
+
+   matrix = np.load("custom_pn_to_kc.npy")  # shape = (n_kc, n_pn)
+   reservoir = DrosophilaReservoir(pn_kc_matrix=matrix)
+   weights = reservoir.pn_to_kc.weight.detach().numpy()
+   row_sums = weights.sum(axis=1)
+   nonzero = row_sums > 0
+   print("Weights sum to 1 per KC row:",
+         np.allclose(row_sums[nonzero], 1.0))
+   print("Sparsity mask preserved:",
+         np.array_equal(reservoir.pn_kc_mask.numpy(), (matrix > 0).astype(float)))
+   PY
+   ```
+
+   The reservoir auto-resolves `n_pn`/`n_kc` dimensions from the matrix and
+   keeps absent connections masked without resampling new sparsity patterns.
 
 ## Repository Structure
 
