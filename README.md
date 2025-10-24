@@ -42,15 +42,19 @@ The repository ships an optional chemical modelling stack for reproducing
 odor-generalisation analyses. The modules live under `pgcn.chemical` and
 `pgcn.models` and are fully importable once PyTorch is available.
 
-1. **Install the modelling extra (adds PyTorch)**
+1. **Install the project in editable mode (adds PyTorch via the `models` extra)**
+
+   Run this command from the repository root so `pip` can resolve the local
+   package:
 
    ```bash
-   pip install "pgcn[models]" --find-links https://download.pytorch.org/whl/cpu
+   pip install -e ".[models]" --find-links https://download.pytorch.org/whl/cpu
    ```
 
-   The package itself does not bundle PyTorch because GPU/CPU builds vary by
-   platform. The command above installs the CPU wheel; replace the URL with the
-   CUDA-specific index if you require GPU acceleration.
+   The project is not published on PyPI; editable installation ensures the
+   `pgcn` package is importable from your working tree. The extra pulls in a
+   CPU build of PyTorch. Swap the `--find-links` URL for the CUDA-specific index
+   if you require GPU acceleration.
 
 2. **Run the chemical unit tests**
 
