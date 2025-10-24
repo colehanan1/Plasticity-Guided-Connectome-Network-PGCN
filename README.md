@@ -21,8 +21,23 @@ exposes command line interfaces for cache generation and structural metrics.
    pgcn-cache --datastack flywire_fafb_production --mv 783 --out data/cache/
    ```
 
-   Use `--use-sample-data` for an offline deterministic cache suitable for
-   testing when FlyWire authentication is unavailable.
+   This command requires a FlyWire CAVE token stored as JSON at
+   `~/.cloudvolume/secrets/cave-secret.json`. Create the directory (if it does
+   not already exist) and place your token inside the `token` field:
+
+   ```bash
+   mkdir -p ~/.cloudvolume/secrets
+   cat <<'EOF' > ~/.cloudvolume/secrets/cave-secret.json
+   {"token": "<paste-your-flywire-token-here>"}
+   EOF
+   ```
+
+   Use `--use-sample-data` for an offline deterministic cache when a FlyWire
+   account or network access is unavailable:
+
+   ```bash
+   pgcn-cache --use-sample-data --out data/cache/
+   ```
 
 3. **Compute structural metrics**
 
@@ -121,6 +136,15 @@ odor-generalisation analyses. The modules live under `pgcn.chemical` and
    python - <<'PY'
    import numpy as np
 
+   # Replace this with your own PN→KC weight matrix construction logic.
+   # The saved array must have shape (n_kc, n_pn) and non-negative weights.
+   matrix = np.random.rand(2000, 50)
+   np.save("custom_pn_to_kc.npy", matrix)
+   PY
+
+   python - <<'PY'
+   import numpy as np
+
    from pgcn.models.reservoir import DrosophilaReservoir
 
    matrix = np.load("custom_pn_to_kc.npy")  # shape = (n_kc, n_pn)
@@ -137,6 +161,22 @@ odor-generalisation analyses. The modules live under `pgcn.chemical` and
 
    The reservoir auto-resolves `n_pn`/`n_kc` dimensions from the matrix and
    keeps absent connections masked without resampling new sparsity patterns.
+
+## Troubleshooting common setup errors
+
+- **`Authentication secret not found at ~/.cloudvolume/secrets/cave-secret.json`** –
+  The FlyWire CLI credentials are missing. Follow the token creation snippet in
+  the quickstart to create the JSON file, or rerun `pgcn-cache` with the
+  `--use-sample-data` flag to fabricate an offline cache for testing.
+
+- **`FileNotFoundError: 'data/cache/nodes.parquet'` when running `pgcn-metrics` or
+  instantiating `DrosophilaReservoir(cache_dir=...)`** – The connectome cache has
+  not been generated yet. Execute `pgcn-cache --out data/cache/` (optionally with
+  `--use-sample-data`) before invoking downstream commands.
+
+- **`FileNotFoundError: 'custom_pn_to_kc.npy'`** – The matrix file was not saved
+  prior to reservoir initialisation. Save the NumPy array with `np.save()` as
+  shown above before loading it into `DrosophilaReservoir`.
 
 ## Repository Structure
 

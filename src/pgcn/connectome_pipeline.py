@@ -174,13 +174,16 @@ class ConnectomePipeline:
             secret_data = json.loads(self.token_path.read_text())
         except FileNotFoundError as exc:  # pragma: no cover - depends on env
             raise PipelineError(
-                f"Authentication secret not found at {self.token_path}."
+                "Authentication secret not found at "
+                f"{self.token_path}. Provide a valid FlyWire CAVE token or "
+                "rerun `pgcn-cache` with `--use-sample-data` for offline testing."
             ) from exc
 
         token = secret_data.get("token")
         if not token:  # pragma: no cover - depends on env
             raise PipelineError(
-                f"Authentication token missing in {self.token_path}. Expected a 'token' field."
+                f"Authentication token missing in {self.token_path}. Expected a 'token' "
+                "field with a FlyWire CAVE token string."
             )
         return token
 

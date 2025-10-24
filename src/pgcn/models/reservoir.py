@@ -217,7 +217,13 @@ class DrosophilaReservoir(BaseModule):
         candidates = sorted(cache_dir.glob(f"{stem}*.parquet"), key=lambda path: path.stat().st_mtime)
         if candidates:
             return candidates[-1]
-        raise FileNotFoundError(f"Could not find '{stem}.parquet' in {cache_dir}.")
+        raise FileNotFoundError(
+            (
+                f"Could not find '{stem}.parquet' in {cache_dir}. "
+                f"Run `pgcn-cache --out {cache_dir}` (use `--use-sample-data` if necessary) "
+                "before hydrating the reservoir."
+            )
+        )
 
     @staticmethod
     def _infer_column(columns: Iterable[str], candidates: Sequence[str]) -> Optional[str]:
