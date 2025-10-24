@@ -38,6 +38,7 @@ models = [
 [project.scripts]
 pgcn-cache = "pgcn.connectome_pipeline:main"
 pgcn-metrics = "pgcn.metrics:cli"
+pgcn-auth = "pgcn.auth:cli"
 
 [tool.black]
 line-length = 100

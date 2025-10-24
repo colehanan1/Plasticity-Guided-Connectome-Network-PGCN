@@ -15,21 +15,31 @@ exposes command line interfaces for cache generation and structural metrics.
    conda activate PGCN
    ```
 
-2. **Build the connectome cache**
+2. **Provision your FlyWire token**
+
+   Use the bundled helper to create the secret JSON at the location expected by
+   `pgcn-cache`:
+
+   ```bash
+   pgcn-auth --token "<paste-your-flywire-token-here>"
+   ```
+
+   Replace the placeholder with the token string copied from the
+   [FlyWire account portal](https://fafbseg-py.readthedocs.io/en/latest/source/tutorials/flywire_setup.html).
+   The command will create `~/.cloudvolume/secrets/cave-secret.json` if it does
+   not exist.  When you keep the token in a file, point the helper at it
+   instead:
+
+   ```bash
+   pgcn-auth --token-file /path/to/my_token.txt
+   ```
+
+   Rerun with `--force` whenever you need to rotate credentials.
+
+3. **Build the connectome cache**
 
    ```bash
    pgcn-cache --datastack flywire_fafb_production --mv 783 --out data/cache/
-   ```
-
-   This command requires a FlyWire CAVE token stored as JSON at
-   `~/.cloudvolume/secrets/cave-secret.json`. Create the directory (if it does
-   not already exist) and place your token inside the `token` field:
-
-   ```bash
-   mkdir -p ~/.cloudvolume/secrets
-   cat <<'EOF' > ~/.cloudvolume/secrets/cave-secret.json
-   {"token": "<paste-your-flywire-token-here>"}
-   EOF
    ```
 
    Use `--use-sample-data` for an offline deterministic cache when a FlyWire
@@ -165,9 +175,10 @@ odor-generalisation analyses. The modules live under `pgcn.chemical` and
 ## Troubleshooting common setup errors
 
 - **`Authentication secret not found at ~/.cloudvolume/secrets/cave-secret.json`** –
-  The FlyWire CLI credentials are missing. Follow the token creation snippet in
-  the quickstart to create the JSON file, or rerun `pgcn-cache` with the
-  `--use-sample-data` flag to fabricate an offline cache for testing.
+  The FlyWire CLI credentials are missing. Run
+  `pgcn-auth --token "<paste-your-flywire-token-here>"` to provision the JSON
+  file automatically, or rerun `pgcn-cache` with the `--use-sample-data` flag to
+  fabricate an offline cache for testing.
 
 - **`FileNotFoundError: 'data/cache/nodes.parquet'` when running `pgcn-metrics` or
   instantiating `DrosophilaReservoir(cache_dir=...)`** – The connectome cache has
