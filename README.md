@@ -382,7 +382,10 @@ splits and ChemicalSTDP fine-tuning confined to the KC→MBON projection.
    The script assembles `week4_report.json` and `week4_report.csv` (configurable
    via `--report-prefix`). The JSON report captures per-fold metrics alongside
    fold-wise means and standard deviations; the CSV lists each fold plus
-   appended mean/std rows for quick spreadsheet import.
+   appended mean/std rows for quick spreadsheet import. If you rerun the CLI and
+   supply fold metrics that already include a `fold` column, the exporter now
+   preserves that numbering instead of attempting to reinsert it, preventing
+   duplicate-column errors during long-running pipelines.
 
 4. **Tune learning dynamics (optional)**
 

@@ -388,7 +388,11 @@ def write_aggregate_reports(
 
     csv_path = output_dir / f"{prefix}_report.csv"
     csv_df = metrics_df.copy()
-    csv_df.insert(0, "fold", range(1, len(csv_df) + 1))
+    if "fold" not in csv_df.columns:
+        csv_df.insert(0, "fold", range(1, len(csv_df) + 1))
+    else:
+        # Ensure fold ordering is stable before appending aggregate statistics.
+        csv_df = csv_df.sort_values("fold").reset_index(drop=True)
     aggregate_mean = {
         "fold": "mean",
         "overall_accuracy": float(np.mean(overall_values)),
