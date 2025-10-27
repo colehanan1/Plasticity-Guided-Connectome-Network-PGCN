@@ -413,7 +413,7 @@ def main() -> None:
     output_dir = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    data_frame = load_behavioral_dataframe(args.data, validate=True)
+    data_frame = load_behavioral_dataframe(args.data, validate=args.data is None)
     fold_iterator = make_group_kfold(
         args.data,
         n_splits=args.folds,

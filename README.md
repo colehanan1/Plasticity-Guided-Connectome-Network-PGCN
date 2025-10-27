@@ -362,6 +362,11 @@ splits and ChemicalSTDP fine-tuning confined to the KC→MBON projection.
    all other parameters remain frozen. GroupKFold splitting respects the
    `fly` identifier to prevent leakage across individuals.
 
+   When pointing to a non-canonical CSV the script skips the strict 440-trial
+   validation baked into `pgcn.data.behavioral_data.load_behavioral_dataframe`.
+   Confirm your dataset preserves one dataset per fly and consistent
+   `trial_label` coverage before running large experiments.
+
 2. **Inspect per-fold outputs**
 
    Every fold emits a JSON summary and a companion CSV of generalisation curves
