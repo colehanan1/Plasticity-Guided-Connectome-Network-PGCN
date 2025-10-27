@@ -15,8 +15,13 @@ from .connectome_pipeline import CACHE_FILENAMES, CacheArtifacts
 
 
 DEFAULT_TYPE_PATTERNS: Mapping[str, Sequence[str]] = {
-    "PN": (r"\bPN\b", r"PROJECTION\s*NEURON"),
-    "KC": (r"\bKC\b", r"KENYON"),
+    "PN": (
+        r"\bPN\b",
+        r"PROJECTION\s*NEURON",
+        r"\bALPN\b",
+        r"ANTENNAL\s*LOBE",
+    ),
+    "KC": (r"\bKC\b", r"KENYON", r"KENYON[_\s-]*CELL"),
     "MBON": (r"MBON",),
     "DAN": (r"\bDAN\b", r"DOPAMINE"),
 }

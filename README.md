@@ -125,10 +125,14 @@ exposes command line interfaces for cache generation and structural metrics.
 
       Codex exports are delivered as CSV/TSV (often compressed as `.gz`). The
       importer recognises the official column names (`root_id`,
-      `primary_type`, `additional_type(s)`, `pre_root_id_720575940`,
-      `post_root_id_720575940`, `size`, …) out of the box, so you can feed the
-      downloads directly without renaming headers. Save them into a working
-      directory, for example `~/Downloads/fafb_codex_783/`.
+      `primary_type`, `additional_type(s)`, `class`,
+      `pre_root_id_720575940`, `post_root_id_720575940`, `size`, …) out of the
+      box, so you can feed the downloads directly without renaming headers.
+      When using **Classification / Hierarchical Annotations** for the neuron
+      metadata, rely on the `class` column: entries labelled `ALPN` are mapped
+      to projection neurons and `Kenyon_Cell` is treated as a Kenyon cell. Save
+      the downloads into a working directory, for example
+      `~/Downloads/fafb_codex_783/`.
 
    2. **Convert the exports into the PGCN cache layout**
 
@@ -143,9 +147,10 @@ exposes command line interfaces for cache generation and structural metrics.
       ```
 
       The importer heuristically recognises PN/KC/MBON/DAN types by combining
-      Codex `primary_type` and `additional_type(s)` annotations before applying
-      the regex classifier, so “Projection neuron” or “Kenyon Cell” labels in
-      either column count. Root IDs truncated in the header (for example
+      Codex `primary_type`, `additional_type(s)`, and `class` annotations before
+      applying the regex classifier, so “Projection neuron”, `ALPN`, or
+      “Kenyon_Cell” labels in any column count. Root IDs truncated in the
+      header (for example
       `pre_root_id_720575940`) are expanded back to the canonical 64-bit values
       even when the synapse table references neurons missing from the Cell
       Types export, ensuring PN→KC edges survive the merge. If your export uses

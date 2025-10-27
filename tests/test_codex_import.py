@@ -182,6 +182,29 @@ def test_suffix_id_normalisation_handles_untyped_synapses(tmp_path: Path) -> Non
     assert ((edges.edge_type == "PN_KC").sum()) == 1
 
 
+def test_build_codex_cache_handles_class_column_aliases(tmp_path: Path) -> None:
+    neurons_csv = tmp_path / "classification.csv"
+    synapses_csv = tmp_path / "classification_synapses.csv"
+
+    _write_csv(
+        neurons_csv,
+        [
+            {"node_id": 1, "class": "ALPN"},
+            {"node_id": 2, "class": "Kenyon_Cell"},
+        ],
+    )
+    _write_csv(
+        synapses_csv,
+        [
+            {"source_id": 1, "target_id": 2, "synapse_weight": 6},
+        ],
+    )
+
+    artifacts = build_codex_cache(neurons_csv, synapses_csv, tmp_path / "out_class")
+    nodes = pd.read_parquet(artifacts.nodes)
+    assert set(nodes.type.tolist()) == {"PN", "KC"}
+
+
 def test_build_codex_cache_uses_additional_type_columns(tmp_path: Path) -> None:
     neurons_csv = tmp_path / "cell_types_extra.csv"
     synapses_csv = tmp_path / "synapses_extra.csv"
