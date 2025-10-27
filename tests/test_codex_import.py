@@ -117,3 +117,34 @@ def test_build_codex_cache_accepts_tsv_variants(tmp_path: Path) -> None:
     artifacts = build_codex_cache(neurons_tsv, synapses_tsvgz, tmp_path / "out_tsv")
     assert artifacts.nodes.exists()
     assert set(pd.read_parquet(artifacts.nodes).type.tolist()) == {"PN", "KC"}
+
+
+def test_build_codex_cache_handles_primary_type_and_suffix_ids(tmp_path: Path) -> None:
+    neurons_csv = tmp_path / "consolidated_cell_types.csv"
+    synapses_csv = tmp_path / "synapse_table.csv"
+
+    _write_csv(
+        neurons_csv,
+        [
+            {"root_id": 72057594000000001, "primary_type": "Projection Neuron"},
+            {"root_id": 72057594000000002, "primary_type": "Kenyon Cell"},
+        ],
+    )
+    _write_csv(
+        synapses_csv,
+        [
+            {
+                "pre_root_id_720575940": 1,
+                "post_root_id_720575940": 2,
+                "size": 12,
+            }
+        ],
+    )
+
+    config = CodexImportConfig()
+    config.add_pattern("PN", "Projection")
+    config.add_pattern("KC", "Kenyon")
+
+    artifacts = build_codex_cache(neurons_csv, synapses_csv, tmp_path / "out_suffix", config=config)
+    nodes = pd.read_parquet(artifacts.nodes)
+    assert set(nodes.type.unique()) == {"PN", "KC"}

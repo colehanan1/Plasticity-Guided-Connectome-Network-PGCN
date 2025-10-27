@@ -62,9 +62,60 @@ def _read_table(path: Path) -> pd.DataFrame:
 def _infer_column(columns: Iterable[str], candidates: Sequence[str]) -> Optional[str]:
     lowered = {col.lower(): col for col in columns}
     for candidate in candidates:
-        if candidate.lower() in lowered:
-            return lowered[candidate.lower()]
+        cand = candidate.lower()
+        if cand in lowered:
+            return lowered[cand]
+        # Many Codex exports suffix identifiers with server prefixes (e.g. ``pre_root_id_720575940``)
+        for column_lower, original in lowered.items():
+            if column_lower.startswith(f"{cand}_"):
+                return original
     return None
+
+
+def _normalise_root_ids(
+    column_name: str, series: pd.Series, reference_ids: pd.Series
+) -> pd.Series:
+    """Ensure synapse root IDs line up with neuron root IDs."""
+
+    def _to_int(value: object) -> Optional[int]:
+        if value is None or (isinstance(value, float) and pd.isna(value)):
+            return None
+        if pd.isna(value):
+            return None
+        return int(value)
+
+    numeric = series.map(_to_int)
+    ref_set = set(reference_ids.dropna().astype("int64").tolist())
+    numeric_set = {value for value in numeric if value is not None and not pd.isna(value)}
+    if numeric_set and numeric_set.issubset(ref_set):
+        return pd.Series(numeric, index=series.index, dtype="Int64")
+
+    match = re.search(r"_(\d+)$", column_name)
+    if not match:
+        return pd.Series(numeric, index=series.index, dtype="Int64")
+
+    prefix = match.group(1)
+    target_width = max(len(str(value)) for value in ref_set) if ref_set else len(prefix)
+    suffix_width = max(target_width - len(prefix), 0)
+
+    reconstructed = []
+    for value in numeric:
+        if value is None:
+            reconstructed.append(pd.NA)
+        else:
+            suffix = str(value)
+            if suffix_width:
+                suffix = suffix.zfill(suffix_width)
+            reconstructed.append(int(prefix + suffix))
+
+    reconstructed_series = pd.Series(reconstructed, index=series.index, dtype="Int64")
+    reconstructed_set = {
+        value for value in reconstructed if value is not pd.NA and not pd.isna(value)
+    }
+    if reconstructed_set and reconstructed_set.issubset(ref_set):
+        return reconstructed_series
+
+    return pd.Series(numeric, index=series.index, dtype="Int64")
 
 
 def _normalise_types(series: pd.Series, config: CodexImportConfig) -> pd.Series:
@@ -102,7 +153,16 @@ def build_codex_cache(
     node_id_col = _infer_column(neurons.columns, ["pt_root_id", "root_id", "id", "node_id"])
     type_col = _infer_column(
         neurons.columns,
-        ["type", "cell_type", "celltype", "class", "soma_type", "group"],
+        [
+            "type",
+            "cell_type",
+            "celltype",
+            "primary_type",
+            "primary type",
+            "class",
+            "soma_type",
+            "group",
+        ],
     )
     name_col = _infer_column(neurons.columns, ["name", "cell_body", "pt_position", "cell_id"])
     if node_id_col is None or type_col is None:
@@ -145,11 +205,16 @@ def build_codex_cache(
     neuron_lookup["node_id"] = neuron_lookup["node_id"].astype("int64")
 
     synapses = synapses[[syn_pre_col, syn_post_col, weight_col]].copy()
-    synapses[syn_pre_col] = synapses[syn_pre_col].astype("int64", errors="ignore")
-    synapses[syn_post_col] = synapses[syn_post_col].astype("int64", errors="ignore")
+    neuron_ids = neuron_lookup["node_id"]
+    synapses[syn_pre_col] = _normalise_root_ids(syn_pre_col, synapses[syn_pre_col], neuron_ids)
+    synapses[syn_post_col] = _normalise_root_ids(
+        syn_post_col, synapses[syn_post_col], neuron_ids
+    )
     synapses = synapses.rename(
         columns={syn_pre_col: "source_id", syn_post_col: "target_id", weight_col: "synapse_weight"}
     )
+    synapses["source_id"] = synapses["source_id"].astype("int64", errors="ignore")
+    synapses["target_id"] = synapses["target_id"].astype("int64", errors="ignore")
 
     synapses = synapses.merge(
         neuron_lookup.rename(columns={"node_id": "source_id", "type": "source_type"}),

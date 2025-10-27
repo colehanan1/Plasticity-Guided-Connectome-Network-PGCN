@@ -123,8 +123,12 @@ exposes command line interfaces for cache generation and structural metrics.
         for reservoir hydration; the full synapse table (~2.7 GB) is optional if
         you need per-synapse records.
 
-      Codex exports are delivered as CSV/TSV (often compressed as `.gz`). Save
-      them into a working directory, for example `~/Downloads/fafb_codex_783/`.
+      Codex exports are delivered as CSV/TSV (often compressed as `.gz`). The
+      importer recognises the official column names (`root_id`,
+      `primary_type`, `pre_root_id_720575940`, `post_root_id_720575940`,
+      `size`, …) out of the box, so you can feed the downloads directly without
+      renaming headers. Save them into a working directory, for example
+      `~/Downloads/fafb_codex_783/`.
 
    2. **Convert the exports into the PGCN cache layout**
 
@@ -138,9 +142,9 @@ exposes command line interfaces for cache generation and structural metrics.
         --out data/cache/
       ```
 
-      The importer heuristically recognises PN/KC/MBON/DAN types. If your export
-      uses project-specific labels, extend the classifier with regular-expression
-      overrides:
+      The importer heuristically recognises PN/KC/MBON/DAN types (including the
+      Codex `primary_type` labels). If your export uses project-specific labels,
+      extend the classifier with regular-expression overrides:
 
       ```bash
       pgcn-codex-import \
