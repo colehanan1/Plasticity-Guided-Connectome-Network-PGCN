@@ -125,10 +125,10 @@ exposes command line interfaces for cache generation and structural metrics.
 
       Codex exports are delivered as CSV/TSV (often compressed as `.gz`). The
       importer recognises the official column names (`root_id`,
-      `primary_type`, `pre_root_id_720575940`, `post_root_id_720575940`,
-      `size`, …) out of the box, so you can feed the downloads directly without
-      renaming headers. Save them into a working directory, for example
-      `~/Downloads/fafb_codex_783/`.
+      `primary_type`, `additional_type(s)`, `pre_root_id_720575940`,
+      `post_root_id_720575940`, `size`, …) out of the box, so you can feed the
+      downloads directly without renaming headers. Save them into a working
+      directory, for example `~/Downloads/fafb_codex_783/`.
 
    2. **Convert the exports into the PGCN cache layout**
 
@@ -142,9 +142,11 @@ exposes command line interfaces for cache generation and structural metrics.
         --out data/cache/
       ```
 
-      The importer heuristically recognises PN/KC/MBON/DAN types (including the
-      Codex `primary_type` labels). If your export uses project-specific labels,
-      extend the classifier with regular-expression overrides:
+      The importer heuristically recognises PN/KC/MBON/DAN types by combining
+      Codex `primary_type` and `additional_type(s)` annotations before applying
+      the regex classifier, so “Projection neuron” or “Kenyon Cell” labels in
+      either column count. If your export uses project-specific labels, extend
+      the classifier with regular-expression overrides:
 
       ```bash
       pgcn-codex-import \
@@ -156,8 +158,20 @@ exposes command line interfaces for cache generation and structural metrics.
       ```
 
       The script writes `nodes.parquet`, `edges.parquet`, `dan_edges.parquet`,
-      and `meta.json` so downstream tooling (metrics, reservoir hydration) works
-      identically to the authenticated pipeline.
+      and `meta.json` so downstream tooling (metrics, reservoir hydration)
+      works identically to the authenticated pipeline. After conversion run the
+      usual sanity checks to confirm PN→KC edges were detected:
+
+      ```bash
+      pgcn-metrics --cache-dir data/cache/
+      python - <<'PY'
+      from pathlib import Path
+      from pgcn.models.reservoir import DrosophilaReservoir
+
+      reservoir = DrosophilaReservoir(cache_dir=Path("data/cache"))
+      print("PN→KC edges:", reservoir.pn_kc_mask.sum().item())
+      PY
+      ```
 
    3. **Validate the generated cache**
 

@@ -148,3 +148,34 @@ def test_build_codex_cache_handles_primary_type_and_suffix_ids(tmp_path: Path) -
     artifacts = build_codex_cache(neurons_csv, synapses_csv, tmp_path / "out_suffix", config=config)
     nodes = pd.read_parquet(artifacts.nodes)
     assert set(nodes.type.unique()) == {"PN", "KC"}
+
+
+def test_build_codex_cache_uses_additional_type_columns(tmp_path: Path) -> None:
+    neurons_csv = tmp_path / "cell_types_extra.csv"
+    synapses_csv = tmp_path / "synapses_extra.csv"
+
+    _write_csv(
+        neurons_csv,
+        [
+            {
+                "root_id": 101,
+                "primary_type": "Neuron",
+                "additional_type(s)": "Projection neuron; antennal lobe",
+            },
+            {
+                "root_id": 202,
+                "primary_type": "Neuron",
+                "additional_type(s)": "Kenyon Cell",
+            },
+        ],
+    )
+    _write_csv(
+        synapses_csv,
+        [
+            {"pre_root_id": 101, "post_root_id": 202, "weight": 9},
+        ],
+    )
+
+    artifacts = build_codex_cache(neurons_csv, synapses_csv, tmp_path / "out_extra")
+    edges = pd.read_parquet(artifacts.edges)
+    assert ((edges.edge_type == "PN_KC").sum()) == 1

@@ -151,31 +151,53 @@ def build_codex_cache(
     synapses = _read_table(synapse_table)
 
     node_id_col = _infer_column(neurons.columns, ["pt_root_id", "root_id", "id", "node_id"])
-    type_col = _infer_column(
-        neurons.columns,
-        [
-            "type",
-            "cell_type",
-            "celltype",
-            "primary_type",
-            "primary type",
-            "class",
-            "soma_type",
-            "group",
-        ],
-    )
+    type_candidates = [
+        ("type",),
+        ("cell_type", "celltype"),
+        ("primary_type", "primary type"),
+        ("additional_type(s)", "additional types"),
+        ("class",),
+        ("soma_type",),
+        ("group",),
+    ]
+    type_columns: list[str] = []
+    for candidate_group in type_candidates:
+        inferred = _infer_column(neurons.columns, candidate_group)
+        if inferred and inferred not in type_columns:
+            type_columns.append(inferred)
+
     name_col = _infer_column(neurons.columns, ["name", "cell_body", "pt_position", "cell_id"])
-    if node_id_col is None or type_col is None:
+    if node_id_col is None or not type_columns:
         raise ValueError(
             "Neuron table must contain identifier and cell type columns. "
             "If your export uses different names supply Parquet/CSV with matching headings."
         )
 
-    neurons = neurons[[node_id_col, type_col] + ([name_col] if name_col else [])].copy()
-    neurons[node_id_col] = neurons[node_id_col].astype("int64", errors="ignore")
-    neurons[type_col] = _normalise_types(neurons[type_col], config)
-    neurons = neurons.dropna(subset=[type_col])
-    neurons = neurons[neurons[type_col].isin(CANONICAL_TYPES)]
+    type_strings = (
+        neurons[type_columns]
+        .fillna("")
+        .astype(str)
+        .apply(
+            lambda row: " ".join(
+                value
+                for value in (str(item).strip() for item in row)
+                if value and value.lower() not in {"nan", "none", "nat"}
+            ),
+            axis=1,
+        )
+    )
+
+    selected_columns = [node_id_col] + type_columns + ([name_col] if name_col else [])
+    neurons = neurons[selected_columns].copy()
+    neurons[node_id_col] = pd.to_numeric(neurons[node_id_col], errors="coerce")
+    neurons = neurons.dropna(subset=[node_id_col])
+    neurons[node_id_col] = neurons[node_id_col].astype("int64")
+    neurons["type"] = _normalise_types(type_strings.loc[neurons.index], config)
+    neurons = neurons.dropna(subset=["type"])
+    neurons = neurons[neurons["type"].isin(CANONICAL_TYPES)]
+
+    base_columns = [node_id_col, "type"] + ([name_col] if name_col else [])
+    neurons = neurons[base_columns]
 
     if neurons.empty:
         raise ValueError(
@@ -200,8 +222,8 @@ def build_codex_cache(
             "Synapse table missing source/target/weight columns. Provide Codex synapses.csv export."
         )
 
-    neuron_lookup = neurons[[node_id_col, type_col]].drop_duplicates()
-    neuron_lookup = neuron_lookup.rename(columns={node_id_col: "node_id", type_col: "type"})
+    neuron_lookup = neurons[[node_id_col, "type"]].drop_duplicates()
+    neuron_lookup = neuron_lookup.rename(columns={node_id_col: "node_id"})
     neuron_lookup["node_id"] = neuron_lookup["node_id"].astype("int64")
 
     synapses = synapses[[syn_pre_col, syn_post_col, weight_col]].copy()
@@ -242,7 +264,7 @@ def build_codex_cache(
     ])[["source_id", "target_id", "synapse_weight", "edge_type"]]
     dan_edges = synapses[dan_mask][["source_id", "target_id", "synapse_weight"]]
 
-    node_columns = {node_id_col: "node_id", type_col: "type"}
+    node_columns = {node_id_col: "node_id", "type": "type"}
     if name_col:
         node_columns[name_col] = "name"
     nodes = neurons.rename(columns=node_columns)[list(node_columns.values())].drop_duplicates()
