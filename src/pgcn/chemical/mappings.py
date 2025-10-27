@@ -43,9 +43,16 @@ COMPLETE_ODOR_MAPPINGS: Mapping[str, Mapping[str, str]] = {
         "testing_10": "linalool",
     },
     "hex_control": {
+        "testing_1": "apple_cider_vinegar",
         "testing_2": "hexanol",
+        "testing_3": "apple_cider_vinegar",
         "testing_4": "hexanol",
         "testing_5": "hexanol",
+        "testing_6": "benzaldehyde",
+        "testing_7": "3-octanol",
+        "testing_8": "ethyl_butyrate",
+        "testing_9": "citral",
+        "testing_10": "linalool",
     },
 }
 

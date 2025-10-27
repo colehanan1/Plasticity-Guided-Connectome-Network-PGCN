@@ -365,7 +365,10 @@ splits and ChemicalSTDP fine-tuning confined to the KC→MBON projection.
    When pointing to a non-canonical CSV the script skips the strict 440-trial
    validation baked into `pgcn.data.behavioral_data.load_behavioral_dataframe`.
    Confirm your dataset preserves one dataset per fly and consistent
-   `trial_label` coverage before running large experiments.
+   `trial_label` coverage before running large experiments. The odor mapping
+   remains identical to the bundled reference, including `hex_control`, which
+   reuses the `opto_hex` test-odor assignments; ensure custom exports honour
+   that mapping so the CLI can resolve the correct chemical identities.
 
 2. **Inspect per-fold outputs**
 
