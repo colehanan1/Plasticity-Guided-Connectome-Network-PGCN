@@ -401,18 +401,52 @@ splits and ChemicalSTDP fine-tuning confined to the KC→MBON projection.
    with torch.no_grad():
        model.reservoir.kc_to_mbon.weight.add_(delta.to(model.reservoir.kc_to_mbon.weight.device))
        model.reservoir.kc_to_mbon.weight.clamp_(min=0.0)
-   print('Minimum KC→MBON weight:', float(model.reservoir.kc_to_mbon.weight.min()))
-   PY
-   ```
+  print('Minimum KC→MBON weight:', model.reservoir.kc_to_mbon.weight.min().item())
+  PY
+  ```
 
-   A non-negative minimum confirms the clipping guard is active and prevents
-   inhibitory spill-over from the plastic pathway.
+  A non-negative minimum confirms the clipping guard is active and prevents
+  inhibitory spill-over from the plastic pathway.
 
-   The STDP helper now detaches autograd-tracked tensors internally before
-   computing scalar reward-prediction errors, so you can route the raw
-   probability returned by `compute_model_response` without first calling
-   `.item()` or `.detach()`. The warning about converting tensors that require
-   gradients to Python floats disappears automatically.
+  The diagnostic print now calls `.item()` on the minimum KC→MBON weight,
+  which safely detaches the scalar from autograd before turning it into a
+  Python float. This addresses PyTorch's warning about converting tensors with
+  `requires_grad=True` in-place while keeping the monitoring output intact.
+
+  ### Enabling gradient tracking for custom experiments
+
+  If you need gradient information for downstream analyses or hybrid learning
+  schemes, request it explicitly via the `track_gradients=True` flag:
+
+  ```bash
+  python - <<'PY'
+  import torch
+
+  from pgcn.models import ChemicallyInformedDrosophilaModel, ChemicalSTDP
+  from analysis.cross_validation import compute_model_response
+
+  model = ChemicallyInformedDrosophilaModel()
+  stdp = ChemicalSTDP(model.reservoir.n_kc, model.reservoir.n_mbon)
+
+  with torch.enable_grad():
+      prob, kc_activity = compute_model_response(
+          model,
+          training_odor="opto_EB",
+          test_odor="testing_7",
+          device=torch.device("cpu"),
+          track_gradients=True,
+      )
+      prob.backward(retain_graph=True)
+      print("Gradient w.r.t. KC→MBON bias:", model.reservoir.kc_to_mbon.bias.grad)
+  PY
+  ```
+
+  The helper automatically switches between `torch.no_grad()` and
+  `torch.enable_grad()` so standard evaluation stays lightweight while custom
+  research workflows can reason about derivatives without rewriting the data
+  path. `ChemicalSTDP.update_plasticity` continues to detach inputs internally
+  before scalar conversion, preventing autograd from raising conversion
+  warnings when fed raw tensors.
 
    Set the `PGCN_BEHAVIORAL_DATA` environment variable when the canonical
    `data/model_predictions.csv` is unavailable locally. A legacy alias,

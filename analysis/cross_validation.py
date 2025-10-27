@@ -7,7 +7,7 @@ import csv
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, MutableMapping
+from typing import Dict, Iterable, List, MutableMapping, Union
 
 import numpy as np
 import pandas as pd
@@ -136,10 +136,12 @@ def compute_model_response(
     test_odor: str,
     *,
     device: torch.device,
-) -> tuple[float, torch.Tensor]:
-    """Run the model and return probability plus KC activity."""
+    track_gradients: bool = False,
+) -> tuple[Union[float, torch.Tensor], torch.Tensor]:
+    """Run the model and return the KC→MBON probability plus KC activity."""
 
-    with torch.no_grad():
+    grad_context = torch.enable_grad if track_gradients else torch.no_grad
+    with grad_context():
         dtype = next(model.parameters()).dtype
         train_features = get_chemical_features(training_odor, as_tensor=True).to(device=device, dtype=dtype)
         test_features = get_chemical_features(test_odor, as_tensor=True).to(device=device, dtype=dtype)
@@ -167,8 +169,11 @@ def compute_model_response(
         mbon_drive = reservoir.kc_to_mbon(kc_activity)
         mbon_activity = torch.relu(mbon_drive)
         logits = model.classifier(mbon_activity)
-        probability = torch.sigmoid(logits.squeeze(-1))
-        return float(probability.item()), kc_activity.squeeze(0)
+        probability = torch.sigmoid(logits).view(-1)[0]
+        kc_activity = kc_activity.squeeze(0)
+        if track_gradients:
+            return probability, kc_activity
+        return float(probability.detach()), kc_activity
 
 
 def train_fold(
