@@ -397,6 +397,24 @@ All parquet files follow the schemas defined in `data_schema.md`.
 - `dan_valence.parquet`: PAM/PPL1/DAN-other valence labels.
 - `metrics_meta.json`: row counts for quick validation.
 
+## Behavioral Data Utilities
+
+The behavioral loaders in `pgcn.data.behavioral_data` enforce a deterministic
+ordering by sorting the raw CSV on `fly` and `trial_label`, resetting the index,
+and propagating that order into helper outputs such as
+`load_behavioral_tensor` and `load_behavioral_trial_matrix`.  This guarantees
+that tensors exported for modelling align with the documented `fly`/`trial`
+pairs regardless of the storage order in `model_predictions.csv`.
+
+**Verify the ordering**
+
+```bash
+python -m pytest tests/data/test_behavioral_data.py -v
+```
+
+The suite asserts the reset index, the stable ordering in tensor exports, and
+the `fly × trial` pivot used for exploratory analysis.
+
 ## Authentication Notes
 
 FlyWire access requires a valid CAVE token stored at both
