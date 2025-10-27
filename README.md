@@ -217,6 +217,11 @@ exposes command line interfaces for cache generation and structural metrics.
    pgcn-metrics --cache-dir data/cache/
    ```
 
+   The PN glomerulus overlap report now emits a warning (and an empty table)
+   if your Codex exports lack glomerulus annotations. Rebuild the cache after
+   downloading richer neuron metadata once it becomes available to populate
+   those fields.
+
 6. **Run the unit tests**
 
    ```bash
