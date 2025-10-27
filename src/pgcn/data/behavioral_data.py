@@ -4,12 +4,12 @@ The helpers in this module guarantee a deterministic ordering of trials by
 first sorting on the ``fly`` identifier and then the ``trial_label`` column.
 This ensures downstream consumers (e.g. tensor exports) observe a stable
 ordering regardless of the layout in the raw CSV.  When the canonical dataset
-is loaded from :data:`BEHAVIORAL_DATA_PATH` additional validation checks assert
-expected dataset sizes and grouping invariants so that downstream modelling can
-trust the behavioural annotations.  The loader honours the
-``PGCN_BEHAVIORAL_DATA`` environment variable and a compatibility alias,
-``PGCN_BEHAVIORAL_DATA_PATH``, to support bespoke deployments that relocate the
-behavioural CSV outside the repository.
+is loaded from :data:`CANONICAL_BEHAVIORAL_DATA_PATH` additional validation
+checks assert expected dataset sizes and grouping invariants so that downstream
+modelling can trust the behavioural annotations.  Environment overrides (via
+``PGCN_BEHAVIORAL_DATA`` or the compatibility alias
+``PGCN_BEHAVIORAL_DATA_PATH``) continue to enforce structural invariants while
+relaxing the canonical row and fly counts for bespoke datasets.
 """
 
 from __future__ import annotations
@@ -45,21 +45,29 @@ BEHAVIORAL_DATA_ENV = "PGCN_BEHAVIORAL_DATA"
 #: Backward-compatible aliases for environment variable overrides.
 BEHAVIORAL_DATA_ENV_ALIASES: tuple[str, ...] = ("PGCN_BEHAVIORAL_DATA_PATH",)
 
-
-def _default_data_path() -> Path:
-    env_value = os.environ.get(BEHAVIORAL_DATA_ENV)
-    if not env_value:
-        for alias in BEHAVIORAL_DATA_ENV_ALIASES:
-            env_value = os.environ.get(alias)
-            if env_value:
-                break
-    if env_value:
-        return Path(env_value).expanduser().resolve()
-    return Path(__file__).resolve().parents[3] / "data" / "model_predictions.csv"
+#: Canonical location for the behavioural CSV relative to the project root.
+CANONICAL_BEHAVIORAL_DATA_PATH = (
+    Path(__file__).resolve().parents[3] / "data" / "model_predictions.csv"
+)
 
 
-#: Default location for the behavioral CSV relative to the project root.
-BEHAVIORAL_DATA_PATH: Path = _default_data_path()
+def _discover_environment_override() -> tuple[Optional[Path], Optional[str]]:
+    for env_name in (BEHAVIORAL_DATA_ENV,) + BEHAVIORAL_DATA_ENV_ALIASES:
+        env_value = os.environ.get(env_name)
+        if env_value:
+            return Path(env_value).expanduser().resolve(), env_name
+    return None, None
+
+
+_ENVIRONMENT_OVERRIDE, BEHAVIORAL_DATA_OVERRIDE_ENV = _discover_environment_override()
+
+
+#: Default location for the behavioural CSV after resolving environment overrides.
+BEHAVIORAL_DATA_PATH: Path = (
+    _ENVIRONMENT_OVERRIDE
+    if _ENVIRONMENT_OVERRIDE is not None
+    else CANONICAL_BEHAVIORAL_DATA_PATH
+)
 
 EXPECTED_ROW_COUNT = 440
 EXPECTED_FLY_COUNT = 35
@@ -91,7 +99,9 @@ class BehavioralTrialSet:
 __all__ = [
     "BEHAVIORAL_DATA_ENV",
     "BEHAVIORAL_DATA_ENV_ALIASES",
+    "BEHAVIORAL_DATA_OVERRIDE_ENV",
     "BEHAVIORAL_DATA_PATH",
+    "CANONICAL_BEHAVIORAL_DATA_PATH",
     "BehavioralTrial",
     "BehavioralTrialSet",
     "load_behavioral_dataframe",
@@ -105,7 +115,13 @@ __all__ = [
 
 
 def _to_path(path: Optional[PathLike]) -> Path:
-    return Path(path) if path is not None else BEHAVIORAL_DATA_PATH
+    return Path(path).expanduser().resolve() if path is not None else BEHAVIORAL_DATA_PATH
+
+
+def _resolve_data_path(path: Optional[PathLike]) -> tuple[Path, bool]:
+    resolved_path = _to_path(path)
+    is_canonical = resolved_path == CANONICAL_BEHAVIORAL_DATA_PATH
+    return resolved_path, is_canonical
 
 
 def _unique_in_order(values: Sequence) -> list:
@@ -118,16 +134,21 @@ def _unique_in_order(values: Sequence) -> list:
     return ordered
 
 
-def _validate_behavioral_dataframe(df: pd.DataFrame) -> None:
-    if len(df) != EXPECTED_ROW_COUNT:
+def _validate_behavioral_dataframe(
+    df: pd.DataFrame,
+    *,
+    expected_trials: Optional[int] = EXPECTED_ROW_COUNT,
+    expected_flies: Optional[int] = EXPECTED_FLY_COUNT,
+) -> None:
+    if expected_trials is not None and len(df) != expected_trials:
         raise ValueError(
-            f"Expected {EXPECTED_ROW_COUNT} behavioural trials, found {len(df)}."
+            f"Expected {expected_trials} behavioural trials, found {len(df)}."
         )
 
     unique_flies = df["fly"].nunique()
-    if unique_flies != EXPECTED_FLY_COUNT:
+    if expected_flies is not None and unique_flies != expected_flies:
         raise ValueError(
-            f"Expected {EXPECTED_FLY_COUNT} unique flies, found {unique_flies}."
+            f"Expected {expected_flies} unique flies, found {unique_flies}."
         )
 
     dataset_per_fly = df.groupby("fly")["dataset"].nunique()
@@ -158,9 +179,11 @@ def load_behavioral_dataframe(
         Optional override for the CSV path.  When omitted the loader reads the
         canonical dataset from :data:`BEHAVIORAL_DATA_PATH`.
     validate:
-        When ``True`` perform dataset-level validation checks (row count,
-        grouping invariants).  ``None`` enables validation automatically when
-        reading from :data:`BEHAVIORAL_DATA_PATH` and the file exists.
+        When ``True`` perform dataset-level validation checks (row count when
+        loading the canonical dataset, plus grouping invariants).  ``None``
+        enables validation automatically whenever the CSV exists at the chosen
+        path; canonical reads enforce the fixed 440×35 structure while
+        overrides retain only the structural checks.
 
     Returns
     -------
@@ -170,12 +193,17 @@ def load_behavioral_dataframe(
         be deterministic across runs and independent of the on-disk layout.
     """
 
-    csv_path = _to_path(path)
+    csv_path, is_canonical = _resolve_data_path(path)
     df = pd.read_csv(csv_path)
     sorted_df = df.sort_values(["fly", "trial_label"], kind="mergesort").reset_index(drop=True)
-    should_validate = validate if validate is not None else csv_path == BEHAVIORAL_DATA_PATH and csv_path.exists()
+    enforce_expected_counts = is_canonical and csv_path.exists()
+    should_validate = validate if validate is not None else csv_path.exists()
     if should_validate:
-        _validate_behavioral_dataframe(sorted_df)
+        _validate_behavioral_dataframe(
+            sorted_df,
+            expected_trials=EXPECTED_ROW_COUNT if enforce_expected_counts else None,
+            expected_flies=EXPECTED_FLY_COUNT if enforce_expected_counts else None,
+        )
     return sorted_df
 
 

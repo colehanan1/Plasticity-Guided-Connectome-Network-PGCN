@@ -419,12 +419,29 @@ splits and ChemicalSTDP fine-tuning confined to the KC→MBON projection.
    ```
 
    The loader will resolve the absolute path, expand `~` if necessary, and
-   continue to enforce the 440-trial validation. Confirm your dataset preserves
-   one dataset per fly and consistent `trial_label` coverage before running
-   large experiments. The odor mapping remains identical to the bundled
+   enforce the canonical 440-trial/35-fly counts only when reading the bundled
+   dataset from `data/model_predictions.csv`. External exports keep the
+   grouping invariants—single dataset per fly and identical `trial_label`
+   coverage—but skip the fixed-length assertion so larger cohorts (for example,
+   the 470-trial Opto export) load without manual edits. Confirm your dataset
+   preserves one dataset per fly and consistent `trial_label` coverage before
+   running large experiments. The odor mapping remains identical to the bundled
    reference, including `hex_control`, which reuses the `opto_hex` test-odor
    assignments; ensure custom exports honour that mapping so the CLI can
    resolve the correct chemical identities.
+
+   To sanity-check a redirected dataset, request validation explicitly—structural
+   invariants will still trigger a helpful error even though the row count is
+   relaxed:
+
+   ```bash
+   python - <<'PY'
+   from pgcn.data.behavioral_data import load_behavioral_dataframe
+
+   df = load_behavioral_dataframe(validate=True)
+   print(f"Loaded {len(df)} trials across {df['fly'].nunique()} flies.")
+   PY
+   ```
 
 2. **Inspect per-fold outputs**
 
@@ -541,13 +558,16 @@ All parquet files follow the schemas defined in `data_schema.md`.
 ## Behavioral Data Utilities
 
 The :mod:`pgcn.data.behavioral_data` module centralises access to
-`data/model_predictions.csv`, enforces the canonical row and fly counts, and
-exports immutable dataclasses for each behavioural trial. The loaders sort the
-raw CSV on `fly` and `trial_label`, reset the index, and propagate that
-deterministic ordering into helpers such as ``load_behavioral_tensor``,
-``load_behavioral_trial_matrix``, and the modelling-focused tuples described
-below. This guarantees that tensors and folds align with the documented
-``(fly, trial_label)`` pairs regardless of the storage order on disk.
+`data/model_predictions.csv`, enforces the canonical row and fly counts when
+that bundled dataset is available, and exports immutable dataclasses for each
+behavioural trial. Environment overrides relax the fixed-size requirement while
+preserving structural checks so bespoke exports still align with modelling
+expectations. The loaders sort the raw CSV on `fly` and `trial_label`, reset the
+index, and propagate that deterministic ordering into helpers such as
+``load_behavioral_tensor``, ``load_behavioral_trial_matrix``, and the
+modelling-focused tuples described below. This guarantees that tensors and
+folds align with the documented ``(fly, trial_label)`` pairs regardless of the
+storage order on disk.
 
 Helper functions cover both pandas and tensor workflows:
 
