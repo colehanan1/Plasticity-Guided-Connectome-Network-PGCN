@@ -339,6 +339,49 @@ odor-generalisation analyses. The modules live under `pgcn.chemical` and
    The reservoir auto-resolves `n_pn`/`n_kc` dimensions from the matrix and
    keeps absent connections masked without resampling new sparsity patterns.
 
+## Behavioral cross-validation CLI
+
+Week 4 and later checkpoints track behavioural generalisation via grouped
+cross-validation. The repository provides a reference driver under
+`analysis/cross_validation.py` that reproduces those metrics with fly-aware
+splits and ChemicalSTDP fine-tuning confined to the KC→MBON projection.
+
+1. **Run grouped cross-validation**
+
+   ```bash
+   python analysis/cross_validation.py \
+     --folds 5 \
+     --output-dir artifacts/cross_validation \
+     --report-prefix week4
+   ```
+
+   The command consumes the canonical behavioural CSV (or a custom dataset via
+   `--data`) and instantiates a fresh
+   `ChemicallyInformedDrosophilaModel` for each fold. During training only the
+   KC→MBON weights are updated through the `ChemicalSTDP` plasticity rule while
+   all other parameters remain frozen. GroupKFold splitting respects the
+   `fly` identifier to prevent leakage across individuals.
+
+2. **Inspect per-fold outputs**
+
+   Every fold emits a JSON summary and a companion CSV of generalisation curves
+   in the specified output directory. Metrics include overall accuracy,
+   trained-odor accuracy, control separation (how sharply the model suppresses
+   `hex_control` responses relative to conditioned flies), and AUROC.
+
+3. **Review aggregate reports**
+
+   The script assembles `week4_report.json` and `week4_report.csv` (configurable
+   via `--report-prefix`). The JSON report captures per-fold metrics alongside
+   fold-wise means and standard deviations; the CSV lists each fold plus
+   appended mean/std rows for quick spreadsheet import.
+
+4. **Tune learning dynamics (optional)**
+
+   Adjust `--learning-rate` or `--decision-threshold` to explore alternative
+   plasticity strengths and classification cut-offs. Use `--device` to force CPU
+   or GPU execution when the default auto-detection does not match your setup.
+
 ## Troubleshooting common setup errors
 
 - **`Authentication secret not found at ~/.cloudvolume/secrets/cave-secret.json`** –
