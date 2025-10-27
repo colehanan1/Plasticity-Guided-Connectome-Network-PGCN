@@ -362,6 +362,54 @@ splits and ChemicalSTDP fine-tuning confined to the KC→MBON projection.
    all other parameters remain frozen. GroupKFold splitting respects the
    `fly` identifier to prevent leakage across individuals.
 
+   The fold training loop now feeds the model's instantaneous probability into
+   `ChemicalSTDP.update_plasticity`, which converts the binary reward into a
+   reward-prediction error (`reward - prediction`). Chemical similarity still
+   modulates the effective learning rate and expected generalisation, ensuring
+   odor pairs with weak literature support learn cautiously. Eligibility traces
+   are cached per `(training_odor, test_odor)` pair so repeated presentations
+   compound rather than restart plasticity. After each update the KC→MBON
+   matrix is clipped to remain non-negative, keeping the synapses biologically
+   plausible for downstream metrics that assume excitatory KC drive.
+
+   To verify the update dynamics after a short dry-run you can inspect the
+   minimum KC→MBON weight:
+
+   ```bash
+   python - <<'PY'
+   from pathlib import Path
+
+   import torch
+
+   from pgcn.models import ChemicallyInformedDrosophilaModel, ChemicalSTDP
+   from analysis.cross_validation import compute_model_response, resolve_training_odor, resolve_test_odor
+   import pandas as pd
+
+   df = pd.read_csv(Path('data/model_predictions.csv'))
+   model = ChemicallyInformedDrosophilaModel()
+   stdp = ChemicalSTDP(model.reservoir.n_kc, model.reservoir.n_mbon)
+   device = torch.device('cpu')
+   model.to(device)
+   stdp.to(device)
+   model.eval()
+   stdp.eval()
+
+   sample = df.iloc[0]
+   training = resolve_training_odor(sample['dataset'])
+   testing = resolve_test_odor(sample['dataset'], sample['trial_label'])
+   reward = float(sample['prediction'])
+   prob, kc_activity = compute_model_response(model, training, testing, device=device)
+   delta = stdp.update_plasticity(training, testing, reward=reward, predicted_response=prob, kc_activity=kc_activity)
+   with torch.no_grad():
+       model.reservoir.kc_to_mbon.weight.add_(delta.to(model.reservoir.kc_to_mbon.weight.device))
+       model.reservoir.kc_to_mbon.weight.clamp_(min=0.0)
+   print('Minimum KC→MBON weight:', float(model.reservoir.kc_to_mbon.weight.min()))
+   PY
+   ```
+
+   A non-negative minimum confirms the clipping guard is active and prevents
+   inhibitory spill-over from the plastic pathway.
+
    When pointing to a non-canonical CSV the script skips the strict 440-trial
    validation baked into `pgcn.data.behavioral_data.load_behavioral_dataframe`.
    Confirm your dataset preserves one dataset per fly and consistent

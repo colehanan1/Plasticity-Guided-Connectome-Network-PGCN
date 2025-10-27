@@ -104,25 +104,44 @@ class ChemicalSTDP(BaseModule):
         self,
         training_odor: str,
         test_odor: str,
+        *,
         reward: float,
+        predicted_response: float,
         kc_activity: torch.Tensor,
     ) -> torch.Tensor:
+        """Compute KC→MBON weight updates using reward prediction error."""
+
         similarity = compute_chemical_similarity_constraint(training_odor, test_odor)
-        effective_lr = self.base_lr * similarity["learning_rate_modifier"]
-        expected_response = similarity["expected_generalization"]
-        dopamine = float(reward) - expected_response
+        effective_lr = float(self.base_lr * similarity["learning_rate_modifier"])
+        expected_response = float(similarity["expected_generalization"])
+
+        reward = float(reward)
+        predicted_response = float(predicted_response)
+        reward_prediction_error = reward - predicted_response
+        baseline_error = reward - expected_response
+        combined_error = reward_prediction_error + 0.5 * baseline_error
 
         if kc_activity.dim() == 1:
             kc_activity = kc_activity.unsqueeze(0)
-        avg_activity = kc_activity.mean(dim=0)
+        avg_activity = kc_activity.mean(dim=0).clamp_min(0.0)
         odor_pair = (training_odor.lower(), test_odor.lower())
         trace = self.eligibility_traces.get(odor_pair)
         if trace is None:
             trace = self.zero_trace.clone()
-            self.eligibility_traces[odor_pair] = trace
-        trace += torch.outer(avg_activity, torch.ones(self.mbon_dim, device=avg_activity.device))
-        delta_w = -effective_lr * dopamine * trace
-        return delta_w
+        if trace.device != avg_activity.device or trace.dtype != avg_activity.dtype:
+            trace = trace.to(device=avg_activity.device, dtype=avg_activity.dtype)
+        self.eligibility_traces[odor_pair] = trace
+
+        ones = torch.ones(self.mbon_dim, device=avg_activity.device, dtype=trace.dtype)
+        avg_activity = avg_activity.to(trace.dtype)
+
+        with torch.no_grad():
+            trace.add_(torch.outer(avg_activity, ones))
+            lr = trace.new_tensor(effective_lr)
+            error_term = trace.new_tensor(combined_error)
+            delta_w = -lr * error_term * trace
+            delta_w = torch.nan_to_num(delta_w)
+        return delta_w.transpose(0, 1).contiguous()
 
 
 __all__ = ["ChemicallyInformedDrosophilaModel", "ChemicalSTDP"]

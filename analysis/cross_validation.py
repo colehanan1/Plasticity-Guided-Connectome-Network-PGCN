@@ -185,11 +185,20 @@ def train_fold(
         training_odor = resolve_training_odor(dataset)
         test_odor = resolve_test_odor(dataset, str(row.trial_label))
         reward = float(row.prediction)
-        _, kc_activity = compute_model_response(model, training_odor, test_odor, device=device)
-        delta = stdp.update_plasticity(training_odor, test_odor, reward=reward, kc_activity=kc_activity)
+        probability, kc_activity = compute_model_response(
+            model, training_odor, test_odor, device=device
+        )
+        delta = stdp.update_plasticity(
+            training_odor,
+            test_odor,
+            reward=reward,
+            predicted_response=probability,
+            kc_activity=kc_activity,
+        )
         weight = model.reservoir.kc_to_mbon.weight
         with torch.no_grad():
-            weight.add_(delta.to(weight.device).T)
+            weight.add_(delta.to(device=weight.device, dtype=weight.dtype))
+            weight.clamp_(min=0.0)
 
 
 def evaluate_fold(
