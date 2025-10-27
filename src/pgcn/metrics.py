@@ -27,13 +27,21 @@ def jaccard_kc_overlap(e_pn_kc: pd.DataFrame, pn_nodes: pd.DataFrame) -> pd.Data
     """Compute Jaccard overlap of Kenyon cell targets per glomerulus."""
 
     required_edge_cols = {"source_id", "target_id"}
-    required_node_cols = {"node_id", "glomerulus"}
+    required_node_cols = {"node_id"}
     missing_edges = required_edge_cols - set(e_pn_kc.columns)
     missing_nodes = required_node_cols - set(pn_nodes.columns)
     if missing_edges:
         raise ValueError(f"PN→KC edge table missing columns: {sorted(missing_edges)}")
     if missing_nodes:
         raise ValueError(f"PN node table missing columns: {sorted(missing_nodes)}")
+
+    if "glomerulus" not in pn_nodes.columns:
+        LOGGER.warning(
+            "PN node table missing 'glomerulus'. Emitting empty overlap table. "
+            "Rebuild the cache with Codex annotations or rerun pgcn-cache once API access is available."
+        )
+        pn_nodes = pn_nodes.copy()
+        pn_nodes["glomerulus"] = pd.NA
 
     pn_nodes = pn_nodes.dropna(subset=["glomerulus"]).copy()
     pn_nodes["glomerulus"] = pn_nodes["glomerulus"].astype(str)
@@ -45,7 +53,7 @@ def jaccard_kc_overlap(e_pn_kc: pd.DataFrame, pn_nodes: pd.DataFrame) -> pd.Data
             continue
         glom_to_kcs.setdefault(glom, set()).add(int(kc_id))
 
-    records = []
+    records: list[dict[str, object]] = []
     gloms = sorted(glom_to_kcs.keys())
     for i, g_a in enumerate(gloms):
         kc_a = glom_to_kcs[g_a]
@@ -65,6 +73,19 @@ def jaccard_kc_overlap(e_pn_kc: pd.DataFrame, pn_nodes: pd.DataFrame) -> pd.Data
                     "jaccard": float(jaccard),
                 }
             )
+
+    if not records:
+        return pd.DataFrame(
+            columns=[
+                "glomerulus_a",
+                "glomerulus_b",
+                "kc_count_a",
+                "kc_count_b",
+                "intersection",
+                "union",
+                "jaccard",
+            ]
+        )
     return pd.DataFrame.from_records(records)
 
 
