@@ -13,6 +13,11 @@ def _write_csv(path: Path, rows: list[dict[str, object]]) -> None:
     df.to_csv(path, index=False)
 
 
+def _write_tsv(path: Path, rows: list[dict[str, object]]) -> None:
+    df = pd.DataFrame(rows)
+    df.to_csv(path, index=False, sep="\t")
+
+
 def test_build_codex_cache_basic(tmp_path: Path) -> None:
     neurons_csv = tmp_path / "neurons.csv"
     synapses_csv = tmp_path / "synapses.csv"
@@ -98,3 +103,17 @@ def test_cli_invocation(tmp_path: Path) -> None:
     )
     assert exit_code == 0
     assert (out_dir / "nodes.parquet").exists()
+
+
+def test_build_codex_cache_accepts_tsv_variants(tmp_path: Path) -> None:
+    neurons_tsv = tmp_path / "cell_types.tsv"
+    synapses_tsvgz = tmp_path / "connections_filtered.tsv.gz"
+
+    _write_tsv(neurons_tsv, [{"id": 100, "class": "PN"}, {"id": 200, "class": "KC"}])
+    pd.DataFrame([
+        {"source_id": 100, "target_id": 200, "synapse_weight": 4},
+    ]).to_csv(synapses_tsvgz, index=False, sep="\t", compression="gzip")
+
+    artifacts = build_codex_cache(neurons_tsv, synapses_tsvgz, tmp_path / "out_tsv")
+    assert artifacts.nodes.exists()
+    assert set(pd.read_parquet(artifacts.nodes).type.tolist()) == {"PN", "KC"}

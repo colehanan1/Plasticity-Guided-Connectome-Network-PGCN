@@ -113,9 +113,18 @@ exposes command line interfaces for cache generation and structural metrics.
    1. **Download the Codex neuron and synapse tables**
 
       Visit [https://codex.flywire-daf.com](https://codex.flywire-daf.com),
-      select the FAFB snapshot 783 dataset, and export the *Neurons* and
-      *Synapses* tables. Save the resulting CSV (or CSV.GZ/Parquet) files into a
-      working directory, for example `~/Downloads/fafb_codex_783/`.
+      select the FAFB snapshot 783 dataset, and export the following datasets:
+
+      - **Cell Types** – provides neuron metadata and type annotations (used for
+        the `--neurons` input).
+      - **Connections (Filtered)** *or* **Synapse Table** – provides PN→KC/KC→MBON
+        connectivity with weight/count information (used for the `--synapses`
+        input). The filtered connections table is lighter (~68 MB) and suffices
+        for reservoir hydration; the full synapse table (~2.7 GB) is optional if
+        you need per-synapse records.
+
+      Codex exports are delivered as CSV/TSV (often compressed as `.gz`). Save
+      them into a working directory, for example `~/Downloads/fafb_codex_783/`.
 
    2. **Convert the exports into the PGCN cache layout**
 

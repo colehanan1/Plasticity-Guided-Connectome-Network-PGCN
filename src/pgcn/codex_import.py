@@ -43,14 +43,20 @@ class CodexImportConfig:
 
 
 def _read_table(path: Path) -> pd.DataFrame:
-    suffix = path.suffix.lower()
-    if suffix in {".csv", ""} or path.name.lower().endswith(".csv.gz"):
+    """Load Codex exports regardless of delimiter/compression quirks."""
+
+    lowered = path.name.lower()
+    if lowered.endswith((".csv", ".csv.gz", ".csv.bz2", ".csv.zip")):
         return pd.read_csv(path)
-    if suffix in {".parquet", ""} and path.name.lower().endswith(".parquet"):
+    if lowered.endswith((".tsv", ".tsv.gz", ".tsv.bz2", ".tsv.zip")):
+        return pd.read_csv(path, sep="\t")
+    if lowered.endswith((".parquet", ".parquet.gz")):
         return pd.read_parquet(path)
-    if suffix == ".json":
+    if lowered.endswith(".json"):
         return pd.read_json(path)
-    raise ValueError(f"Unsupported table format for '{path}'. Use CSV, CSV.GZ, or Parquet.")
+    raise ValueError(
+        f"Unsupported table format for '{path}'. Use CSV/TSV (optionally gz/bz2/zip), Parquet, or JSON."
+    )
 
 
 def _infer_column(columns: Iterable[str], candidates: Sequence[str]) -> Optional[str]:
@@ -201,10 +207,26 @@ def build_codex_cache(
 
 def cli(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Convert FlyWire Codex exports (neurons + synapses) into a PGCN cache."
+        description=(
+            "Convert FlyWire Codex exports (Cell Types + Connections/Synapses) into a PGCN cache."
+        )
     )
-    parser.add_argument("--neurons", type=Path, required=True, help="Path to neurons CSV/Parquet export.")
-    parser.add_argument("--synapses", type=Path, required=True, help="Path to synapses CSV/Parquet export.")
+    parser.add_argument(
+        "--neurons",
+        type=Path,
+        required=True,
+        help=(
+            "Path to the Codex 'Cell Types' export (CSV/TSV/Parquet). Include proofread names if available."
+        ),
+    )
+    parser.add_argument(
+        "--synapses",
+        type=Path,
+        required=True,
+        help=(
+            "Path to the Codex 'Connections (Filtered)' or 'Synapse Table' export (CSV/TSV/Parquet)."
+        ),
+    )
     parser.add_argument("--out", type=Path, default=Path("data") / "cache", help="Output directory for cache files.")
     for neuron_type in CANONICAL_TYPES:
         parser.add_argument(
