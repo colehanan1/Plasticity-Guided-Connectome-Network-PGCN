@@ -116,6 +116,35 @@ CHEMICAL_PROPERTIES: Mapping[str, Mapping[str, object]] = {
     },
 }
 
+
+def _normalise_alias_key(name: str) -> str:
+    """Normalise odor identifiers for alias resolution."""
+
+    return name.strip().lower().replace(" ", "_").replace("-", "_")
+
+
+# Synonym table linking behavioural shorthand to canonical chemicals.
+ODOR_ALIASES: Mapping[str, str] = {
+    "opto_eb": "ethyl_butyrate",
+    "opto_hex": "hexanol",
+    "opto_benz_1": "benzaldehyde",
+    "hex_control": "hexanol",
+    "ethyl_butrate": "ethyl_butyrate",
+}
+
+
+def canonicalise_odor_name(odor: str) -> str:
+    """Return the canonical chemical key for a provided odor identifier."""
+
+    key = _normalise_alias_key(odor)
+    canonical = ODOR_ALIASES.get(key, key)
+    if canonical not in CHEMICAL_PROPERTIES:
+        known = sorted(CHEMICAL_PROPERTIES)
+        raise KeyError(
+            f"Unknown odor '{odor}'. Known canonical odors: {known} and aliases: {sorted(ODOR_ALIASES)}"
+        )
+    return canonical
+
 # Precomputed similarity scores blending structural and functional motifs.
 CHEMICAL_SIMILARITY_MATRIX: Mapping[Tuple[str, str], float] = {
     ("ethyl_butyrate", "hexanol"): 0.3,
@@ -164,4 +193,6 @@ __all__ = [
     "CHEMICAL_SIMILARITY_MATRIX",
     "EMPIRICAL_RESPONSE_PATTERNS",
     "ODOR_GLOMERULUS_MAPPING",
+    "ODOR_ALIASES",
+    "canonicalise_odor_name",
 ]

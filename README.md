@@ -398,9 +398,9 @@ splits and ChemicalSTDP fine-tuning confined to the KC→MBON projection.
    reward = float(sample['prediction'])
    prob, kc_activity = compute_model_response(model, training, testing, device=device)
    delta = stdp.update_plasticity(training, testing, reward=reward, predicted_response=prob, kc_activity=kc_activity)
-   with torch.no_grad():
-       model.reservoir.kc_to_mbon.weight.add_(delta.to(model.reservoir.kc_to_mbon.weight.device))
-       model.reservoir.kc_to_mbon.weight.clamp_(min=0.0)
+  with torch.no_grad():
+      model.reservoir.kc_to_mbon.weight.add_(delta.to(model.reservoir.kc_to_mbon.weight.device))
+      model.reservoir.kc_to_mbon.weight.clamp_(min=0.0)
   print('Minimum KC→MBON weight:', model.reservoir.kc_to_mbon.weight.min().item())
   PY
   ```
@@ -413,10 +413,26 @@ splits and ChemicalSTDP fine-tuning confined to the KC→MBON projection.
   Python float. This addresses PyTorch's warning about converting tensors with
   `requires_grad=True` in-place while keeping the monitoring output intact.
 
-  ### Enabling gradient tracking for custom experiments
+  ### Behavioural shorthand and gradient-aware dry runs
+
+  Field notebooks frequently reference training conditions by their
+  optogenetic shorthand. The model now resolves those aliases to their
+  canonical chemicals automatically:
+
+  | Behavioural dataset | Canonical chemical |
+  |---------------------|--------------------|
+  | `opto_EB`           | `ethyl_butyrate`   |
+  | `opto_hex`          | `hexanol`          |
+  | `opto_benz_1`       | `benzaldehyde`     |
+  | `hex_control`       | `hexanol`          |
+
+  Trial labels such as `testing_7` are expanded using the selected training
+  dataset, ensuring the correct downstream chemical features are retrieved.
 
   If you need gradient information for downstream analyses or hybrid learning
-  schemes, request it explicitly via the `track_gradients=True` flag:
+  schemes, request it explicitly via the `track_gradients=True` flag. You may
+  supply either the behavioural identifiers shown above or the canonical
+  chemical names directly:
 
   ```bash
   python - <<'PY'
@@ -431,8 +447,8 @@ splits and ChemicalSTDP fine-tuning confined to the KC→MBON projection.
   with torch.enable_grad():
       prob, kc_activity = compute_model_response(
           model,
-          training_odor="opto_EB",
-          test_odor="testing_7",
+          training_odor="opto_EB",  # behavioural shorthand
+          test_odor="testing_7",     # resolves via the dataset mapping
           device=torch.device("cpu"),
           track_gradients=True,
       )

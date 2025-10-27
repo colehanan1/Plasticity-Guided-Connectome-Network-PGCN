@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from typing import Dict, Tuple
 
-from .mappings import CHEMICAL_PROPERTIES, CHEMICAL_SIMILARITY_MATRIX
+from .mappings import (
+    CHEMICAL_PROPERTIES,
+    CHEMICAL_SIMILARITY_MATRIX,
+    canonicalise_odor_name,
+)
 
 _DEFAULT_DIRECT_SIMILARITY = 0.2
-
-
-def _normalise_key(training_odor: str, test_odor: str) -> Tuple[str, str]:
-    return training_odor.lower(), test_odor.lower()
 
 
 def _lookup_direct_similarity(training_odor: str, test_odor: str) -> float:
@@ -32,11 +32,8 @@ def _lookup_direct_similarity(training_odor: str, test_odor: str) -> float:
 def compute_chemical_similarity_constraint(training_odor: str, test_odor: str) -> Dict[str, float]:
     """Combine structural and functional similarity into learning constraints."""
 
-    train_key, test_key = _normalise_key(training_odor, test_odor)
-    if train_key not in CHEMICAL_PROPERTIES:
-        raise KeyError(f"Unknown training odor '{training_odor}'.")
-    if test_key not in CHEMICAL_PROPERTIES:
-        raise KeyError(f"Unknown test odor '{test_odor}'.")
+    train_key = canonicalise_odor_name(training_odor)
+    test_key = canonicalise_odor_name(test_odor)
 
     direct_similarity = _lookup_direct_similarity(train_key, test_key)
 

@@ -11,7 +11,7 @@ try:  # pragma: no cover - optional dependency
 except ImportError:  # pragma: no cover - handled gracefully
     torch = None  # type: ignore[assignment]
 
-from .mappings import CHEMICAL_PROPERTIES
+from .mappings import CHEMICAL_PROPERTIES, canonicalise_odor_name
 
 # Derive the canonical functional group ordering once at import time.
 _FUNCTIONAL_GROUPS: List[str] = sorted(
@@ -34,10 +34,7 @@ def _functional_group_vector(groups: Iterable[str]) -> np.ndarray:
 def get_chemical_features(odor: str, *, as_tensor: bool | None = None):
     """Return a feature vector encoding key physicochemical attributes."""
 
-    odor_key = odor.lower()
-    if odor_key not in CHEMICAL_PROPERTIES:
-        raise KeyError(f"Unknown odor '{odor}'. Known odors: {sorted(CHEMICAL_PROPERTIES)}")
-
+    odor_key = canonicalise_odor_name(odor)
     props = CHEMICAL_PROPERTIES[odor_key]
     vector = np.array(
         [

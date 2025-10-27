@@ -23,11 +23,12 @@ except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
     raise ImportError("scikit-learn must be installed to compute AUROC scores.") from exc
 
 from pgcn.chemical.features import get_chemical_features
-from pgcn.chemical.mappings import COMPLETE_ODOR_MAPPINGS
+from pgcn.chemical.mappings import COMPLETE_ODOR_MAPPINGS, canonicalise_odor_name
 from pgcn.data.behavioral_data import load_behavioral_dataframe, make_group_kfold
 from pgcn.models import ChemicalSTDP, ChemicallyInformedDrosophilaModel
 
 TRAINED_TRIAL_LABELS = {"testing_2", "testing_4", "testing_5"}
+DATASET_KEY_LOOKUP = {key.lower(): key for key in COMPLETE_ODOR_MAPPINGS}
 CONTROL_DATASET = "hex_control"
 CHANCE_LEVEL = 0.5
 PERFORMANCE_TARGETS = {
@@ -125,6 +126,40 @@ def resolve_test_odor(dataset: str, trial_label: str) -> str:
     return mapping[trial_label]
 
 
+def _match_dataset(identifier: str) -> str | None:
+    return DATASET_KEY_LOOKUP.get(identifier.lower())
+
+
+def _resolve_odors(training_identifier: str, test_identifier: str) -> tuple[str | None, str, str]:
+    """Resolve heterogeneous odor identifiers to canonical chemical keys."""
+
+    dataset_key = _match_dataset(training_identifier)
+    if dataset_key is not None:
+        canonical_training = canonicalise_odor_name(resolve_training_odor(dataset_key))
+    else:
+        canonical_training = canonicalise_odor_name(training_identifier)
+
+    mapping = COMPLETE_ODOR_MAPPINGS.get(dataset_key) if dataset_key is not None else None
+    if mapping is not None and test_identifier in mapping:
+        canonical_test = canonicalise_odor_name(mapping[test_identifier])
+    else:
+        try:
+            canonical_test = canonicalise_odor_name(test_identifier)
+        except KeyError as exc:
+            if mapping is None:
+                raise KeyError(
+                    "Unable to resolve test odor '{test_id}'. Provide a canonical chemical name "
+                    "or pass the behavioural dataset identifier as the training odor so trial "
+                    "labels can be expanded."
+                    .format(test_id=test_identifier)
+                ) from exc
+            raise KeyError(
+                f"Dataset '{dataset_key}' lacks a mapping for trial '{test_identifier}'."
+            ) from exc
+
+    return dataset_key, canonical_training, canonical_test
+
+
 def freeze_model_parameters(model: ChemicallyInformedDrosophilaModel) -> None:
     for param in model.parameters():
         param.requires_grad = False
@@ -140,18 +175,25 @@ def compute_model_response(
 ) -> tuple[Union[float, torch.Tensor], torch.Tensor]:
     """Run the model and return the KC→MBON probability plus KC activity."""
 
+    dataset_key, canonical_training, canonical_test = _resolve_odors(training_odor, test_odor)
+
     grad_context = torch.enable_grad if track_gradients else torch.no_grad
     with grad_context():
         dtype = next(model.parameters()).dtype
-        train_features = get_chemical_features(training_odor, as_tensor=True).to(device=device, dtype=dtype)
-        test_features = get_chemical_features(test_odor, as_tensor=True).to(device=device, dtype=dtype)
+        train_features = get_chemical_features(canonical_training, as_tensor=True).to(device=device, dtype=dtype)
+        test_features = get_chemical_features(canonical_test, as_tensor=True).to(device=device, dtype=dtype)
         train_features = train_features.unsqueeze(0)
         test_features = test_features.unsqueeze(0)
 
         train_repr = model.chemical_encoder(train_features)
         test_repr = model.chemical_encoder(test_features)
         condition_index = torch.tensor(
-            [model.condition_lookup.get(training_odor.lower(), 0)],
+            [
+                model.condition_lookup.get(
+                    (dataset_key or canonical_training).lower(),
+                    model.condition_lookup.get(canonical_training, 0),
+                )
+            ],
             device=device,
             dtype=torch.long,
         )

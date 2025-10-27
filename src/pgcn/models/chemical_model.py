@@ -15,7 +15,7 @@ except ImportError:  # pragma: no cover - handled gracefully
 BaseModule = nn.Module if nn is not None else object
 
 from ..chemical.features import CHEMICAL_FEATURE_NAMES, get_chemical_features
-from ..chemical.mappings import COMPLETE_ODOR_MAPPINGS
+from ..chemical.mappings import COMPLETE_ODOR_MAPPINGS, canonicalise_odor_name
 from ..chemical.similarity import compute_chemical_similarity_constraint
 from .reservoir import DrosophilaReservoir, ReservoirConfig
 
@@ -31,11 +31,23 @@ class ChemicallyInformedDrosophilaModel(BaseModule):
         if torch is None or nn is None:
             raise ImportError("PyTorch must be installed to use ChemicallyInformedDrosophilaModel.")
         super().__init__()
-        self.training_conditions = (
+        base_conditions = (
             [cond.lower() for cond in training_conditions]
             if training_conditions is not None
-            else sorted(COMPLETE_ODOR_MAPPINGS)
+            else sorted({key.lower() for key in COMPLETE_ODOR_MAPPINGS})
         )
+        trained_labels = {"testing_2", "testing_4", "testing_5"}
+        canonical_conditions = []
+        for mapping in COMPLETE_ODOR_MAPPINGS.values():
+            for label, odor in mapping.items():
+                if label in trained_labels:
+                    canonical = canonicalise_odor_name(odor)
+                    canonical_conditions.append(canonical)
+        merged_conditions: list[str] = []
+        for condition in [*base_conditions, *sorted(set(canonical_conditions))]:
+            if condition not in merged_conditions:
+                merged_conditions.append(condition)
+        self.training_conditions = merged_conditions
         self.condition_lookup = {condition: idx for idx, condition in enumerate(self.training_conditions)}
 
         feature_dim = len(CHEMICAL_FEATURE_NAMES)
@@ -65,8 +77,14 @@ class ChemicallyInformedDrosophilaModel(BaseModule):
 
         train_repr = self.chemical_encoder(train_features)
         test_repr = self.chemical_encoder(test_features)
+        canonical_training = canonicalise_odor_name(training_odor)
         condition_index = torch.tensor(
-            [self.condition_lookup.get(training_odor.lower(), 0)],
+            [
+                self.condition_lookup.get(
+                    training_odor.lower(),
+                    self.condition_lookup.get(canonical_training, 0),
+                )
+            ],
             dtype=torch.long,
             device=train_repr.device,
         )
