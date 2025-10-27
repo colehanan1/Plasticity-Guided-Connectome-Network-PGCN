@@ -145,8 +145,12 @@ exposes command line interfaces for cache generation and structural metrics.
       The importer heuristically recognises PN/KC/MBON/DAN types by combining
       Codex `primary_type` and `additional_type(s)` annotations before applying
       the regex classifier, so “Projection neuron” or “Kenyon Cell” labels in
-      either column count. If your export uses project-specific labels, extend
-      the classifier with regular-expression overrides:
+      either column count. Root IDs truncated in the header (for example
+      `pre_root_id_720575940`) are expanded back to the canonical 64-bit values
+      even when the synapse table references neurons missing from the Cell
+      Types export, ensuring PN→KC edges survive the merge. If your export uses
+      project-specific labels, extend the classifier with regular-expression
+      overrides:
 
       ```bash
       pgcn-codex-import \
@@ -160,16 +164,20 @@ exposes command line interfaces for cache generation and structural metrics.
       The script writes `nodes.parquet`, `edges.parquet`, `dan_edges.parquet`,
       and `meta.json` so downstream tooling (metrics, reservoir hydration)
       works identically to the authenticated pipeline. After conversion run the
-      usual sanity checks to confirm PN→KC edges were detected:
+      usual sanity checks to confirm PN→KC edges were detected and normalised:
 
       ```bash
       pgcn-metrics --cache-dir data/cache/
       python - <<'PY'
       from pathlib import Path
       from pgcn.models.reservoir import DrosophilaReservoir
+      import json
 
       reservoir = DrosophilaReservoir(cache_dir=Path("data/cache"))
       print("PN→KC edges:", reservoir.pn_kc_mask.sum().item())
+      print("PN→KC weight rows:", reservoir.pn_to_kc.weight.shape[0])
+      meta = json.loads((Path("data/cache/meta.json")).read_text())
+      print("PN→KC edges in meta:", meta["counts"]["pn_kc_edges"])
       PY
       ```
 

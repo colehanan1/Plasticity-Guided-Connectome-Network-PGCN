@@ -84,38 +84,31 @@ def _normalise_root_ids(
             return None
         return int(value)
 
-    numeric = series.map(_to_int)
     ref_set = set(reference_ids.dropna().astype("int64").tolist())
-    numeric_set = {value for value in numeric if value is not None and not pd.isna(value)}
-    if numeric_set and numeric_set.issubset(ref_set):
-        return pd.Series(numeric, index=series.index, dtype="Int64")
-
     match = re.search(r"_(\d+)$", column_name)
-    if not match:
-        return pd.Series(numeric, index=series.index, dtype="Int64")
+    prefix = match.group(1) if match else None
+    suffix_width = None
+    if prefix and ref_set:
+        target_width = max(len(str(value)) for value in ref_set)
+        suffix_width = max(target_width - len(prefix), 0)
 
-    prefix = match.group(1)
-    target_width = max(len(str(value)) for value in ref_set) if ref_set else len(prefix)
-    suffix_width = max(target_width - len(prefix), 0)
-
-    reconstructed = []
-    for value in numeric:
-        if value is None:
-            reconstructed.append(pd.NA)
-        else:
-            suffix = str(value)
+    def _coerce(value: object) -> object:
+        numeric = _to_int(value)
+        if numeric is None:
+            return pd.NA
+        if numeric in ref_set:
+            return numeric
+        if prefix is not None:
+            suffix = str(numeric)
             if suffix_width:
                 suffix = suffix.zfill(suffix_width)
-            reconstructed.append(int(prefix + suffix))
+            candidate = int(prefix + suffix)
+            if candidate in ref_set:
+                return candidate
+        return numeric
 
-    reconstructed_series = pd.Series(reconstructed, index=series.index, dtype="Int64")
-    reconstructed_set = {
-        value for value in reconstructed if value is not pd.NA and not pd.isna(value)
-    }
-    if reconstructed_set and reconstructed_set.issubset(ref_set):
-        return reconstructed_series
-
-    return pd.Series(numeric, index=series.index, dtype="Int64")
+    coerced = series.map(_coerce)
+    return coerced.astype("Int64")
 
 
 def _normalise_types(series: pd.Series, config: CodexImportConfig) -> pd.Series:

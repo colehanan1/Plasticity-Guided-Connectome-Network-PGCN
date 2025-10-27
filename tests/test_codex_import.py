@@ -150,6 +150,38 @@ def test_build_codex_cache_handles_primary_type_and_suffix_ids(tmp_path: Path) -
     assert set(nodes.type.unique()) == {"PN", "KC"}
 
 
+def test_suffix_id_normalisation_handles_untyped_synapses(tmp_path: Path) -> None:
+    neurons_csv = tmp_path / "cell_types.csv"
+    synapses_csv = tmp_path / "synapses.csv"
+
+    _write_csv(
+        neurons_csv,
+        [
+            {"root_id": 72057594000000001, "primary_type": "Projection Neuron"},
+            {"root_id": 72057594000000002, "primary_type": "Kenyon Cell"},
+        ],
+    )
+    _write_csv(
+        synapses_csv,
+        [
+            {
+                "pre_root_id_720575940": 1,
+                "post_root_id_720575940": 2,
+                "size": 5,
+            },
+            {  # Unknown target id should not prevent known IDs from resolving
+                "pre_root_id_720575940": 1,
+                "post_root_id_720575940": 999999,
+                "size": 1,
+            },
+        ],
+    )
+
+    artifacts = build_codex_cache(neurons_csv, synapses_csv, tmp_path / "out_mixed")
+    edges = pd.read_parquet(artifacts.edges)
+    assert ((edges.edge_type == "PN_KC").sum()) == 1
+
+
 def test_build_codex_cache_uses_additional_type_columns(tmp_path: Path) -> None:
     neurons_csv = tmp_path / "cell_types_extra.csv"
     synapses_csv = tmp_path / "synapses_extra.csv"
