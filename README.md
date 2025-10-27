@@ -409,10 +409,13 @@ splits and ChemicalSTDP fine-tuning confined to the KC→MBON projection.
    inhibitory spill-over from the plastic pathway.
 
    Set the `PGCN_BEHAVIORAL_DATA` environment variable when the canonical
-   `data/model_predictions.csv` is unavailable locally:
+   `data/model_predictions.csv` is unavailable locally. A legacy alias,
+   `PGCN_BEHAVIORAL_DATA_PATH`, is also recognised for convenience:
 
    ```bash
    export PGCN_BEHAVIORAL_DATA=/home/ramanlab/Documents/cole/Data/Opto/Combined/model_predictions.csv
+   # or
+   export PGCN_BEHAVIORAL_DATA_PATH=/home/ramanlab/Documents/cole/Data/Opto/Combined/model_predictions.csv
    ```
 
    The loader will resolve the absolute path, expand `~` if necessary, and

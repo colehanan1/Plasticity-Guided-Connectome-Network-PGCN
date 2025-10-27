@@ -6,7 +6,10 @@ This ensures downstream consumers (e.g. tensor exports) observe a stable
 ordering regardless of the layout in the raw CSV.  When the canonical dataset
 is loaded from :data:`BEHAVIORAL_DATA_PATH` additional validation checks assert
 expected dataset sizes and grouping invariants so that downstream modelling can
-trust the behavioural annotations.
+trust the behavioural annotations.  The loader honours the
+``PGCN_BEHAVIORAL_DATA`` environment variable and a compatibility alias,
+``PGCN_BEHAVIORAL_DATA_PATH``, to support bespoke deployments that relocate the
+behavioural CSV outside the repository.
 """
 
 from __future__ import annotations
@@ -39,9 +42,17 @@ PathLike = str | Path
 #: Environment variable override for the behavioural dataset location.
 BEHAVIORAL_DATA_ENV = "PGCN_BEHAVIORAL_DATA"
 
+#: Backward-compatible aliases for environment variable overrides.
+BEHAVIORAL_DATA_ENV_ALIASES: tuple[str, ...] = ("PGCN_BEHAVIORAL_DATA_PATH",)
+
 
 def _default_data_path() -> Path:
     env_value = os.environ.get(BEHAVIORAL_DATA_ENV)
+    if not env_value:
+        for alias in BEHAVIORAL_DATA_ENV_ALIASES:
+            env_value = os.environ.get(alias)
+            if env_value:
+                break
     if env_value:
         return Path(env_value).expanduser().resolve()
     return Path(__file__).resolve().parents[3] / "data" / "model_predictions.csv"
@@ -79,6 +90,7 @@ class BehavioralTrialSet:
 
 __all__ = [
     "BEHAVIORAL_DATA_ENV",
+    "BEHAVIORAL_DATA_ENV_ALIASES",
     "BEHAVIORAL_DATA_PATH",
     "BehavioralTrial",
     "BehavioralTrialSet",
