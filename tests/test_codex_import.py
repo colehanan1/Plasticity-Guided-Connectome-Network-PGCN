@@ -50,6 +50,7 @@ def test_build_codex_cache_basic(tmp_path: Path) -> None:
     meta = json.loads(artifacts.meta.read_text())
 
     assert set(nodes.type.unique()) == {"PN", "KC", "MBON", "DAN"}
+    assert "glomerulus" in nodes.columns
     assert ((edges.edge_type == "PN_KC").sum()) == 1
     assert ((edges.edge_type == "KC_MBON").sum()) == 1
     assert len(dan_edges) == 1
@@ -203,6 +204,7 @@ def test_build_codex_cache_handles_class_column_aliases(tmp_path: Path) -> None:
     artifacts = build_codex_cache(neurons_csv, synapses_csv, tmp_path / "out_class")
     nodes = pd.read_parquet(artifacts.nodes)
     assert set(nodes.type.tolist()) == {"PN", "KC"}
+    assert "glomerulus" in nodes.columns
 
 
 def test_build_codex_cache_uses_additional_type_columns(tmp_path: Path) -> None:

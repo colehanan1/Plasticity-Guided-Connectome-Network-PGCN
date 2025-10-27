@@ -186,6 +186,17 @@ def build_codex_cache(
     )
 
     selected_columns = [node_id_col] + type_columns + ([name_col] if name_col else [])
+
+    glomerulus_col = _infer_column(neurons.columns, ["glomerulus"])
+    if glomerulus_col is None:
+        for column in neurons.columns:
+            lower = column.lower()
+            if "glom" in lower:
+                glomerulus_col = column
+                break
+    if glomerulus_col and glomerulus_col not in selected_columns:
+        selected_columns.append(glomerulus_col)
+
     neurons = neurons[selected_columns].copy()
     neurons[node_id_col] = pd.to_numeric(neurons[node_id_col], errors="coerce")
     neurons = neurons.dropna(subset=[node_id_col])
@@ -195,6 +206,8 @@ def build_codex_cache(
     neurons = neurons[neurons["type"].isin(CANONICAL_TYPES)]
 
     base_columns = [node_id_col, "type"] + ([name_col] if name_col else [])
+    if glomerulus_col:
+        base_columns.append(glomerulus_col)
     neurons = neurons[base_columns]
 
     if neurons.empty:
@@ -262,10 +275,21 @@ def build_codex_cache(
     ])[["source_id", "target_id", "synapse_weight", "edge_type"]]
     dan_edges = synapses[dan_mask][["source_id", "target_id", "synapse_weight"]]
 
-    node_columns = {node_id_col: "node_id", "type": "type"}
+    rename_map = {node_id_col: "node_id"}
     if name_col:
-        node_columns[name_col] = "name"
-    nodes = neurons.rename(columns=node_columns)[list(node_columns.values())].drop_duplicates()
+        rename_map[name_col] = "name"
+    if glomerulus_col:
+        rename_map[glomerulus_col] = "glomerulus"
+
+    nodes = neurons.rename(columns=rename_map)
+    keep_columns = ["node_id", "type"]
+    if name_col:
+        keep_columns.append("name")
+    if glomerulus_col:
+        keep_columns.append("glomerulus")
+    nodes = nodes[keep_columns].drop_duplicates()
+    if "glomerulus" not in nodes.columns:
+        nodes["glomerulus"] = pd.Series([pd.NA] * len(nodes), dtype="object")
 
     nodes_path = output_dir / CACHE_FILENAMES["nodes"]
     edges_path = output_dir / CACHE_FILENAMES["edges"]

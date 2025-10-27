@@ -153,7 +153,11 @@ exposes command line interfaces for cache generation and structural metrics.
       header (for example
       `pre_root_id_720575940`) are expanded back to the canonical 64-bit values
       even when the synapse table references neurons missing from the Cell
-      Types export, ensuring PN→KC edges survive the merge. If your export uses
+      Types export, ensuring PN→KC edges survive the merge. When Codex provides
+      glomerulus annotations they are passed through into the `nodes.parquet`
+      output; otherwise the importer emits an empty `glomerulus` column so the
+      downstream metrics skip overlap analyses gracefully instead of crashing.
+      If your export uses
       project-specific labels, extend the classifier with regular-expression
       overrides:
 
