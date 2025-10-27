@@ -105,6 +105,47 @@ exposes command line interfaces for cache generation and structural metrics.
    pgcn-cache --use-sample-data --out data/cache/
    ```
 
+## Behavioral data utilities
+
+The repository now exposes a dedicated loader for the published behavioral
+predictions (`data/model_predictions.csv`). Import the helper from
+``pgcn.data.behavioral_data`` to obtain validated pandas objects, immutable
+dataclasses, or PyTorch tensors that always honour the biological cross-fly
+groupings:
+
+```python
+from pgcn.data.behavioral_data import (
+    load_behavioral_dataframe,
+    load_behavioral_trials,
+    get_model_ready_dataframe,
+    get_model_ready_tensors,
+    make_group_kfold,
+)
+
+df = load_behavioral_dataframe()  # asserts 440 rows and 35 unique flies
+features, labels, groups = get_model_ready_dataframe(df)
+feature_tensor, label_tensor, group_tensor = get_model_ready_tensors(df)
+
+for train_idx, test_idx in make_group_kfold(n_splits=5, groups=groups):
+    ...  # downstream training logic
+```
+
+`load_behavioral_dataframe` enforces the 440-trial / 35-fly integrity checks,
+confirms each fly remains within a single training condition, and guarantees a
+stable ordering (`fly`, then `testing_1`→`testing_10`). When you need immutable
+records—for example to serialise experimental subsets—call
+`load_behavioral_trials` for typed dataclasses. The modelling helpers return
+one-hot encoded design matrices alongside binary labels and group identifiers to
+plug straight into scikit-learn or PyTorch pipelines. Reuse the
+`make_group_kfold` generator to obtain reproducible cross-validation splits that
+respect fly-level group boundaries.
+
+To validate the behavioural tooling in isolation run the focused pytest target:
+
+```bash
+python -m pytest tests/data/test_behavioral_data.py -v
+```
+
    ### Working with Codex snapshot 783 exports (public data path)
 
    While your FlyWire permissions are pending you can bootstrap the cache with
