@@ -397,20 +397,39 @@ All parquet files follow the schemas defined in `data_schema.md`.
 - `dan_valence.parquet`: PAM/PPL1/DAN-other valence labels.
 - `metrics_meta.json`: row counts for quick validation.
 
+## Behavioral Data Utilities
+
+The :mod:`pgcn.data.behavioral_data` module centralises access to
+`data/model_predictions.csv`, enforces the canonical row and fly counts, and
+exports immutable dataclasses for each behavioural trial. The loaders sort the
+raw CSV on `fly` and `trial_label`, reset the index, and propagate that
+deterministic ordering into helpers such as ``load_behavioral_tensor``,
+``load_behavioral_trial_matrix``, and the modelling-focused tuples described
+below. This guarantees that tensors and folds align with the documented
+``(fly, trial_label)`` pairs regardless of the storage order on disk.
+
+Helper functions cover both pandas and tensor workflows:
+
+- ``load_behavioral_trials()`` returns a :class:`BehavioralTrialSet` with sorted
+  ``(dataset, fly, trial_label)`` ordering and per-trial metadata snapshots.
+- ``load_behavioral_model_frames()`` emits ``(features, labels, groups)``
+  DataFrames/Series ready for scikit-learn pipelines.
+- ``load_behavioral_model_tensors()`` mirrors the pandas helper but yields
+  PyTorch tensors with integer-encoded group assignments.
+- ``make_group_kfold()`` wraps :class:`sklearn.model_selection.GroupKFold` to
+  produce deterministic, per-fly cross-validation splits.
+
+**Verify the ordering and grouping guarantees**
+
+```bash
+python -m pytest tests/data/test_behavioral_data.py -v
+```
+
+The suite asserts the reset index, the stable ordering in tensor exports, the
+behaviour of the modelling helpers, and the `fly × trial` pivot used for
+exploratory analysis.
+
 ## Authentication Notes
-
-FlyWire access requires a valid CAVE token stored at both
-`~/.cloudvolume/secrets/cave-secret.json` (legacy tools) and
-`~/.cloudvolume/secrets/global.daf-apis.com-cave-secret.json` (preferred by the
-FlyWire API). `pgcn-auth` keeps both files in sync, `pgcn-access-check`
-preflights permissions, and the cache pipeline exits early with actionable
-guidance if either the token is missing, malformed (`HTTP 401`), or the account
-lacks FAFB *view* rights (`HTTP 403`). The pipeline still pins materialization
-version 783 when available and records the selected version in `meta.json`. When
-version 783 is missing the latest available version is selected and the fallback
-is logged explicitly.
-
-## Testing Strategy
 
 Unit tests fabricate a deterministic cache to verify schema integrity,
 positive weights, and the absence of direct PN→MBON edges. The `--use-sample-data`
