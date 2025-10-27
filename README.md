@@ -108,10 +108,19 @@ exposes command line interfaces for cache generation and structural metrics.
 ## Behavioral data utilities
 
 The repository now exposes a dedicated loader for the published behavioral
-predictions (`data/model_predictions.csv`). Import the helper from
-``pgcn.data.behavioral_data`` to obtain validated pandas objects, immutable
-dataclasses, or PyTorch tensors that always honour the biological cross-fly
-groupings:
+predictions. Point the loader at the lab's canonical export—
+`/home/ramanlab/Documents/cole/Data/Opto/Combined/model_predictions.csv`—by
+setting an environment variable once in your shell session:
+
+```bash
+export PGCN_BEHAVIORAL_DATA_PATH="/home/ramanlab/Documents/cole/Data/Opto/Combined/model_predictions.csv"
+```
+
+When the variable is absent the loader falls back to the in-repo copy under
+`data/model_predictions.csv`, enabling out-of-the-box unit testing. Import the
+helper from ``pgcn.data.behavioral_data`` to obtain validated pandas objects,
+immutable dataclasses, or PyTorch tensors that always honour the biological
+cross-fly groupings:
 
 ```python
 from pgcn.data.behavioral_data import (
@@ -132,13 +141,17 @@ for train_idx, test_idx in make_group_kfold(n_splits=5, groups=groups):
 
 `load_behavioral_dataframe` enforces the 440-trial / 35-fly integrity checks,
 confirms each fly remains within a single training condition, and guarantees a
-stable ordering (`fly`, then `testing_1`→`testing_10`). When you need immutable
-records—for example to serialise experimental subsets—call
-`load_behavioral_trials` for typed dataclasses. The modelling helpers return
-one-hot encoded design matrices alongside binary labels and group identifiers to
-plug straight into scikit-learn or PyTorch pipelines. Reuse the
-`make_group_kfold` generator to obtain reproducible cross-validation splits that
-respect fly-level group boundaries.
+stable ordering (`fly`, then `testing_1`→`testing_10`). The loader also preserves
+the `fly_number` integer identifier and the model `probability` column, keeps
+probabilities within the [0, 1] interval, and raises when any fly maps to more
+than one identifier. When you need immutable records—for example to serialise
+experimental subsets—call `load_behavioral_trials` for typed dataclasses that
+expose `dataset`, `fly`, `fly_number`, `trial_label`, `prediction`, and
+`probability`. The modelling helpers return one-hot encoded design matrices with
+the numeric `fly_number` and `probability` covariates alongside binary labels and
+group identifiers to plug straight into scikit-learn or PyTorch pipelines.
+Reuse the `make_group_kfold` generator to obtain reproducible cross-validation
+splits that respect fly-level group boundaries.
 
 To validate the behavioural tooling in isolation run the focused pytest target:
 
