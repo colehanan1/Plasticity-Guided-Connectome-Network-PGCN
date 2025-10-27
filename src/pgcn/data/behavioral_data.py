@@ -42,9 +42,9 @@ class BehavioralTrial:
 
     dataset: str
     fly: str
-    fly_number: Optional[int] = None
     trial_label: str
     prediction: int
+    fly_number: Optional[int] = None
     probability: Optional[float] = None
 
 

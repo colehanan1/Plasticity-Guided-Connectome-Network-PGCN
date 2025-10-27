@@ -153,6 +153,12 @@ group identifiers to plug straight into scikit-learn or PyTorch pipelines.
 Reuse the `make_group_kfold` generator to obtain reproducible cross-validation
 splits that respect fly-level group boundaries.
 
+> **Dataclass ordering.** The immutable `BehavioralTrial` dataclass mirrors the
+> column semantics in positional order—`dataset`, `fly`, `trial_label`,
+> `prediction`, `fly_number`, `probability`—so tuple unpacking or positional
+> construction inside downstream notebooks works without triggering Python's
+> "non-default argument follows default argument" errors.
+
 To validate the behavioural tooling in isolation run the focused pytest target:
 
 ```bash
