@@ -105,6 +105,68 @@ exposes command line interfaces for cache generation and structural metrics.
    pgcn-cache --use-sample-data --out data/cache/
    ```
 
+   ### Working with Codex snapshot 783 exports (public data path)
+
+   While your FlyWire permissions are pending you can bootstrap the cache with
+   the public Codex release of snapshot 783:
+
+   1. **Download the Codex neuron and synapse tables**
+
+      Visit [https://codex.flywire-daf.com](https://codex.flywire-daf.com),
+      select the FAFB snapshot 783 dataset, and export the *Neurons* and
+      *Synapses* tables. Save the resulting CSV (or CSV.GZ/Parquet) files into a
+      working directory, for example `~/Downloads/fafb_codex_783/`.
+
+   2. **Convert the exports into the PGCN cache layout**
+
+      Use the new Codex importer (remember to reinstall with `pip install -e .`
+      after pulling changes) to materialise a local cache:
+
+      ```bash
+      pgcn-codex-import \
+        --neurons ~/Downloads/fafb_codex_783/neurons.csv.gz \
+        --synapses ~/Downloads/fafb_codex_783/synapses.csv.gz \
+        --out data/cache/
+      ```
+
+      The importer heuristically recognises PN/KC/MBON/DAN types. If your export
+      uses project-specific labels, extend the classifier with regular-expression
+      overrides:
+
+      ```bash
+      pgcn-codex-import \
+        --neurons neurons.csv \
+        --synapses synapses.csv \
+        --pn-pattern "^PN-" \
+        --kc-pattern "Kenyon" \
+        --out data/cache/
+      ```
+
+      The script writes `nodes.parquet`, `edges.parquet`, `dan_edges.parquet`,
+      and `meta.json` so downstream tooling (metrics, reservoir hydration) works
+      identically to the authenticated pipeline.
+
+   3. **Validate the generated cache**
+
+      Reuse the existing diagnostics to ensure the cache can drive the
+      reservoir:
+
+      ```bash
+      pgcn-metrics --cache-dir data/cache/
+      python - <<'PY'
+      from pathlib import Path
+      from pgcn.models.reservoir import DrosophilaReservoir
+
+      reservoir = DrosophilaReservoir(cache_dir=Path("data/cache"))
+      print("PN→KC weight matrix:", reservoir.pn_to_kc.weight.shape)
+      print("Mask density:", reservoir.pn_kc_mask.float().mean().item())
+      PY
+      ```
+
+      Any classification issues (for example if PN→KC edges are missing) can be
+      fixed by re-running `pgcn-codex-import` with additional `--*-pattern`
+      overrides until PN, KC, MBON, and DAN populations are detected.
+
 5. **Compute structural metrics**
 
    ```bash
