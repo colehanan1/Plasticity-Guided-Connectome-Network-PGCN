@@ -377,15 +377,13 @@ splits and ChemicalSTDP fine-tuning confined to the KC→MBON projection.
 
    ```bash
    python - <<'PY'
-   from pathlib import Path
-
    import torch
 
    from pgcn.models import ChemicallyInformedDrosophilaModel, ChemicalSTDP
+   from pgcn.data.behavioral_data import load_behavioral_dataframe
    from analysis.cross_validation import compute_model_response, resolve_training_odor, resolve_test_odor
-   import pandas as pd
 
-   df = pd.read_csv(Path('data/model_predictions.csv'))
+   df = load_behavioral_dataframe()
    model = ChemicallyInformedDrosophilaModel()
    stdp = ChemicalSTDP(model.reservoir.n_kc, model.reservoir.n_mbon)
    device = torch.device('cpu')
@@ -410,13 +408,20 @@ splits and ChemicalSTDP fine-tuning confined to the KC→MBON projection.
    A non-negative minimum confirms the clipping guard is active and prevents
    inhibitory spill-over from the plastic pathway.
 
-   When pointing to a non-canonical CSV the script skips the strict 440-trial
-   validation baked into `pgcn.data.behavioral_data.load_behavioral_dataframe`.
-   Confirm your dataset preserves one dataset per fly and consistent
-   `trial_label` coverage before running large experiments. The odor mapping
-   remains identical to the bundled reference, including `hex_control`, which
-   reuses the `opto_hex` test-odor assignments; ensure custom exports honour
-   that mapping so the CLI can resolve the correct chemical identities.
+   Set the `PGCN_BEHAVIORAL_DATA` environment variable when the canonical
+   `data/model_predictions.csv` is unavailable locally:
+
+   ```bash
+   export PGCN_BEHAVIORAL_DATA=/home/ramanlab/Documents/cole/Data/Opto/Combined/model_predictions.csv
+   ```
+
+   The loader will resolve the absolute path, expand `~` if necessary, and
+   continue to enforce the 440-trial validation. Confirm your dataset preserves
+   one dataset per fly and consistent `trial_label` coverage before running
+   large experiments. The odor mapping remains identical to the bundled
+   reference, including `hex_control`, which reuses the `opto_hex` test-odor
+   assignments; ensure custom exports honour that mapping so the CLI can
+   resolve the correct chemical identities.
 
 2. **Inspect per-fold outputs**
 

@@ -11,6 +11,7 @@ trust the behavioural annotations.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
@@ -35,8 +36,19 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency
 
 PathLike = str | Path
 
+#: Environment variable override for the behavioural dataset location.
+BEHAVIORAL_DATA_ENV = "PGCN_BEHAVIORAL_DATA"
+
+
+def _default_data_path() -> Path:
+    env_value = os.environ.get(BEHAVIORAL_DATA_ENV)
+    if env_value:
+        return Path(env_value).expanduser().resolve()
+    return Path(__file__).resolve().parents[3] / "data" / "model_predictions.csv"
+
+
 #: Default location for the behavioral CSV relative to the project root.
-BEHAVIORAL_DATA_PATH: Path = Path(__file__).resolve().parents[3] / "data" / "model_predictions.csv"
+BEHAVIORAL_DATA_PATH: Path = _default_data_path()
 
 EXPECTED_ROW_COUNT = 440
 EXPECTED_FLY_COUNT = 35
@@ -66,6 +78,7 @@ class BehavioralTrialSet:
     trial_order: tuple[str, ...]
 
 __all__ = [
+    "BEHAVIORAL_DATA_ENV",
     "BEHAVIORAL_DATA_PATH",
     "BehavioralTrial",
     "BehavioralTrialSet",
