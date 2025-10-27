@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Dict, Optional, Sequence, Tuple, Union
 
 try:  # pragma: no cover - optional dependency
     import torch
@@ -105,8 +105,8 @@ class ChemicalSTDP(BaseModule):
         training_odor: str,
         test_odor: str,
         *,
-        reward: float,
-        predicted_response: float,
+        reward: Union[float, torch.Tensor],
+        predicted_response: Union[float, torch.Tensor],
         kc_activity: torch.Tensor,
     ) -> torch.Tensor:
         """Compute KC→MBON weight updates using reward prediction error."""
@@ -115,8 +115,15 @@ class ChemicalSTDP(BaseModule):
         effective_lr = float(self.base_lr * similarity["learning_rate_modifier"])
         expected_response = float(similarity["expected_generalization"])
 
-        reward = float(reward)
-        predicted_response = float(predicted_response)
+        if isinstance(reward, torch.Tensor):
+            reward = float(reward.detach())
+        else:
+            reward = float(reward)
+
+        if isinstance(predicted_response, torch.Tensor):
+            predicted_response = float(predicted_response.detach())
+        else:
+            predicted_response = float(predicted_response)
         reward_prediction_error = reward - predicted_response
         baseline_error = reward - expected_response
         combined_error = reward_prediction_error + 0.5 * baseline_error

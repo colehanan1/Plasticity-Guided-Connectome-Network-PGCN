@@ -408,6 +408,12 @@ splits and ChemicalSTDP fine-tuning confined to the KC→MBON projection.
    A non-negative minimum confirms the clipping guard is active and prevents
    inhibitory spill-over from the plastic pathway.
 
+   The STDP helper now detaches autograd-tracked tensors internally before
+   computing scalar reward-prediction errors, so you can route the raw
+   probability returned by `compute_model_response` without first calling
+   `.item()` or `.detach()`. The warning about converting tensors that require
+   gradients to Python floats disappears automatically.
+
    Set the `PGCN_BEHAVIORAL_DATA` environment variable when the canonical
    `data/model_predictions.csv` is unavailable locally. A legacy alias,
    `PGCN_BEHAVIORAL_DATA_PATH`, is also recognised for convenience:
