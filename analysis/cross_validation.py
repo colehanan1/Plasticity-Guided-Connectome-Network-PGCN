@@ -29,6 +29,12 @@ from pgcn.models import ChemicalSTDP, ChemicallyInformedDrosophilaModel
 
 TRAINED_TRIAL_LABELS = {"testing_2", "testing_4", "testing_5"}
 CONTROL_DATASET = "hex_control"
+CHANCE_LEVEL = 0.5
+PERFORMANCE_TARGETS = {
+    "overall_accuracy": 0.70,
+    "trained_odor_accuracy": 0.80,
+    "control_separation": 0.90,
+}
 
 
 @dataclass(frozen=True)
@@ -409,6 +415,48 @@ def write_aggregate_reports(
     }
     csv_df = pd.concat([csv_df, pd.DataFrame([aggregate_mean, aggregate_std])], ignore_index=True)
     csv_df.to_csv(csv_path, index=False)
+    _emit_console_summary(metrics_df, aggregate)
+
+
+def _emit_console_summary(metrics_df: pd.DataFrame, aggregate: Dict[str, Dict[str, object]]) -> None:
+    fold_count = len(metrics_df)
+    print("\n=== Cross-validation aggregate summary ===")
+    print(f"Folds evaluated: {fold_count}")
+
+    def _format_stat(value: float | None) -> str:
+        if value is None or (isinstance(value, float) and np.isnan(value)):
+            return "N/A"
+        return f"{value:.3f}"
+
+    for metric in ["overall_accuracy", "trained_odor_accuracy", "control_separation", "auroc"]:
+        mean_value = aggregate[metric]["mean"]
+        std_value = aggregate[metric]["std"]
+        defined_folds = int(metrics_df[metric].notna().sum())
+        coverage_note = f"{defined_folds}/{fold_count} folds"
+        stat_repr = f"mean={_format_stat(mean_value)}"
+        if std_value is not None:
+            stat_repr += f" ±{_format_stat(std_value)}"
+        else:
+            stat_repr += " ±N/A"
+
+        messages = [f"{metric}: {stat_repr} ({coverage_note})"]
+
+        target = PERFORMANCE_TARGETS.get(metric)
+        if isinstance(mean_value, (float, int)) and not np.isnan(mean_value):
+            if metric == "overall_accuracy":
+                delta = float(mean_value) - CHANCE_LEVEL
+                messages.append(f"  ↳ vs. chance ({CHANCE_LEVEL:.3f}): {delta:+.3f}")
+            if target is not None:
+                if float(mean_value) >= target:
+                    messages.append(f"  ↳ meets target ≥{target:.3f}")
+                else:
+                    messages.append(f"  ↳ below target ≥{target:.3f}")
+        else:
+            if defined_folds == 0:
+                messages.append("  ↳ insufficient data to compute this metric")
+
+        for line in messages:
+            print(line)
 
 
 def main() -> None:

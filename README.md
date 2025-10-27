@@ -387,7 +387,38 @@ splits and ChemicalSTDP fine-tuning confined to the KC→MBON projection.
    preserves that numbering instead of attempting to reinsert it, preventing
    duplicate-column errors during long-running pipelines.
 
-4. **Tune learning dynamics (optional)**
+4. **Interpret the aggregate digest**
+
+   After saving the JSON and CSV artefacts the CLI now prints a compact console
+   summary that compares the observed means against the Week 4 targets
+   (overall ≥0.70, trained-odor ≥0.80, control separation ≥0.90) and a
+   50 % chance baseline for accuracy. Metrics that cannot be computed (for
+   example when a fold contains only control trials) are explicitly marked so
+   you know whether gaps stem from modelling issues or data coverage.
+
+   Example output from the extended behavioural export mentioned above:
+
+   ```text
+   === Cross-validation aggregate summary ===
+   Folds evaluated: 5
+   overall_accuracy: mean=0.495 ±0.072 (5/5 folds)
+     ↳ vs. chance (0.500): -0.005
+     ↳ below target ≥0.700
+   trained_odor_accuracy: mean=0.604 ±0.123 (5/5 folds)
+     ↳ below target ≥0.800
+   control_separation: mean=0.477 ±0.052 (5/5 folds)
+     ↳ below target ≥0.900
+   auroc: mean=0.477 ±0.052 (5/5 folds)
+   ```
+
+   These results show the current configuration underperforming relative to the
+   Week 4 expectations: accuracy sits only marginally above chance, trained-odor
+   recognition is inconsistent across folds, and the model fails to suppress
+   `hex_control` responses. Treat this digest as the first checkpoint before
+   diving into the per-fold JSON files or the generalisation curves when
+   debugging.
+
+5. **Tune learning dynamics (optional)**
 
    Adjust `--learning-rate` or `--decision-threshold` to explore alternative
    plasticity strengths and classification cut-offs. Use `--device` to force CPU
