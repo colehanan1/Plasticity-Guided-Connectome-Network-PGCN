@@ -4,6 +4,8 @@
 
 **Drosophila Cross-Odor Generalization Model** - A biologically-constrained neural network that predicts fruit fly olfactory learning and cross-odor generalization using real chemical properties and connectome data. This 16-week research implementation follows a "Build Now, Validate Later" philosophy to model how flies trained with one odor generalize to chemically similar/dissimilar test odors.
 
+> **Offline FlyWire reminder**: The authenticated Codex pipeline is now optional. Local FAFB v783 CSV exports (see `data/flywire/`) are the primary source for KC/PN connectivity. Always run `pgcn-cache --local-data data/flywire --out data/cache/` before behavioural analyses and consult `docs/model_integration_status.md` for the latest integration status and verification commands.
+
 ## Core Commands
 
 ```bash

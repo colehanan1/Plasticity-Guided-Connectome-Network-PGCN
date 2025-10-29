@@ -6,6 +6,110 @@ subgraph (PN→KC→MBON core plus DAN ancillary pathways). The codebase pins
 FlyWire materialization versions, writes schema-stable cache artefacts, and
 exposes command line interfaces for cache generation and structural metrics.
 
+## Local FlyWire dataset workflow (offline-first)
+
+The repository no longer requires authenticated FlyWire access for KC→PN analyses.
+Download the public FAFB v783 CSV exports listed below and point the tooling at the
+local directory. Every loader honours the ``PGCN_FLYWIRE_DATA`` environment variable;
+when unset the default path is ``data/flywire`` relative to the project root.
+The expected filenames are:
+
+- ``connections_princeton.csv.gz``
+- ``consolidated_cell_types.csv.gz``
+- ``classification.csv.gz``
+- ``neurons.csv.gz``
+- ``names.csv.gz``
+- ``processed_labels.csv.gz``
+
+The loader normalises Codex headers automatically: ``primary_type`` is exposed
+as ``cell_type`` and ``additional_type(s)`` is surfaced as ``cell_type_aliases``
+for compatibility with the original online pipeline. No manual renaming is
+required—drop the raw downloads into place and the heuristics will discover KC
+and PN memberships by combining the cell-type and hierarchical classification
+tables.
+
+### Offline usage checklist
+
+1. Place the CSV files in ``data/flywire`` (or export ``PGCN_FLYWIRE_DATA=/abs/path``).
+2. Install the project in editable mode: ``python -m pip install -e .[dev]``.
+3. Run ``pytest tests/test_local_flywire.py`` to confirm the loaders resolve paths and
+   build KC→PN matrices.
+4. Explore the new API from Python:
+
+   ```python
+   from data_loaders.flywire_local import FlyWireLocalDataLoader
+   from data_loaders.connectivity import build_kc_pn_matrix, filter_mushroom_body_connections
+   from data_loaders.neuron_classification import get_kc_neurons, get_pn_neurons
+
+   loader = FlyWireLocalDataLoader()
+   connections = filter_mushroom_body_connections(loader.load_connections())
+   kcs = get_kc_neurons(loader.load_cell_types(), loader.load_classification())
+   pns = get_pn_neurons(loader.load_cell_types(), loader.load_classification())
+   matrix = build_kc_pn_matrix(connections, kc_ids=kcs['root_id'], pn_ids=pns['root_id'])
+   ```
+
+5. Use ``python -m scripts.example_local_kc_pn`` for a command-line demonstration of the
+   same workflow.
+
+### Build canonical caches from local CSVs
+
+When you need the full ``data/cache`` artefact expected by the legacy quicksetup
+instructions, invoke the connectome pipeline with the ``--local-data`` flag. The
+command below writes ``nodes.parquet``, ``edges.parquet``, ``dan_edges.parquet``,
+and ``meta.json`` using only the CSV exports in ``data/flywire``:
+
+```bash
+pgcn-cache --local-data data/flywire --out data/cache/
+```
+
+The resulting cache preserves the PN/KC/MBON/DAN populations discovered from the
+local tables, stores neurotransmitter and brain-region metadata alongside each
+node, infers PN glomerulus labels by combining ``primary_type`` /
+``additional_type(s)`` strings with the curated ``processed_labels`` export, and
+records the dataset directory plus node/edge counts in ``meta.json`` for
+provenance. Downstream components (``pgcn-metrics``, ``DrosophilaReservoir``
+initialisation, etc.) will transparently consume the offline cache just as they
+did with the API-derived artefacts—without emitting glomerulus warnings.
+
+### Dataset schema inspection (diagnose missing columns)
+
+When the loaders raise schema validation errors, run the inspection helper to
+capture the exact headers, dtypes, and PN/KC keyword hits for every CSV. The
+command below writes a comprehensive report that you can paste into an issue or
+chat for fast triage:
+
+```bash
+python scripts/inspect_flywire_datasets.py --data-dir /absolute/path/to/flywire/csvs \
+  > flywire_dataset_report.txt
+```
+
+The report records:
+
+- resolved path and size of each CSV.gz export;
+- the complete column list and inferred dtypes;
+- sample rows for a quick sanity check;
+- top value counts for ``primary_type``/``cell_type``, ``super_class``, and
+  related annotations;
+- neurotransmitter and brain-region summaries when available; and
+- PN/KC membership counts using the repository keyword heuristics, including
+  PN glomerulus coverage after the new inference step.
+
+Attach the resulting ``flywire_dataset_report.txt`` to any support request so we
+can reconcile naming mismatches immediately.
+
+These helpers mirror the structures produced by the authenticated pipeline so existing
+analysis notebooks continue to operate without change.
+
+### Track connectome↔behavior integration progress
+
+Refer to [`docs/model_integration_status.md`](docs/model_integration_status.md) for a
+single-page summary of how the offline FlyWire cache, structural metrics, and behavioral
+cross-validation currently interlock. The document lists the exact commands to inspect
+datasets, materialise caches, initialise the `DrosophilaReservoir`, and execute the
+behavioral pipelines so you can confirm the network remains biologically grounded while
+aligning with observed odor conditioning results. Outstanding tasks are recorded there
+to keep the roadmap visible beside the technical instructions below.
+
 ## Quickstart
 
 1. **Create the Conda environment**

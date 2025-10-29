@@ -37,6 +37,19 @@ try:  # pragma: no cover - optional dependency resolved at runtime
 except ImportError:  # pragma: no cover - exercised when caveclient missing
     CAVEclient = None  # type: ignore
 
+from config import paths
+from data_loaders.connectivity import filter_mushroom_body_connections
+from data_loaders.flywire_local import FlyWireLocalDataLoader
+from data_loaders.neuron_classification import (
+    extract_neurotransmitter_info,
+    get_dan_neurons,
+    get_kc_neurons,
+    get_mbon_neurons,
+    get_pn_neurons,
+    infer_pn_glomerulus_labels,
+    map_brain_regions,
+)
+
 from .flywire_access import diagnose_flywire_access
 
 
@@ -107,7 +120,12 @@ class ConnectomePipeline:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
-    def run(self, use_sample_data: bool = False) -> CacheArtifacts:
+    def run(
+        self,
+        use_sample_data: bool = False,
+        *,
+        local_data_dir: Optional[Path | str] = None,
+    ) -> CacheArtifacts:
         """Execute the pipeline.
 
         Parameters
@@ -116,10 +134,20 @@ class ConnectomePipeline:
             When ``True`` a deterministic mock cache is produced instead of
             contacting the FlyWire services. This is invaluable for CI where
             authentication may be unavailable.
+        local_data_dir:
+            When provided, the pipeline skips FlyWire queries entirely and
+            instead hydrates the cache from local CSV exports produced by the
+            Codex snapshot downloads.
         """
 
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self._node_position_cache.clear()
+
+        if local_data_dir is not None and use_sample_data:
+            raise PipelineError("Specify either --use-sample-data or --local-data, not both.")
+
+        if local_data_dir is not None:
+            return self._write_local_cache(Path(local_data_dir))
 
         if use_sample_data:
             self.logger.warning("Generating deterministic sample cache data.")
@@ -153,8 +181,27 @@ class ConnectomePipeline:
             dan_edges=dan_edges,
         )
         core_edges = pd.concat([pn_kc_edges, kc_mbon_edges], ignore_index=True)
-
-        artifacts = self._write_outputs(nodes, core_edges, dan_edges, mv, tables)
+        counts = {
+            "nodes": int(len(nodes)),
+            "edges": int(len(core_edges)),
+            "pn_kc_edges": int(len(pn_kc_edges)),
+            "kc_mbon_edges": int(len(kc_mbon_edges)),
+            "dan_edges": int(len(dan_edges)),
+        }
+        node_counts = {
+            "pn_count": int(len(pn_nodes)),
+            "kc_count": int(len(kc_nodes)),
+            "mbon_count": int(len(mbon_nodes)),
+            "dan_count": int(len(dan_nodes)),
+        }
+        artifacts = self._write_outputs(
+            nodes,
+            core_edges,
+            dan_edges,
+            mv,
+            tables,
+            extra_meta={**node_counts, "counts": counts},
+        )
         self.logger.info("Cache generation completed successfully.")
         return artifacts
 
@@ -397,6 +444,214 @@ class ConnectomePipeline:
         dan_edges = pd.concat([dan_kc_edges, dan_mbon_edges], ignore_index=True)
         return pn_kc_edges, kc_mbon_edges, dan_edges
 
+    def _prepare_local_nodes(
+        self,
+        frame: pd.DataFrame,
+        neuron_type: str,
+        neurons_df: pd.DataFrame,
+        names_df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        data = frame.copy()
+        data = data.dropna(subset=["root_id"])
+        if data.empty:
+            return pd.DataFrame(columns=["node_id", "type"])
+
+        data["node_id"] = data["root_id"].astype(np.int64)
+        data["type"] = neuron_type
+
+        optional_columns = [
+            column
+            for column in [
+                "cell_type",
+                "cell_type_aliases",
+                "super_class",
+                "class",
+                "sub_class",
+                "glomerulus",
+            ]
+            if column in data.columns
+        ]
+        result = data[["node_id", "type", *optional_columns]].drop_duplicates(subset=["node_id"])
+
+        try:
+            nt_info = extract_neurotransmitter_info(neurons_df, result["node_id"])
+        except ValueError:
+            nt_info = pd.DataFrame()
+        if not nt_info.empty:
+            keep_columns = [col for col in nt_info.columns if col in {"root_id", "nt_type"}]
+            nt_info = nt_info.loc[:, keep_columns].rename(
+                columns={"root_id": "node_id", "nt_type": "neurotransmitter"}
+            )
+            result = result.merge(nt_info, on="node_id", how="left")
+
+        try:
+            region_info = map_brain_regions(names_df, result["node_id"])
+        except ValueError:
+            region_info = pd.DataFrame()
+        if not region_info.empty:
+            non_root_columns = [col for col in region_info.columns if col != "root_id"]
+            rename_map = {"root_id": "node_id"}
+            if non_root_columns:
+                rename_map[non_root_columns[0]] = "brain_region"
+            region_info = region_info.rename(columns=rename_map)
+            result = result.merge(region_info, on="node_id", how="left")
+
+        return result.reset_index(drop=True)
+
+    @staticmethod
+    def _build_local_edges(
+        connections_df: pd.DataFrame,
+        pre_ids: Sequence[int],
+        post_ids: Sequence[int],
+    ) -> pd.DataFrame:
+        if not pre_ids or not post_ids or connections_df.empty:
+            return pd.DataFrame(columns=["source_id", "target_id", "synapse_weight"])
+
+        pre_set = {int(node) for node in pre_ids}
+        post_set = {int(node) for node in post_ids}
+        subset = connections_df[
+            connections_df["pre_root_id"].isin(pre_set)
+            & connections_df["post_root_id"].isin(post_set)
+        ]
+        if subset.empty:
+            return pd.DataFrame(columns=["source_id", "target_id", "synapse_weight"])
+
+        grouped = (
+            subset.groupby(["pre_root_id", "post_root_id"], as_index=False)["syn_count"].sum()
+        )
+        grouped = grouped.rename(
+            columns={
+                "pre_root_id": "source_id",
+                "post_root_id": "target_id",
+                "syn_count": "synapse_weight",
+            }
+        )
+        grouped["source_id"] = grouped["source_id"].astype(np.int64)
+        grouped["target_id"] = grouped["target_id"].astype(np.int64)
+        grouped["synapse_weight"] = grouped["synapse_weight"].astype(float)
+        return grouped
+
+    def _write_local_cache(self, dataset_dir: Path) -> CacheArtifacts:
+        self.logger.info("Building cache from local FlyWire CSV exports at %s", dataset_dir)
+        loader = FlyWireLocalDataLoader(dataset_dir)
+
+        connections = loader.load_connections(min_synapses=1)
+        filtered = filter_mushroom_body_connections(connections)
+        if filtered.empty:
+            self.logger.warning(
+                "No mushroom body neuropil matches found; using the full connections table."
+            )
+            filtered = connections
+
+        cell_types = loader.load_cell_types()
+        classification = loader.load_classification()
+        processed_labels = loader.load_processed_labels()
+
+        pn_frame = get_pn_neurons(cell_types, classification)
+        if not pn_frame.empty:
+            pn_glomeruli = infer_pn_glomerulus_labels(
+                pn_frame,
+                processed_labels_df=processed_labels,
+            )
+            pn_frame = pn_frame.assign(glomerulus=pn_glomeruli)
+        kc_frame = get_kc_neurons(cell_types, classification)
+        mbon_frame = get_mbon_neurons(cell_types, classification)
+        dan_frame = get_dan_neurons(cell_types, classification)
+
+        populations = {
+            "PN": pn_frame,
+            "KC": kc_frame,
+            "MBON": mbon_frame,
+            "DAN": dan_frame,
+        }
+        for label, frame in populations.items():
+            if frame.empty:
+                raise PipelineError(
+                    f"Local dataset does not contain any {label} annotations after keyword filtering."
+                )
+
+        neurons = loader.load_neurotransmitters()
+        names = loader.load_names()
+
+        pn_nodes = self._prepare_local_nodes(pn_frame, "PN", neurons, names)
+        kc_nodes = self._prepare_local_nodes(kc_frame, "KC", neurons, names)
+        mbon_nodes = self._prepare_local_nodes(mbon_frame, "MBON", neurons, names)
+        dan_nodes = self._prepare_local_nodes(dan_frame, "DAN", neurons, names)
+
+        pn_ids = pn_nodes["node_id"].tolist()
+        kc_ids = kc_nodes["node_id"].tolist()
+        mbon_ids = mbon_nodes["node_id"].tolist()
+        dan_ids = dan_nodes["node_id"].tolist()
+
+        pn_kc_edges = self._build_local_edges(filtered, pn_ids, kc_ids)
+        if pn_kc_edges.empty:
+            raise PipelineError(
+                "Local dataset did not produce any PN→KC edges; check synapse counts and filters."
+            )
+        kc_mbon_edges = self._build_local_edges(filtered, kc_ids, mbon_ids)
+        dan_kc_edges = self._build_local_edges(filtered, dan_ids, kc_ids)
+        dan_mbon_edges = self._build_local_edges(filtered, dan_ids, mbon_ids)
+        dan_edges = pd.concat([dan_kc_edges, dan_mbon_edges], ignore_index=True)
+
+        nodes = self._assemble_nodes(
+            pn_nodes=pn_nodes,
+            kc_nodes=kc_nodes,
+            mbon_nodes=mbon_nodes,
+            dan_nodes=dan_nodes,
+            pn_kc_edges=pn_kc_edges,
+            kc_mbon_edges=kc_mbon_edges,
+            dan_edges=dan_edges,
+        )
+        core_edges = pd.concat([pn_kc_edges, kc_mbon_edges], ignore_index=True)
+        counts = {
+            "nodes": int(len(nodes)),
+            "edges": int(len(core_edges)),
+            "pn_kc_edges": int(len(pn_kc_edges)),
+            "kc_mbon_edges": int(len(kc_mbon_edges)),
+            "dan_edges": int(len(dan_edges)),
+        }
+
+        synapse_path = (dataset_dir / paths.CONNECTIONS_FILE.name)
+        if not synapse_path.exists():
+            synapse_path = paths.CONNECTIONS_FILE
+        cell_type_path = (dataset_dir / paths.CELL_TYPES_FILE.name)
+        if not cell_type_path.exists():
+            cell_type_path = paths.CELL_TYPES_FILE
+        classification_path = (dataset_dir / paths.CLASSIFICATION_FILE.name)
+        if not classification_path.exists():
+            classification_path = paths.CLASSIFICATION_FILE
+
+        tables = TableDiscovery(
+            synapse_table=str(synapse_path),
+            cell_tables=[str(cell_type_path), str(classification_path)],
+        )
+        meta_extra = {
+            "source": "local_csv",
+            "local_data_dir": str(dataset_dir.resolve()),
+            "pn_count": int(len(pn_nodes)),
+            "kc_count": int(len(kc_nodes)),
+            "mbon_count": int(len(mbon_nodes)),
+            "dan_count": int(len(dan_nodes)),
+            "counts": counts,
+        }
+
+        artifacts = self._write_outputs(
+            nodes=nodes,
+            edges=core_edges,
+            dan_edges=dan_edges,
+            mv=self.requested_mv or DEFAULT_MATERIALIZATION_VERSION,
+            tables=tables,
+            extra_meta=meta_extra,
+        )
+        self.logger.info(
+            "Local cache generated: %d PN, %d KC, %d MBON, %d DAN nodes.",
+            len(pn_nodes),
+            len(kc_nodes),
+            len(mbon_nodes),
+            len(dan_nodes),
+        )
+        return artifacts
+
     @retry(wait=wait_exponential(multiplier=1, min=4, max=60), stop=stop_after_attempt(5))
     def _query_edges(
         self,
@@ -531,6 +786,8 @@ class ConnectomePipeline:
         dan_edges: pd.DataFrame,
         mv: int,
         tables: TableDiscovery,
+        *,
+        extra_meta: Optional[Mapping[str, Any]] = None,
     ) -> CacheArtifacts:
         nodes_path = self.cache_dir / CACHE_FILENAMES["nodes"]
         edges_path = self.cache_dir / CACHE_FILENAMES["edges"]
@@ -551,12 +808,14 @@ class ConnectomePipeline:
         edges_to_write.to_parquet(edges_path, index=False)
         dan_edges_to_write.to_parquet(dan_edges_path, index=False)
 
-        meta = {
+        meta: Dict[str, Any] = {
             "datastack": self.datastack,
             "materialization_version": mv,
             "synapse_table": tables.synapse_table,
             "cell_tables": tables.cell_tables,
         }
+        if extra_meta:
+            meta.update(extra_meta)
         meta_path.write_text(json.dumps(meta, indent=2, sort_keys=True))
 
         return CacheArtifacts(nodes=nodes_path, edges=edges_path, dan_edges=dan_edges_path, meta=meta_path)
@@ -694,6 +953,12 @@ def build_arg_parser() -> "argparse.ArgumentParser":
     parser.add_argument("--out", type=Path, default=Path("data") / "cache", help="Output directory for cache artifacts")
     parser.add_argument("--token", type=Path, default=DEFAULT_TOKEN_PATH, help="Path to CAVE secret JSON")
     parser.add_argument("--use-sample-data", action="store_true", help="Generate deterministic sample cache instead of querying CAVE")
+    parser.add_argument(
+        "--local-data",
+        type=Path,
+        default=None,
+        help="Hydrate the cache from local CSV exports instead of querying FlyWire",
+    )
     return parser
 
 
@@ -706,7 +971,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         cache_dir=args.out,
         token_path=args.token,
     )
-    pipeline.run(use_sample_data=args.use_sample_data)
+    pipeline.run(use_sample_data=args.use_sample_data, local_data_dir=args.local_data)
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI entry point
