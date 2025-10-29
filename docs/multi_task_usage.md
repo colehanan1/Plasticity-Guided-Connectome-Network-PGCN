@@ -72,6 +72,8 @@ Key points:
 - Reservoir fields (`n_pn`, `n_kc`, `n_mbon`, `sparsity`) are now passed straight into
   `MultiTaskDrosophilaModel`, ensuring the cached FlyWire dimensions (10,767 PN / 5,177 KC /
   96 MBON) are honoured during training.
+- `freeze_pn_kc: true` only locks the developmental PN→KC matrix; the shared KC→MBON
+  weights remain plastic so the behavioural head continues to update during training.
 
 ## 4. Generate feature tables
 
@@ -100,8 +102,8 @@ python scripts/train_multi_task.py \
   --tasks olfactory_conditioning spatial_navigation
 ```
 
-The trainer performs sequential optimisation per task, freezing PN→KC projections and
-adhering to 5% KC sparsity. Outputs:
+The trainer performs sequential optimisation per task, freezing PN→KC projections (while
+keeping KC→MBON gradients enabled) and adhering to 5% KC sparsity. Outputs:
 
 - `artifacts/multi_task/multi_task_model.pt` – consolidated state dict
 - `artifacts/multi_task/training_history.json` – per-epoch loss curves

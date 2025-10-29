@@ -179,9 +179,18 @@ class MultiTaskDrosophilaModel(nn.Module):
     def available_tasks(self) -> Sequence[str]:
         return tuple(self.task_heads.keys())
 
-    def freeze_reservoir(self) -> None:
-        for parameter in self.reservoir.parameters():
+    def freeze_reservoir(self, *, freeze_kc_to_mbon: bool = False) -> None:
+        """Freeze PN→KC connectivity while keeping MBON readouts plastic by default."""
+
+        for parameter in self.reservoir.pn_to_kc.parameters():
             parameter.requires_grad = False
+
+        if freeze_kc_to_mbon:
+            for parameter in self.reservoir.kc_to_mbon.parameters():
+                parameter.requires_grad = False
+        else:
+            for parameter in self.reservoir.kc_to_mbon.parameters():
+                parameter.requires_grad = True
 
     def task_parameters(self, tasks: Optional[Iterable[str]] = None) -> Iterable[nn.Parameter]:
         selected = tasks if tasks is not None else self.task_heads.keys()
@@ -189,7 +198,7 @@ class MultiTaskDrosophilaModel(nn.Module):
             yield from self.task_heads[task].parameters()
 
     def create_optimizer(self, tasks: Optional[Sequence[str]] = None, lr: float = 1e-3) -> torch.optim.Optimizer:
-        params = list(self.task_parameters(tasks))
+        params = [param for param in self.task_parameters(tasks) if param.requires_grad]
         if not params:
             raise ValueError("No task parameters available for optimisation.")
         return torch.optim.Adam(params, lr=lr)
