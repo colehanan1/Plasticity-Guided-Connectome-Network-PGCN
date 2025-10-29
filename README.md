@@ -44,6 +44,30 @@ The expected filenames are:
 5. Use ``python -m scripts.example_local_kc_pn`` for a command-line demonstration of the
    same workflow.
 
+### Dataset schema inspection (diagnose missing columns)
+
+When the loaders raise schema validation errors, run the inspection helper to
+capture the exact headers, dtypes, and PN/KC keyword hits for every CSV. The
+command below writes a comprehensive report that you can paste into an issue or
+chat for fast triage:
+
+```bash
+python scripts/inspect_flywire_datasets.py --data-dir /absolute/path/to/flywire/csvs \
+  > flywire_dataset_report.txt
+```
+
+The report records:
+
+- resolved path and size of each CSV.gz export;
+- the complete column list and inferred dtypes;
+- sample rows for a quick sanity check;
+- top value counts for ``cell_type``, ``super_class``, and related annotations;
+- neurotransmitter and brain-region summaries when available; and
+- PN/KC membership counts using the repository keyword heuristics.
+
+Attach the resulting ``flywire_dataset_report.txt`` to any support request so we
+can reconcile naming mismatches immediately.
+
 These helpers mirror the structures produced by the authenticated pipeline so existing
 analysis notebooks continue to operate without change.
 
