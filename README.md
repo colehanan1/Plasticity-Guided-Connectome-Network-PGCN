@@ -6,6 +6,47 @@ subgraph (PN→KC→MBON core plus DAN ancillary pathways). The codebase pins
 FlyWire materialization versions, writes schema-stable cache artefacts, and
 exposes command line interfaces for cache generation and structural metrics.
 
+## Local FlyWire dataset workflow (offline-first)
+
+The repository no longer requires authenticated FlyWire access for KC→PN analyses.
+Download the public FAFB v783 CSV exports listed below and point the tooling at the
+local directory. Every loader honours the ``PGCN_FLYWIRE_DATA`` environment variable;
+when unset the default path is ``data/flywire`` relative to the project root.
+The expected filenames are:
+
+- ``connections_princeton.csv.gz``
+- ``consolidated_cell_types.csv.gz``
+- ``classification.csv.gz``
+- ``neurons.csv.gz``
+- ``names.csv.gz``
+- ``processed_labels.csv.gz``
+
+### Offline usage checklist
+
+1. Place the CSV files in ``data/flywire`` (or export ``PGCN_FLYWIRE_DATA=/abs/path``).
+2. Install the project in editable mode: ``python -m pip install -e .[dev]``.
+3. Run ``pytest tests/test_local_flywire.py`` to confirm the loaders resolve paths and
+   build KC→PN matrices.
+4. Explore the new API from Python:
+
+   ```python
+   from data_loaders.flywire_local import FlyWireLocalDataLoader
+   from data_loaders.connectivity import build_kc_pn_matrix, filter_mushroom_body_connections
+   from data_loaders.neuron_classification import get_kc_neurons, get_pn_neurons
+
+   loader = FlyWireLocalDataLoader()
+   connections = filter_mushroom_body_connections(loader.load_connections())
+   kcs = get_kc_neurons(loader.load_cell_types(), loader.load_classification())
+   pns = get_pn_neurons(loader.load_cell_types(), loader.load_classification())
+   matrix = build_kc_pn_matrix(connections, kc_ids=kcs['root_id'], pn_ids=pns['root_id'])
+   ```
+
+5. Use ``python -m scripts.example_local_kc_pn`` for a command-line demonstration of the
+   same workflow.
+
+These helpers mirror the structures produced by the authenticated pipeline so existing
+analysis notebooks continue to operate without change.
+
 ## Quickstart
 
 1. **Create the Conda environment**
