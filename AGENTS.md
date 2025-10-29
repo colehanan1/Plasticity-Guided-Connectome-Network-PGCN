@@ -21,7 +21,11 @@ python -c "import models.reservoir; print('✓')"   # Quick import test
 
 # Data validation
 python data/validate_behavioral_data.py           # Verify CSV integrity
-python analysis/cross_validation.py --split fly   # Run CV splits
+python analysis/cross_validation.py --folds 5     # Run CV with statistical tests (all datasets)
+python analysis/cross_validation.py --dataset opto_EB --folds 5  # Run CV for specific dataset
+python analysis/cross_validation.py --per-dataset --folds 5  # Run separate CV for each dataset
+python analysis/cross_validation.py --skip-stats  # Run CV without statistical tests
+python analysis/run_statistical_tests.py --artifacts-dir artifacts/cross_validation  # Standalone statistical analysis
 
 # Full suite (use sparingly - takes 5-10 minutes)
 python -m pytest tests/ --coverage               # All tests with coverage
@@ -67,15 +71,18 @@ drosophila-learning-model/
 │   ├── odor_mappings.py      # testing_X → chemical identity mappings
 │   └── connectome_data.py    # Hemibrain PN→KC connectivity (neuPrint API)
 ├── analysis/                 # Model interpretation and validation
-│   ├── cross_validation.py   # GroupKFold, leave-one-fly-out, transfer learning  
+│   ├── cross_validation.py   # GroupKFold, leave-one-fly-out, transfer learning
 │   ├── plasticity_analysis.py # KC→MBON hotspot identification
-│   └── statistical_tests.py  # Significance testing, effect sizes
+│   ├── statistical_tests.py  # Permutation tests, bootstrap CIs, correlations, effect sizes
+│   └── run_statistical_tests.py # Standalone statistical analysis script
 ├── configs/                  # Hyperparameters and experimental settings
 │   ├── model_config.yaml     # Architecture: n_pn=50, n_kc=2000, n_mbon=10
 │   └── experiment_config.yaml # Training: lr=0.001, batch_size=32, epochs=100
-├── app/                      # Interactive analysis dashboard  
+├── app/                      # Interactive analysis dashboard
 │   ├── streamlit_dashboard.py # Chemical generalization explorer
 │   └── visualization_utils.py # Plotting with consistent color schemes
+├── docs/                     # Documentation and specifications
+│   └── statistical_reporting_format.md # Statistical testing format and Week 12+ templates
 └── cache/                    # Downloaded data (neuPrint, literature)
     ├── pn_kc_connectivity.npy # Hemibrain connectome weights
     └── chemical_similarity.json # Literature-derived similarity matrix
@@ -217,11 +224,101 @@ assert control_accuracy < 0.10, "hex_control should show ~0% response"
 ```python
 PERFORMANCE_TARGETS = {
     'overall_accuracy': 0.70,              # Significantly above chance
-    'trained_odor_auroc': 0.80,            # Strong trained odor recognition  
+    'trained_odor_auroc': 0.80,            # Strong trained odor recognition
     'cross_fly_generalization': 0.65,      # Leave-one-fly-out performance
     'control_separation': 0.90,            # hex_control vs trained flies
     'chemical_similarity_correlation': 0.4  # Similarity predicts generalization
 }
+```
+
+### Statistical Testing Requirements
+
+All model validation MUST include statistical significance testing and effect sizes:
+
+```python
+# Automatically included in cross-validation
+python analysis/cross_validation.py --folds 5
+# Generates: artifacts/cross_validation/{prefix}_statistical_report.json
+
+# Standalone statistical analysis (re-run without re-training)
+python analysis/run_statistical_tests.py --artifacts-dir artifacts/cross_validation
+
+# Custom parameters
+python analysis/cross_validation.py \
+    --n-permutations 10000 \
+    --n-bootstrap-samples 10000 \
+    --skip-stats  # For quick debugging runs only
+```
+
+**Required Statistical Tests:**
+1. **Permutation tests vs chance level (52%)**: Overall accuracy, trained odor accuracy, AUROC
+2. **Between-condition comparisons**: opto_EB vs opto_hex vs opto_benz_1
+3. **Bootstrap confidence intervals**: 95% and 99% CIs for all metrics
+4. **Chemical similarity correlations**: Pearson r and Spearman ρ with significance tests
+5. **Effect sizes**: Cohen's d and eta-squared for all comparisons
+
+**Reporting Standards:**
+- Always report p-values AND effect sizes (never p-value alone)
+- Include confidence intervals for point estimates
+- Use α = 0.05 for significance, but report exact p-values
+- Interpret effect sizes: small (d=0.2), medium (d=0.5), large (d=0.8)
+- See `docs/statistical_reporting_format.md` for complete specifications
+
+**Example Output:**
+```
+overall_accuracy:
+  Observed: 0.7300 vs chance 0.52
+  p-value: 0.0012 ✓✓
+  Cohen's d: 2.100 (large)
+
+Confidence Intervals (95%):
+  overall_accuracy: [0.7000, 0.7600]
+  trained_odor_accuracy: [0.7800, 0.8600]
+```
+
+### Per-Dataset Analysis
+
+Run statistical tests separately for each training condition:
+
+```python
+# Analyze specific dataset only
+python analysis/cross_validation.py --dataset opto_EB --folds 5
+# Output: artifacts/cross_validation/week4_statistical_report.json (opto_EB only)
+
+# Analyze multiple datasets separately
+python analysis/cross_validation.py --dataset opto_EB opto_hex --folds 5
+# Output: artifacts/cross_validation/week4_statistical_report.json (combined opto_EB + opto_hex)
+
+# Run SEPARATE analysis for each dataset
+python analysis/cross_validation.py --per-dataset --folds 5
+# Output structure:
+#   artifacts/cross_validation/opto_EB/week4_statistical_report.json
+#   artifacts/cross_validation/opto_hex/week4_statistical_report.json
+#   artifacts/cross_validation/opto_benz_1/week4_statistical_report.json
+#   artifacts/cross_validation/EB_control/week4_statistical_report.json
+#   artifacts/cross_validation/hex_control/week4_statistical_report.json
+```
+
+**Use Cases:**
+- **Single dataset:** Compare one training condition against chance (e.g., how well does opto_EB perform?)
+- **Per-dataset:** Compare performance characteristics across training conditions independently
+- **Combined:** Pool all datasets for overall model performance (default behavior)
+
+**Example per-dataset output:**
+```
+================================================================================
+Running cross-validation for dataset: opto_EB
+================================================================================
+
+overall_accuracy: mean=0.547, p=0.0000 ✓✓, Cohen's d=3.407 (large)
+trained_odor_accuracy: mean=0.479, p=0.2532 ✗
+
+================================================================================
+Running cross-validation for dataset: opto_hex
+================================================================================
+
+overall_accuracy: mean=0.456, p=0.0001 ✓✓, Cohen's d=2.845 (large)
+trained_odor_accuracy: mean=0.771, p=0.0012 ✓✓
 ```
 
 ## Safety and Permissions
@@ -276,13 +373,15 @@ if not os.path.exists(f'{cache_dir}/pn_kc_connectivity.npy'):
 ```python
 # Core ML stack
 torch>=1.9.0              # Neural networks
-scikit-learn>=1.0.0        # Cross-validation, metrics
+scikit-learn>=1.0.0        # Cross-validation, metrics, AUROC
 pandas>=1.3.0              # Data manipulation
 numpy>=1.21.0              # Numerical operations
 
+# Statistical analysis
+scipy>=1.7.0               # Permutation tests, correlations, statistical functions
+
 # Neuroscience-specific
-neuprint-python>=0.4.0     # Connectome data access  
-scipy>=1.7.0               # Statistical functions
+neuprint-python>=0.4.0     # Connectome data access
 
 # Visualization
 matplotlib>=3.4.0          # Basic plotting
@@ -305,9 +404,13 @@ streamlit>=1.0.0           # Interactive dashboard
 - [ ] Plasticity hotspots identified in <10% of KC→MBON connections
 
 ### Week 12 Checkpoint: "Scientific Analysis"
-- [ ] Chemical feature importance analysis completed
-- [ ] Ablation studies demonstrate component necessity
-- [ ] Statistical significance testing confirms key findings
+- [ ] Chemical feature importance analysis completed with permutation tests for significance
+- [ ] Ablation studies demonstrate component necessity with statistical tests (p-values, effect sizes)
+- [ ] Statistical significance testing confirms key findings (accuracy > chance, chemical similarity correlations)
+- [ ] Bootstrap confidence intervals (95%, 99%) reported for all primary metrics
+- [ ] Effect sizes (Cohen's d, eta-squared) computed for all comparisons
+- [ ] Between-condition comparisons include permutation tests and effect sizes
+- [ ] Statistical report generated automatically after cross-validation
 - [ ] Plasticity maps are biologically interpretable
 
 ### Week 16 Checkpoint: "Complete System"  

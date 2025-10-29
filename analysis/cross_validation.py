@@ -27,6 +27,12 @@ from pgcn.chemical.mappings import COMPLETE_ODOR_MAPPINGS
 from pgcn.data.behavioral_data import load_behavioral_dataframe, make_group_kfold
 from pgcn.models import ChemicalSTDP, ChemicallyInformedDrosophilaModel
 
+try:
+    from statistical_tests import run_all_statistical_tests
+    STATISTICAL_TESTS_AVAILABLE = True
+except ImportError as e:
+    STATISTICAL_TESTS_AVAILABLE = False
+
 TRAINED_TRIAL_LABELS = {"testing_2", "testing_4", "testing_5"}
 CONTROL_DATASET = "hex_control"
 CHANCE_LEVEL = 0.5
@@ -91,6 +97,49 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default=None,
         help="Torch device override (default: auto-detect)",
+    )
+    parser.add_argument(
+        "--statistical-tests",
+        action="store_true",
+        default=True,
+        help="Run statistical tests after cross-validation (default: True)",
+    )
+    parser.add_argument(
+        "--skip-stats",
+        action="store_true",
+        default=False,
+        help="Skip statistical tests (for quick runs)",
+    )
+    parser.add_argument(
+        "--n-permutations",
+        type=int,
+        default=5000,
+        help="Number of permutation resamples for statistical tests (default: 5000)",
+    )
+    parser.add_argument(
+        "--n-bootstrap-samples",
+        type=int,
+        default=5000,
+        help="Number of bootstrap resamples for confidence intervals (default: 5000)",
+    )
+    parser.add_argument(
+        "--skip-validation",
+        action="store_true",
+        default=False,
+        help="Skip data validation (use when data has duplicates or other validation issues)",
+    )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Filter to specific dataset(s) (e.g., opto_EB opto_hex). If not specified, uses all datasets.",
+    )
+    parser.add_argument(
+        "--per-dataset",
+        action="store_true",
+        default=False,
+        help="Run separate cross-validation and statistical tests for each dataset independently",
     )
     return parser.parse_args()
 
@@ -459,19 +508,74 @@ def _emit_console_summary(metrics_df: pd.DataFrame, aggregate: Dict[str, Dict[st
             print(line)
 
 
-def main() -> None:
-    args = parse_args()
-    device = determine_device(args.device)
-    output_dir = args.output_dir
-    output_dir.mkdir(parents=True, exist_ok=True)
+def print_statistical_summary(report: Dict[str, object]) -> None:
+    """Print concise summary of statistical test results."""
+    print("\n" + "=" * 80)
+    print("STATISTICAL ANALYSIS")
+    print("=" * 80)
 
-    data_frame = load_behavioral_dataframe(args.data, validate=args.data is None)
-    fold_iterator = make_group_kfold(
-        args.data,
-        n_splits=args.folds,
-        groups=data_frame["fly"].to_numpy(),
-        validate=False,
-    )
+    vs_chance = report.get("permutation_tests", {}).get("vs_chance", {})
+    for metric_name, results in vs_chance.items():
+        p_val = results.get("p_value_one_tailed", 1.0)
+        sig = "✓✓" if p_val < 0.01 else ("✓" if p_val < 0.05 else "✗")
+
+        print(f"\n{metric_name}:")
+        print(f"  Observed: {results['observed_mean']:.4f} vs chance {results['chance_level']:.2f}")
+        print(f"  p-value: {p_val:.4f} {sig}")
+
+        if metric_name in report.get("effect_sizes", {}).get("vs_chance", {}):
+            effect = report["effect_sizes"]["vs_chance"][metric_name]
+            print(f"  Cohen's d: {effect['cohens_d']:.3f} ({effect['interpretation']})")
+
+    # Confidence intervals
+    print(f"\nConfidence Intervals (95%):")
+    for metric_name, ci_data in report.get("confidence_intervals", {}).items():
+        ci_95 = ci_data.get("ci_95", [0, 0])
+        print(f"  {metric_name}: [{ci_95[0]:.4f}, {ci_95[1]:.4f}]")
+
+    print("\n" + "=" * 80)
+    print("Legend: ✓ = p < 0.05, ✓✓ = p < 0.01, ✗ = not significant")
+    print("=" * 80 + "\n")
+
+
+def run_cross_validation_for_dataset(
+    args: argparse.Namespace,
+    data_frame: pd.DataFrame,
+    dataset_name: str,
+    device: torch.device,
+    output_dir: Path
+) -> List[Dict[str, object]]:
+    """Run cross-validation for a single dataset."""
+    from sklearn.model_selection import GroupKFold
+
+    print(f"\n{'=' * 80}")
+    print(f"Running cross-validation for dataset: {dataset_name}")
+    print(f"{'=' * 80}\n")
+
+    # Create unique fly identifier for grouping
+    # If fly_number exists, combine fly and fly_number to create unique identifier
+    if "fly_number" in data_frame.columns:
+        groups = (data_frame["fly"] + "_" + data_frame["fly_number"].astype(str)).to_numpy()
+    else:
+        groups = data_frame["fly"].to_numpy()
+
+    # Determine the actual number of folds based on unique groups
+    n_unique_groups = len(np.unique(groups))
+    actual_folds = min(args.folds, n_unique_groups)
+
+    if actual_folds < args.folds:
+        print(f"Warning: Dataset has only {n_unique_groups} unique flies/groups.")
+        print(f"Reducing folds from {args.folds} to {actual_folds} for this dataset.\n")
+
+    if actual_folds < 2:
+        print(f"Error: Cannot perform cross-validation with only {n_unique_groups} unique group(s).")
+        print(f"Skipping dataset: {dataset_name}\n")
+        return []
+
+    # Create GroupKFold splitter directly on the filtered data
+    feature_index = np.arange(len(data_frame))
+    splitter = GroupKFold(n_splits=actual_folds)
+    fold_iterator = splitter.split(feature_index, groups=groups)
 
     fold_metrics_records: List[Dict[str, object]] = []
 
@@ -511,6 +615,133 @@ def main() -> None:
         fold_metrics_records.append(metrics_to_dict(metrics))
 
     write_aggregate_reports(output_dir, prefix=args.report_prefix, fold_metrics=fold_metrics_records)
+
+    # Run statistical tests if enabled
+    run_stats = args.statistical_tests and not args.skip_stats and STATISTICAL_TESTS_AVAILABLE
+    if run_stats:
+        print("\nRunning statistical tests...")
+
+        # Load fold results from saved JSON files
+        fold_results = []
+        for fold_index in range(1, args.folds + 1):
+            fold_path = output_dir / f"fold_{fold_index:02d}.json"
+            if fold_path.exists():
+                with fold_path.open("r", encoding="utf-8") as f:
+                    fold_results.append(json.load(f))
+
+        if fold_results:
+            try:
+                # Run statistical tests
+                statistical_report = run_all_statistical_tests(
+                    fold_results=fold_results,
+                    chance_level=CHANCE_LEVEL,
+                    n_permutations=args.n_permutations,
+                    n_bootstrap_samples=args.n_bootstrap_samples,
+                    chemical_similarity_data=None,  # TODO: Add chemical similarity data extraction
+                    random_seed=None
+                )
+
+                # Save statistical report (convert numpy types to native Python types)
+                def convert_numpy_types(obj):
+                    """Convert numpy types to native Python types for JSON serialization."""
+                    if isinstance(obj, np.integer):
+                        return int(obj)
+                    elif isinstance(obj, np.floating):
+                        return float(obj)
+                    elif isinstance(obj, np.ndarray):
+                        return obj.tolist()
+                    elif isinstance(obj, np.bool_):
+                        return bool(obj)
+                    elif isinstance(obj, dict):
+                        return {key: convert_numpy_types(value) for key, value in obj.items()}
+                    elif isinstance(obj, list):
+                        return [convert_numpy_types(item) for item in obj]
+                    else:
+                        return obj
+
+                stat_report_path = output_dir / f"{args.report_prefix}_statistical_report.json"
+                with stat_report_path.open("w", encoding="utf-8") as f:
+                    json.dump(convert_numpy_types(statistical_report), f, indent=2)
+
+                print(f"Statistical report saved to: {stat_report_path}")
+
+                # Print summary
+                print_statistical_summary(statistical_report)
+
+            except Exception as e:
+                print(f"Warning: Statistical tests failed: {e}")
+                print("Cross-validation results are still valid.")
+        else:
+            print("Warning: No fold results found for statistical analysis.")
+    elif not STATISTICAL_TESTS_AVAILABLE:
+        print("\nNote: Statistical tests skipped (statistical_tests module not available)")
+    elif args.skip_stats:
+        print("\nNote: Statistical tests skipped (--skip-stats flag)")
+
+    return fold_metrics_records
+
+
+def main() -> None:
+    args = parse_args()
+    device = determine_device(args.device)
+
+    # Skip validation if --skip-validation flag is set, otherwise validate default data
+    should_validate = (args.data is None) and (not args.skip_validation)
+    data_frame = load_behavioral_dataframe(args.data, validate=should_validate)
+
+    # Filter by dataset if specified
+    if args.dataset is not None:
+        available_datasets = data_frame["dataset"].unique()
+        invalid_datasets = set(args.dataset) - set(available_datasets)
+        if invalid_datasets:
+            print(f"Warning: Invalid dataset(s) specified: {invalid_datasets}")
+            print(f"Available datasets: {list(available_datasets)}")
+            return
+
+        data_frame = data_frame[data_frame["dataset"].isin(args.dataset)].reset_index(drop=True)
+        print(f"Filtered to dataset(s): {', '.join(args.dataset)}")
+        print(f"Total samples: {len(data_frame)}\n")
+
+    # Determine if we need to run per-dataset or combined
+    if args.per_dataset:
+        # Run separate CV for each dataset
+        datasets = sorted(data_frame["dataset"].unique())
+        print(f"\nRunning per-dataset analysis for {len(datasets)} datasets: {', '.join(datasets)}\n")
+
+        for dataset in datasets:
+            dataset_df = data_frame[data_frame["dataset"] == dataset].reset_index(drop=True)
+
+            # Create dataset-specific output directory
+            dataset_output_dir = args.output_dir / dataset
+            dataset_output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Run CV for this dataset
+            run_cross_validation_for_dataset(
+                args=args,
+                data_frame=dataset_df,
+                dataset_name=dataset,
+                device=device,
+                output_dir=dataset_output_dir
+            )
+
+    else:
+        # Run combined CV for all datasets
+        output_dir = args.output_dir
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        dataset_names = sorted(data_frame["dataset"].unique())
+        if len(dataset_names) > 1:
+            dataset_label = f"Combined ({', '.join(dataset_names)})"
+        else:
+            dataset_label = dataset_names[0]
+
+        run_cross_validation_for_dataset(
+            args=args,
+            data_frame=data_frame,
+            dataset_name=dataset_label,
+            device=device,
+            output_dir=output_dir
+        )
 
 
 if __name__ == "__main__":

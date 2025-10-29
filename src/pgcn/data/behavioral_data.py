@@ -99,15 +99,28 @@ def _validate_behavioral_dataframe(df: pd.DataFrame) -> None:
     if unique_flies == 0:
         raise ValueError("Behavioral dataframe does not include any fly identifiers.")
 
-    duplicate_trials = df.duplicated(subset=["fly", "trial_label"], keep=False)
+    # Determine the unique identifier columns
+    # If fly_number exists, use (fly, fly_number) as unique identifier
+    # Otherwise, use just (fly) as unique identifier
+    has_fly_number = "fly_number" in df.columns
+    if has_fly_number:
+        duplicate_cols = ["fly", "fly_number", "trial_label"]
+        groupby_cols = ["fly", "fly_number"]
+    else:
+        duplicate_cols = ["fly", "trial_label"]
+        groupby_cols = ["fly"]
+
+    # Check for duplicate trials
+    duplicate_trials = df.duplicated(subset=duplicate_cols, keep=False)
     if duplicate_trials.any():
-        duplicates = df.loc[duplicate_trials, ["fly", "trial_label"]].value_counts().to_dict()
+        duplicates = df.loc[duplicate_trials, duplicate_cols].value_counts().to_dict()
         raise ValueError(
-            "Duplicate fly/trial_label combinations detected in behavioral dataset: "
+            f"Duplicate {'/'.join(duplicate_cols)} combinations detected in behavioral dataset: "
             f"{duplicates}"
         )
 
-    dataset_per_fly = df.groupby("fly")["dataset"].nunique()
+    # Check that each fly belongs to a single dataset
+    dataset_per_fly = df.groupby(groupby_cols)["dataset"].nunique()
     inconsistent = dataset_per_fly[dataset_per_fly != 1]
     if not inconsistent.empty:
         raise ValueError(
@@ -115,7 +128,8 @@ def _validate_behavioral_dataframe(df: pd.DataFrame) -> None:
             f"{inconsistent.to_dict()}"
         )
 
-    trials_per_fly = df.groupby("fly")["trial_label"].nunique()
+    # Check that all flies observe the same number of unique trial labels
+    trials_per_fly = df.groupby(groupby_cols)["trial_label"].nunique()
     if trials_per_fly.nunique() != 1:
         raise ValueError(
             "All flies must observe the same number of unique trial labels."
@@ -150,7 +164,14 @@ def load_behavioral_dataframe(
 
     csv_path = _to_path(path)
     df = pd.read_csv(csv_path)
-    sorted_df = df.sort_values(["fly", "trial_label"], kind="mergesort").reset_index(drop=True)
+
+    # Sort by fly, fly_number (if present), and trial_label
+    sort_columns = ["fly"]
+    if "fly_number" in df.columns:
+        sort_columns.append("fly_number")
+    sort_columns.append("trial_label")
+
+    sorted_df = df.sort_values(sort_columns, kind="mergesort").reset_index(drop=True)
     should_validate = validate if validate is not None else csv_path == BEHAVIORAL_DATA_PATH and csv_path.exists()
     if should_validate:
         _validate_behavioral_dataframe(sorted_df)
@@ -346,7 +367,17 @@ def make_group_kfold(
 
     df = load_behavioral_dataframe(path, validate=validate)
     feature_index = np.arange(len(df))
-    fold_groups = groups if groups is not None else df["fly"].to_numpy()
+
+    # Create unique fly identifier
+    # If fly_number exists, combine fly and fly_number to create unique identifier
+    # Otherwise, use just fly
+    if groups is not None:
+        fold_groups = groups
+    elif "fly_number" in df.columns:
+        # Create unique identifier by combining fly and fly_number
+        fold_groups = (df["fly"] + "_" + df["fly_number"].astype(str)).to_numpy()
+    else:
+        fold_groups = df["fly"].to_numpy()
 
     splitter = GroupKFold(n_splits=n_splits)
     for train, test in splitter.split(feature_index, groups=fold_groups):
