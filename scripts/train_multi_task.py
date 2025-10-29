@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Iterable, Mapping
+from typing import Any, Mapping
 
 import torch
 from rich.console import Console
@@ -25,8 +25,23 @@ def _resolve_loss(loss_function: str) -> torch.nn.Module:
     raise ValueError(f"Unsupported loss function '{loss_function}'.")
 
 
+def _reservoir_kwargs(config: Any) -> dict[str, object]:
+    params: dict[str, object] = {}
+    if config.cache_dir is not None:
+        params["cache_dir"] = config.cache_dir
+    if config.n_pn is not None:
+        params["n_pn"] = config.n_pn
+    if config.n_kc is not None:
+        params["n_kc"] = config.n_kc
+    if config.n_mbon is not None:
+        params["n_mbon"] = config.n_mbon
+    if config.sparsity is not None:
+        params["kc_sparsity"] = config.sparsity
+    return params
+
+
 def _build_model(config, tasks: Mapping[str, TaskHeadConfig]) -> MultiTaskDrosophilaModel:
-    model = MultiTaskDrosophilaModel(cache_dir=config.reservoir.cache_dir, task_configs=tasks)
+    model = MultiTaskDrosophilaModel(reservoir_params=_reservoir_kwargs(config.reservoir), task_configs=tasks)
     if config.reservoir.freeze_pn_kc:
         model.freeze_reservoir()
     return model

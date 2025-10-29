@@ -68,11 +68,20 @@ class MultiTaskDrosophilaModel(nn.Module):
         self,
         cache_dir: Optional[Path | str] = None,
         *,
+        reservoir_params: Optional[Mapping[str, object]] = None,
         task_configs: Optional[Mapping[str, TaskHeadConfig | Mapping[str, object]]] = None,
         dropout: float = 0.0,
     ) -> None:
         super().__init__()
-        self.reservoir = DrosophilaReservoir(cache_dir=cache_dir)
+        resolved_params: MutableMapping[str, object] = {}
+        if reservoir_params is not None:
+            resolved_params.update(reservoir_params)
+        if cache_dir is not None:
+            resolved_params.setdefault("cache_dir", cache_dir)
+        if "sparsity" in resolved_params and "kc_sparsity" not in resolved_params:
+            resolved_params["kc_sparsity"] = resolved_params.pop("sparsity")
+        filtered_params = {key: value for key, value in resolved_params.items() if value is not None}
+        self.reservoir = DrosophilaReservoir(**filtered_params)
         self.n_kc = self.reservoir.n_kc
         self._head_configs: MutableMapping[str, TaskHeadConfig] = {}
         self.task_heads = nn.ModuleDict()

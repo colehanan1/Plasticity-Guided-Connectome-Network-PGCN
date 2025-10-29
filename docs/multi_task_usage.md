@@ -67,6 +67,9 @@ Key points:
 - `use_reservoir_head: true` reuses the canonical KC→MBON layer to respect plasticity.
 - New tasks should typically leverage `parquet_tensor` loader with their own targets.
 - Adjust batch size, epochs, and learning rate per task as required.
+- Reservoir fields (`n_pn`, `n_kc`, `n_mbon`, `sparsity`) are now passed straight into
+  `MultiTaskDrosophilaModel`, ensuring the cached FlyWire dimensions (10,767 PN / 5,177 KC /
+  96 MBON) are honoured during training.
 
 ## 4. Training
 
