@@ -100,6 +100,16 @@ can reconcile naming mismatches immediately.
 These helpers mirror the structures produced by the authenticated pipeline so existing
 analysis notebooks continue to operate without change.
 
+### Track connectome↔behavior integration progress
+
+Refer to [`docs/model_integration_status.md`](docs/model_integration_status.md) for a
+single-page summary of how the offline FlyWire cache, structural metrics, and behavioral
+cross-validation currently interlock. The document lists the exact commands to inspect
+datasets, materialise caches, initialise the `DrosophilaReservoir`, and execute the
+behavioral pipelines so you can confirm the network remains biologically grounded while
+aligning with observed odor conditioning results. Outstanding tasks are recorded there
+to keep the roadmap visible beside the technical instructions below.
+
 ## Quickstart
 
 1. **Create the Conda environment**
