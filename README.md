@@ -456,7 +456,8 @@ splits and ChemicalSTDP fine-tuning confined to the KC→MBON projection.
    python analysis/cross_validation.py \
      --folds 5 \
      --output-dir artifacts/cross_validation \
-     --report-prefix week4
+     --report-prefix week4 \
+     --per-dataset
    ```
 
    The command consumes the canonical behavioural CSV (or a custom dataset via
