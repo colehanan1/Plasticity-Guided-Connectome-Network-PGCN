@@ -127,7 +127,15 @@ KC sparsity compliance per query.
 - Feature tables must contain exactly 10,767 PN columns. The loader raises descriptive
   errors when shapes or row counts drift from expectations.
 
-## 8. Next Steps
+## 8. Custom Loader Interface
+
+When registering bespoke loaders via `TaskDataLoaderFactory.register`, implement the
+signature `def loader(task: TaskSpec, *, shuffle: bool) -> DataLoader`. The factory now
+invokes loaders with a keyword argument to make the intention explicit and avoid
+positional mismatches. Reuse `_tabular_loader` as a template when adapting future PN
+feature sources.
+
+## 9. Next Steps
 
 - Integrate glomerulus-specific metadata from FlyWire or neuPrint to enrich the
   `BehaviorConnectomeAnalyzer` inputs.

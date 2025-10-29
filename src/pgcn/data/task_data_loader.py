@@ -183,7 +183,7 @@ class TaskDataLoaderFactory:
         if task.data_loader not in self._registry:
             raise KeyError(f"Unknown data loader '{task.data_loader}' for task '{task.name}'.")
         loader = self._registry[task.data_loader]
-        return loader(task, shuffle)
+        return loader(task, shuffle=shuffle)
 
     def available(self) -> Mapping[str, LoaderFn]:
         return dict(self._registry)
