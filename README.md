@@ -51,6 +51,24 @@ tables.
 5. Use ``python -m scripts.example_local_kc_pn`` for a command-line demonstration of the
    same workflow.
 
+### Build canonical caches from local CSVs
+
+When you need the full ``data/cache`` artefact expected by the legacy quicksetup
+instructions, invoke the connectome pipeline with the ``--local-data`` flag. The
+command below writes ``nodes.parquet``, ``edges.parquet``, ``dan_edges.parquet``,
+and ``meta.json`` using only the CSV exports in ``data/flywire``:
+
+```bash
+pgcn-cache --local-data data/flywire --out data/cache/
+```
+
+The resulting cache preserves the PN/KC/MBON/DAN populations discovered from the
+local tables, stores neurotransmitter and brain-region metadata alongside each
+node, and records the dataset directory in ``meta.json`` for provenance. Downstream
+components (``pgcn-metrics``, ``DrosophilaReservoir`` initialisation, etc.) will
+transparently consume the offline cache just as they did with the API-derived
+artefacts.
+
 ### Dataset schema inspection (diagnose missing columns)
 
 When the loaders raise schema validation errors, run the inspection helper to
