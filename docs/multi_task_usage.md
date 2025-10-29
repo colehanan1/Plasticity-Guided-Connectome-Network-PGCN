@@ -71,7 +71,25 @@ Key points:
   `MultiTaskDrosophilaModel`, ensuring the cached FlyWire dimensions (10,767 PN / 5,177 KC /
   96 MBON) are honoured during training.
 
-## 4. Training
+## 4. Generate feature tables
+
+The trainer expects a Parquet feature table for every configured task. The helper below
+emits deterministic, sparse PN representations that satisfy the dimensionality checks in
+`TaskDataLoaderFactory`. Provide the behavioural CSV if it lives outside the repository
+defaults:
+
+```bash
+python scripts/generate_multi_task_features.py \
+  --config configs/multi_task_config.yaml \
+  --behavior-csv /path/to/model_predictions.csv \
+  --report-json artifacts/multi_task/feature_report.json
+```
+
+- Behavioural tasks reuse the 440 behavioural trials and attach hashed PN activations.
+- Synthetic heads receive reproducible sparse features (2048 rows by default). Use
+  `--rows` to align with external datasets and `--overwrite` when regenerating tables.
+
+## 5. Training
 
 ```bash
 python scripts/train_multi_task.py \

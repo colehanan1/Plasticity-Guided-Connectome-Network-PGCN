@@ -650,6 +650,16 @@ task-specific heads for downstream learning problems. Key artefacts:
 - `docs/multi_task_usage.md` – step-by-step instructions covering configuration,
   training, behaviour–connectome analysis, and deployment.
 
+Generate deterministic PN feature tables before training (provide the behavioural CSV
+path when it lives outside the repository):
+
+```bash
+python scripts/generate_multi_task_features.py \
+  --config configs/multi_task_config.yaml \
+  --behavior-csv /path/to/model_predictions.csv \
+  --report-json artifacts/multi_task/feature_report.json
+```
+
 Run the trainer once feature tables exist for each task:
 
 ```bash
