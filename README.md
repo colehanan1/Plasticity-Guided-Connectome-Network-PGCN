@@ -339,6 +339,93 @@ odor-generalisation analyses. The modules live under `pgcn.chemical` and
    The reservoir auto-resolves `n_pn`/`n_kc` dimensions from the matrix and
    keeps absent connections masked without resampling new sparsity patterns.
 
+## Behavioral cross-validation CLI
+
+Week 4 and later checkpoints track behavioural generalisation via grouped
+cross-validation. The repository provides a reference driver under
+`analysis/cross_validation.py` that reproduces those metrics with fly-aware
+splits and ChemicalSTDP fine-tuning confined to the KC→MBON projection.
+
+1. **Run grouped cross-validation**
+
+   ```bash
+   python analysis/cross_validation.py \
+     --folds 5 \
+     --output-dir artifacts/cross_validation \
+     --report-prefix week4
+   ```
+
+   The command consumes the canonical behavioural CSV (or a custom dataset via
+   `--data`) and instantiates a fresh
+   `ChemicallyInformedDrosophilaModel` for each fold. During training only the
+   KC→MBON weights are updated through the `ChemicalSTDP` plasticity rule while
+   all other parameters remain frozen. GroupKFold splitting respects the
+   `fly` identifier to prevent leakage across individuals.
+
+   The behavioural loader now enforces structural checks (non-empty dataset,
+   duplicate protection, one dataset per fly, consistent `trial_label`
+   coverage) without hard-coding a fixed row or fly count. That lets you append
+   new trials daily while keeping validation meaningful. Ensure external CSVs
+   honour those invariants before running large experiments. The odor mapping
+   includes the newly exported `EB_control` condition, which mirrors the
+   `opto_EB` assignments, alongside the existing `hex_control` → `opto_hex`
+   alias; custom datasets must preserve those aliases so the CLI can resolve
+   the correct chemical identities.
+
+2. **Inspect per-fold outputs**
+
+   Every fold emits a JSON summary and a companion CSV of generalisation curves
+   in the specified output directory. Metrics include overall accuracy,
+   trained-odor accuracy, control separation (how sharply the model suppresses
+   `hex_control` responses relative to conditioned flies), and AUROC.
+
+3. **Review aggregate reports**
+
+   The script assembles `week4_report.json` and `week4_report.csv` (configurable
+   via `--report-prefix`). The JSON report captures per-fold metrics alongside
+   fold-wise means and standard deviations; the CSV lists each fold plus
+   appended mean/std rows for quick spreadsheet import. If you rerun the CLI and
+   supply fold metrics that already include a `fold` column, the exporter now
+   preserves that numbering instead of attempting to reinsert it, preventing
+   duplicate-column errors during long-running pipelines.
+
+4. **Interpret the aggregate digest**
+
+   After saving the JSON and CSV artefacts the CLI now prints a compact console
+   summary that compares the observed means against the Week 4 targets
+   (overall ≥0.70, trained-odor ≥0.80, control separation ≥0.90) and a
+   50 % chance baseline for accuracy. Metrics that cannot be computed (for
+   example when a fold contains only control trials) are explicitly marked so
+   you know whether gaps stem from modelling issues or data coverage.
+
+   Example output from the extended behavioural export mentioned above:
+
+   ```text
+   === Cross-validation aggregate summary ===
+   Folds evaluated: 5
+   overall_accuracy: mean=0.495 ±0.072 (5/5 folds)
+     ↳ vs. chance (0.500): -0.005
+     ↳ below target ≥0.700
+   trained_odor_accuracy: mean=0.604 ±0.123 (5/5 folds)
+     ↳ below target ≥0.800
+   control_separation: mean=0.477 ±0.052 (5/5 folds)
+     ↳ below target ≥0.900
+   auroc: mean=0.477 ±0.052 (5/5 folds)
+   ```
+
+   These results show the current configuration underperforming relative to the
+   Week 4 expectations: accuracy sits only marginally above chance, trained-odor
+   recognition is inconsistent across folds, and the model fails to suppress
+   `hex_control` responses. Treat this digest as the first checkpoint before
+   diving into the per-fold JSON files or the generalisation curves when
+   debugging.
+
+5. **Tune learning dynamics (optional)**
+
+   Adjust `--learning-rate` or `--decision-threshold` to explore alternative
+   plasticity strengths and classification cut-offs. Use `--device` to force CPU
+   or GPU execution when the default auto-detection does not match your setup.
+
 ## Troubleshooting common setup errors
 
 - **`Authentication secret not found at ~/.cloudvolume/secrets/cave-secret.json`** –
