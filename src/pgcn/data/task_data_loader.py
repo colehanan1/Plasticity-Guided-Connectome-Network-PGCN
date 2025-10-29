@@ -122,9 +122,19 @@ def _read_table(path: Path) -> pd.DataFrame:
 def _target_tensor(task: TaskSpec, series: pd.Series) -> torch.Tensor:
     if task.loss_function == "categorical_crossentropy":
         return torch.as_tensor(series.to_numpy(), dtype=torch.long)
+
     array = series.to_numpy(dtype=np.float32)
-    if task.output_dim == 1:
+
+    if array.ndim == 1 and task.output_dim == 1:
         array = array.reshape(-1, 1)
+    elif array.ndim == 1 and task.output_dim > 1:
+        array = np.repeat(array[:, None], task.output_dim, axis=1)
+    elif array.ndim == 2 and array.shape[1] != task.output_dim:
+        raise ValueError(
+            "Target dimensionality mismatch for task "
+            f"'{task.name}': expected {task.output_dim}, observed {array.shape[1]}."
+        )
+
     return torch.as_tensor(array, dtype=torch.float32)
 
 

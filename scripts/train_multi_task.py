@@ -67,8 +67,11 @@ def _train_single_task(
             optimizer.zero_grad()
             outputs = model.forward(features, tasks=[task_name])
             logits = outputs[task_name]
-            if task_spec.loss_function == "binary_crossentropy" and logits.ndim > targets.ndim:
-                targets = targets.view_as(logits)
+            if task_spec.loss_function == "binary_crossentropy" and logits.shape != targets.shape:
+                raise ValueError(
+                    f"Target shape {tuple(targets.shape)} does not match logits shape {tuple(logits.shape)} "
+                    f"for task '{task_name}'."
+                )
             loss = loss_fn(logits, targets)
             loss.backward()
             optimizer.step()

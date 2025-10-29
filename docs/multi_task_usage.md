@@ -65,6 +65,8 @@ tasks:
 Key points:
 
 - `use_reservoir_head: true` reuses the canonical KC→MBON layer to respect plasticity.
+- Behavioural targets remain single-column in the Parquet export; the loader now expands
+  those labels to match the 96 MBON outputs whenever the head reuses the reservoir readout.
 - New tasks should typically leverage `parquet_tensor` loader with their own targets.
 - Adjust batch size, epochs, and learning rate per task as required.
 - Reservoir fields (`n_pn`, `n_kc`, `n_mbon`, `sparsity`) are now passed straight into
