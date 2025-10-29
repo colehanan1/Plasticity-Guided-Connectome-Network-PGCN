@@ -9,14 +9,15 @@ from typing import Dict, Iterable, Mapping, Optional
 import pandas as pd
 
 from config import paths
+from data_loaders.flywire_local import FlyWireLocalDataLoader
 from data_loaders.neuron_classification import get_kc_neurons, get_pn_neurons
 from utils.data_validation import validate_file_exists
 
 # Expected columns for quick validation and reporting.
 _EXPECTED_COLUMNS: Mapping[str, Iterable[str]] = {
     "connections": ("pre_root_id", "post_root_id", "neuropil", "syn_count", "nt_type"),
-    "cell_types": ("root_id", "cell_type", "super_class"),
-    "classification": ("root_id", "super_class", "sub_class"),
+    "cell_types": ("root_id", "primary_type"),
+    "classification": ("root_id", "super_class", "class", "sub_class"),
     "neurons": ("root_id",),
     "names": ("root_id", "group"),
     "processed_labels": ("root_id",),
@@ -128,7 +129,7 @@ def inspect_datasets(
             entry["row_count"] = int(full_df.shape[0])
 
             if key in {"cell_types", "classification"}:
-                for column in ("cell_type", "super_class", "sub_class"):
+                for column in ("cell_type", "primary_type", "super_class", "class", "sub_class"):
                     if column in full_df.columns:
                         entry[f"top_{column}_values"] = _value_counts(full_df, column, value_count_limit)
                 if key == "classification":
@@ -154,12 +155,10 @@ def inspect_datasets(
         and classification_df.get("status") != "missing"
     ):
         try:
-            cell_types_frame = cached_frames.get("cell_types")
-            if cell_types_frame is None:
-                cell_types_frame = _load_full_frame(Path(cell_types_df["resolved_path"]))
-            classification_frame = cached_frames.get("classification")
-            if classification_frame is None:
-                classification_frame = _load_full_frame(Path(classification_df["resolved_path"]))
+            loader_root = data_dir if data_dir is not None else paths.DATA_ROOT
+            loader = FlyWireLocalDataLoader(loader_root)
+            cell_types_frame = loader.load_cell_types()
+            classification_frame = loader.load_classification()
             kc_df = get_kc_neurons(cell_types_frame, classification_frame)
             pn_df = get_pn_neurons(cell_types_frame, classification_frame)
             report["kc_summary"] = {

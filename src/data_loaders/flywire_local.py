@@ -28,9 +28,24 @@ _CONNECTION_DTYPES = {
     "syn_count": "int64",
 }
 
-_CELL_TYPE_COLUMNS = ["root_id", "cell_type", "super_class"]
+_CELL_TYPE_COLUMNS = ["root_id", "cell_type"]
 _CLASSIFICATION_COLUMNS = ["root_id", "super_class", "sub_class"]
 _CONNECTION_COLUMNS = ["pre_root_id", "post_root_id", "neuropil", "syn_count", "nt_type"]
+
+
+def _normalise_cell_types(df: pd.DataFrame) -> pd.DataFrame:
+    """Rename FlyWire cell-type exports to the canonical column contract."""
+
+    rename_map: dict[str, str] = {}
+    if "cell_type" not in df.columns and "primary_type" in df.columns:
+        rename_map["primary_type"] = "cell_type"
+    if "cell_type_aliases" not in df.columns and "additional_type(s)" in df.columns:
+        rename_map["additional_type(s)"] = "cell_type_aliases"
+    if rename_map:
+        df = df.rename(columns=rename_map)
+    if "cell_type_aliases" not in df.columns:
+        df["cell_type_aliases"] = pd.NA
+    return df
 
 @dataclass(slots=True)
 class FlyWireLocalDataLoader:
@@ -64,11 +79,18 @@ class FlyWireLocalDataLoader:
         )
 
     def load_cell_types(self) -> pd.DataFrame:
-        return self._load_csv(
-            "cell_types",
-            paths.CELL_TYPES_FILE,
-            columns=_CELL_TYPE_COLUMNS,
-        )
+        cache_key = "cell_types"
+        if self.cache_results and cache_key in self._cache:
+            return self._cache[cache_key]
+
+        path = self._resolve_path(paths.CELL_TYPES_FILE)
+        df = pd.read_csv(path, compression="gzip")
+        df = _normalise_cell_types(df)
+        validate_dataframe_columns(df, _CELL_TYPE_COLUMNS, frame_name=cache_key)
+        ensure_no_missing_root_ids(df, columns=["root_id"], frame_name=cache_key)
+        if self.cache_results:
+            self._cache[cache_key] = df
+        return df
 
     def load_classification(self) -> pd.DataFrame:
         return self._load_csv(

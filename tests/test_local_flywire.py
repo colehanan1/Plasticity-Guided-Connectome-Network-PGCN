@@ -48,14 +48,25 @@ def test_loader_integrates_all_tables(tmp_path: Path) -> None:
     cell_types = pd.DataFrame(
         {
             "root_id": [1, 2, 3, 4],
-            "cell_type": ["olfactory_projection", "kenyon_cell", "kenyon_cell", "other"],
-            "super_class": ["PN", "KC", "KC", "unknown"],
+            "primary_type": [
+                "Olfactory Projection Neuron",
+                "Kenyon Cell",
+                "Kenyon Cell",
+                "Other",
+            ],
+            "additional_type(s)": [
+                "ALPN",
+                "Mushroom Body Intrinsic",
+                "KC",
+                pd.NA,
+            ],
         }
     )
     classification = pd.DataFrame(
         {
             "root_id": [1, 2, 3, 4],
             "super_class": ["olfactory_projection", "intrinsic", "intrinsic", "glia"],
+            "class": ["AL Projection", "KC", "KC", "glia_other"],
             "sub_class": ["pn", "kenyon", "kenyon", "other"],
         }
     )

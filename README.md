@@ -21,6 +21,13 @@ The expected filenames are:
 - ``names.csv.gz``
 - ``processed_labels.csv.gz``
 
+The loader normalises Codex headers automatically: ``primary_type`` is exposed
+as ``cell_type`` and ``additional_type(s)`` is surfaced as ``cell_type_aliases``
+for compatibility with the original online pipeline. No manual renaming is
+required—drop the raw downloads into place and the heuristics will discover KC
+and PN memberships by combining the cell-type and hierarchical classification
+tables.
+
 ### Offline usage checklist
 
 1. Place the CSV files in ``data/flywire`` (or export ``PGCN_FLYWIRE_DATA=/abs/path``).
@@ -61,7 +68,8 @@ The report records:
 - resolved path and size of each CSV.gz export;
 - the complete column list and inferred dtypes;
 - sample rows for a quick sanity check;
-- top value counts for ``cell_type``, ``super_class``, and related annotations;
+- top value counts for ``primary_type``/``cell_type``, ``super_class``, and
+  related annotations;
 - neurotransmitter and brain-region summaries when available; and
 - PN/KC membership counts using the repository keyword heuristics.
 

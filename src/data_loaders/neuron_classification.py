@@ -16,7 +16,7 @@ __all__ = [
 ]
 
 _KC_KEYWORDS = ("kenyon", "kc", "mushroom body intrinsic")
-_PN_KEYWORDS = ("projection", "pn", "olfactory")
+_PN_KEYWORDS = ("projection", "pn", "olfactory", "alpn")
 
 
 def _merge_classification(
@@ -40,9 +40,11 @@ def get_kc_neurons(cell_types_df: pd.DataFrame, classification_df: pd.DataFrame)
 
     merged = _merge_classification(cell_types_df, classification_df)
     mask = (
-        _keyword_mask(merged.get("cell_type", pd.Series()), _KC_KEYWORDS)
-        | _keyword_mask(merged.get("super_class", pd.Series()), _KC_KEYWORDS)
-        | _keyword_mask(merged.get("sub_class", pd.Series()), _KC_KEYWORDS)
+        _keyword_mask(merged.get("cell_type"), _KC_KEYWORDS)
+        | _keyword_mask(merged.get("cell_type_aliases"), _KC_KEYWORDS)
+        | _keyword_mask(merged.get("super_class"), _KC_KEYWORDS)
+        | _keyword_mask(merged.get("class"), _KC_KEYWORDS)
+        | _keyword_mask(merged.get("sub_class"), _KC_KEYWORDS)
     )
     return merged.loc[mask].drop_duplicates(subset=["root_id"]).reset_index(drop=True)
 
@@ -52,9 +54,11 @@ def get_pn_neurons(cell_types_df: pd.DataFrame, classification_df: pd.DataFrame)
 
     merged = _merge_classification(cell_types_df, classification_df)
     mask = (
-        _keyword_mask(merged.get("cell_type", pd.Series()), _PN_KEYWORDS)
-        | _keyword_mask(merged.get("super_class", pd.Series()), _PN_KEYWORDS)
-        | _keyword_mask(merged.get("sub_class", pd.Series()), _PN_KEYWORDS)
+        _keyword_mask(merged.get("cell_type"), _PN_KEYWORDS)
+        | _keyword_mask(merged.get("cell_type_aliases"), _PN_KEYWORDS)
+        | _keyword_mask(merged.get("super_class"), _PN_KEYWORDS)
+        | _keyword_mask(merged.get("class"), _PN_KEYWORDS)
+        | _keyword_mask(merged.get("sub_class"), _PN_KEYWORDS)
     )
     return merged.loc[mask].drop_duplicates(subset=["root_id"]).reset_index(drop=True)
 
