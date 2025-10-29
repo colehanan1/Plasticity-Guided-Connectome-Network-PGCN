@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Iterable, Sequence
+import ast
+import re
+from typing import Dict, Iterable, List, Sequence
 
 import pandas as pd
 
@@ -15,6 +17,7 @@ __all__ = [
     "get_dan_neurons",
     "extract_neurotransmitter_info",
     "map_brain_regions",
+    "infer_pn_glomerulus_labels",
 ]
 
 _KC_KEYWORDS = ("kenyon", "kc", "mushroom body intrinsic")
@@ -35,6 +38,87 @@ _DAN_KEYWORDS = (
 )
 
 
+_CANONICAL_GLOMERULI: Sequence[str] = (
+    "DA1",
+    "DA2",
+    "DA3",
+    "DA4l",
+    "DA4m",
+    "DA4",
+    "DA5",
+    "DA6",
+    "DA7",
+    "DL1",
+    "DL2d",
+    "DL2v",
+    "DL2",
+    "DL3",
+    "DL4",
+    "DL5",
+    "DM1",
+    "DM2",
+    "DM3",
+    "DM4",
+    "DM5",
+    "DM6",
+    "DM7",
+    "DM8",
+    "VA1d",
+    "VA1v",
+    "VA2",
+    "VA3",
+    "VA4",
+    "VA5",
+    "VA6",
+    "VA7l",
+    "VA7m",
+    "VA7",
+    "VA8",
+    "VA9",
+    "VM1",
+    "VM2",
+    "VM3",
+    "VM4",
+    "VM5",
+    "VM6",
+    "VM7d",
+    "VM7v",
+    "VM7",
+    "VM8",
+    "VM9",
+    "VL1",
+    "VL2",
+    "VL3",
+    "VP1",
+    "VP2",
+    "VP3",
+    "VP4",
+    "VP5",
+    "VC1",
+    "VC2",
+    "DC1",
+    "DC2",
+    "DC3",
+    "DC4",
+    "DC5",
+    "DC6",
+    "DC7",
+    "DP1",
+    "DP1l",
+    "DP1m",
+    "DP2",
+    "DP3",
+    "DP4",
+    "DP5",
+    "DP6",
+    "DP7",
+)
+
+_CANONICAL_LOOKUP: Dict[str, str] = {value.upper(): value for value in _CANONICAL_GLOMERULI}
+_ALLOWED_PREFIXES = {re.match(r"([A-Z]+)\d", glomerulus).group(1) for glomerulus in _CANONICAL_GLOMERULI if re.match(r"([A-Z]+)\d", glomerulus)}
+_GLOMERULUS_SPLIT_RE = re.compile(r"[^A-Za-z0-9]+")
+
+
 def _merge_classification(
     cell_types_df: pd.DataFrame,
     classification_df: pd.DataFrame,
@@ -49,6 +133,87 @@ def _keyword_mask(series: pd.Series | None, keywords: Sequence[str]) -> pd.Serie
     if series is None:
         series = pd.Series(dtype="string")
     return series.astype(str).str.contains("|".join(keywords), case=False, na=False)
+
+
+def _normalise_glomerulus_token(token: str) -> str | None:
+    token = token.strip()
+    if not token:
+        return None
+    token = re.sub(r"glomerulus", "", token, flags=re.IGNORECASE)
+    token = token.strip("-_ ")
+    if not token:
+        return None
+    upper = token.upper()
+    if upper in _CANONICAL_LOOKUP:
+        return _CANONICAL_LOOKUP[upper]
+
+    match = re.match(r"([A-Z]+)(\d+)([A-Z]*)", upper)
+    if not match:
+        return None
+    prefix, digits, suffix = match.groups()
+    if prefix not in _ALLOWED_PREFIXES:
+        return None
+    canonical_upper = prefix + digits + suffix.lower()
+    if canonical_upper.upper() in _CANONICAL_LOOKUP:
+        return _CANONICAL_LOOKUP[canonical_upper.upper()]
+    return prefix + digits + suffix.lower()
+
+
+def _split_candidate_text(text: str) -> List[str]:
+    return [segment for segment in _GLOMERULUS_SPLIT_RE.split(text) if segment]
+
+
+def _extract_glomerulus_from_candidates(candidates: Iterable[str]) -> str | pd.NA:
+    for candidate in candidates:
+        if not isinstance(candidate, str):
+            continue
+        for segment in _split_candidate_text(candidate):
+            normalised = _normalise_glomerulus_token(segment)
+            if normalised:
+                return normalised
+    return pd.NA
+
+
+def _parse_processed_label_entry(value: object) -> List[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value if isinstance(item, (str, bytes))]
+    if isinstance(value, str):
+        try:
+            parsed = ast.literal_eval(value)
+        except (ValueError, SyntaxError):
+            parsed = None
+        if isinstance(parsed, list):
+            return [str(item) for item in parsed if isinstance(item, (str, bytes))]
+        return [value]
+    return []
+
+
+def _build_processed_label_lookup(processed_labels_df: pd.DataFrame | None) -> Dict[int, List[str]]:
+    if processed_labels_df is None or processed_labels_df.empty:
+        return {}
+
+    validate_dataframe_columns(processed_labels_df, ["root_id"], frame_name="processed_labels")
+
+    label_column = "processed_labels" if "processed_labels" in processed_labels_df.columns else None
+    if label_column is None:
+        for column in processed_labels_df.columns:
+            if column == "root_id":
+                continue
+            if processed_labels_df[column].dtype == object:
+                label_column = column
+                break
+    if label_column is None:
+        return {}
+
+    lookup: Dict[int, List[str]] = {}
+    for row in processed_labels_df.itertuples(index=False):
+        root_id = getattr(row, "root_id", None)
+        if pd.isna(root_id):
+            continue
+        labels = _parse_processed_label_entry(getattr(row, label_column))
+        if labels:
+            lookup[int(root_id)] = labels
+    return lookup
 
 
 def get_kc_neurons(cell_types_df: pd.DataFrame, classification_df: pd.DataFrame) -> pd.DataFrame:
@@ -105,6 +270,33 @@ def get_dan_neurons(cell_types_df: pd.DataFrame, classification_df: pd.DataFrame
         | _keyword_mask(merged.get("sub_class"), _DAN_KEYWORDS)
     )
     return merged.loc[mask].drop_duplicates(subset=["root_id"]).reset_index(drop=True)
+
+
+def infer_pn_glomerulus_labels(
+    pn_df: pd.DataFrame,
+    *,
+    processed_labels_df: pd.DataFrame | None = None,
+) -> pd.Series:
+    """Infer glomerulus assignments for projection neurons."""
+
+    if pn_df.empty:
+        return pd.Series(dtype="object")
+
+    validate_dataframe_columns(pn_df, ["root_id"], frame_name="pn_neurons")
+    label_lookup = _build_processed_label_lookup(processed_labels_df)
+
+    glomeruli: List[str | pd.NA] = []
+    for row in pn_df.itertuples(index=False):
+        root_id = getattr(row, "root_id")
+        candidates: List[str] = []
+        for column in ("cell_type", "cell_type_aliases", "super_class", "class", "sub_class"):
+            value = getattr(row, column, None)
+            if isinstance(value, str) and value:
+                candidates.append(value)
+        candidates.extend(label_lookup.get(int(root_id), []))
+        glomeruli.append(_extract_glomerulus_from_candidates(candidates))
+
+    return pd.Series(glomeruli, index=pn_df.index, dtype="object")
 
 
 def extract_neurotransmitter_info(

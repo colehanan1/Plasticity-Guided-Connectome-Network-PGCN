@@ -64,10 +64,12 @@ pgcn-cache --local-data data/flywire --out data/cache/
 
 The resulting cache preserves the PN/KC/MBON/DAN populations discovered from the
 local tables, stores neurotransmitter and brain-region metadata alongside each
-node, and records the dataset directory in ``meta.json`` for provenance. Downstream
-components (``pgcn-metrics``, ``DrosophilaReservoir`` initialisation, etc.) will
-transparently consume the offline cache just as they did with the API-derived
-artefacts.
+node, infers PN glomerulus labels by combining ``primary_type`` /
+``additional_type(s)`` strings with the curated ``processed_labels`` export, and
+records the dataset directory plus node/edge counts in ``meta.json`` for
+provenance. Downstream components (``pgcn-metrics``, ``DrosophilaReservoir``
+initialisation, etc.) will transparently consume the offline cache just as they
+did with the API-derived artefacts—without emitting glomerulus warnings.
 
 ### Dataset schema inspection (diagnose missing columns)
 
@@ -89,7 +91,8 @@ The report records:
 - top value counts for ``primary_type``/``cell_type``, ``super_class``, and
   related annotations;
 - neurotransmitter and brain-region summaries when available; and
-- PN/KC membership counts using the repository keyword heuristics.
+- PN/KC membership counts using the repository keyword heuristics, including
+  PN glomerulus coverage after the new inference step.
 
 Attach the resulting ``flywire_dataset_report.txt`` to any support request so we
 can reconcile naming mismatches immediately.

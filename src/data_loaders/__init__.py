@@ -8,6 +8,7 @@ from .neuron_classification import (
     get_kc_neurons,
     get_mbon_neurons,
     get_pn_neurons,
+    infer_pn_glomerulus_labels,
     map_brain_regions,
 )
 
@@ -22,5 +23,6 @@ __all__ = [
     "get_mbon_neurons",
     "get_dan_neurons",
     "extract_neurotransmitter_info",
+    "infer_pn_glomerulus_labels",
     "map_brain_regions",
 ]

@@ -46,6 +46,7 @@ from data_loaders.neuron_classification import (
     get_kc_neurons,
     get_mbon_neurons,
     get_pn_neurons,
+    infer_pn_glomerulus_labels,
     map_brain_regions,
 )
 
@@ -180,8 +181,27 @@ class ConnectomePipeline:
             dan_edges=dan_edges,
         )
         core_edges = pd.concat([pn_kc_edges, kc_mbon_edges], ignore_index=True)
-
-        artifacts = self._write_outputs(nodes, core_edges, dan_edges, mv, tables)
+        counts = {
+            "nodes": int(len(nodes)),
+            "edges": int(len(core_edges)),
+            "pn_kc_edges": int(len(pn_kc_edges)),
+            "kc_mbon_edges": int(len(kc_mbon_edges)),
+            "dan_edges": int(len(dan_edges)),
+        }
+        node_counts = {
+            "pn_count": int(len(pn_nodes)),
+            "kc_count": int(len(kc_nodes)),
+            "mbon_count": int(len(mbon_nodes)),
+            "dan_count": int(len(dan_nodes)),
+        }
+        artifacts = self._write_outputs(
+            nodes,
+            core_edges,
+            dan_edges,
+            mv,
+            tables,
+            extra_meta={**node_counts, "counts": counts},
+        )
         self.logger.info("Cache generation completed successfully.")
         return artifacts
 
@@ -441,7 +461,14 @@ class ConnectomePipeline:
 
         optional_columns = [
             column
-            for column in ["cell_type", "cell_type_aliases", "super_class", "class", "sub_class"]
+            for column in [
+                "cell_type",
+                "cell_type_aliases",
+                "super_class",
+                "class",
+                "sub_class",
+                "glomerulus",
+            ]
             if column in data.columns
         ]
         result = data[["node_id", "type", *optional_columns]].drop_duplicates(subset=["node_id"])
@@ -518,8 +545,15 @@ class ConnectomePipeline:
 
         cell_types = loader.load_cell_types()
         classification = loader.load_classification()
+        processed_labels = loader.load_processed_labels()
 
         pn_frame = get_pn_neurons(cell_types, classification)
+        if not pn_frame.empty:
+            pn_glomeruli = infer_pn_glomerulus_labels(
+                pn_frame,
+                processed_labels_df=processed_labels,
+            )
+            pn_frame = pn_frame.assign(glomerulus=pn_glomeruli)
         kc_frame = get_kc_neurons(cell_types, classification)
         mbon_frame = get_mbon_neurons(cell_types, classification)
         dan_frame = get_dan_neurons(cell_types, classification)
@@ -569,6 +603,13 @@ class ConnectomePipeline:
             dan_edges=dan_edges,
         )
         core_edges = pd.concat([pn_kc_edges, kc_mbon_edges], ignore_index=True)
+        counts = {
+            "nodes": int(len(nodes)),
+            "edges": int(len(core_edges)),
+            "pn_kc_edges": int(len(pn_kc_edges)),
+            "kc_mbon_edges": int(len(kc_mbon_edges)),
+            "dan_edges": int(len(dan_edges)),
+        }
 
         synapse_path = (dataset_dir / paths.CONNECTIONS_FILE.name)
         if not synapse_path.exists():
@@ -591,6 +632,7 @@ class ConnectomePipeline:
             "kc_count": int(len(kc_nodes)),
             "mbon_count": int(len(mbon_nodes)),
             "dan_count": int(len(dan_nodes)),
+            "counts": counts,
         }
 
         artifacts = self._write_outputs(

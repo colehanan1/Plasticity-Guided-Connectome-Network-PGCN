@@ -13,6 +13,7 @@ from data_loaders.neuron_classification import (
     get_kc_neurons,
     get_mbon_neurons,
     get_pn_neurons,
+    infer_pn_glomerulus_labels,
     map_brain_regions,
 )
 from pgcn.connectome_pipeline import ConnectomePipeline
@@ -113,7 +114,14 @@ def test_loader_integrates_all_tables(tmp_path: Path) -> None:
     processed_labels = pd.DataFrame(
         {
             "root_id": [1, 2, 3, 4, 5, 6],
-            "label": ["PN", "KC", "KC", "Other", "MBON", "DAN"],
+            "processed_labels": [
+                "['Projection neuron', 'DA1 glomerulus']",
+                "['Kenyon cell']",
+                "['Kenyon cell']",
+                "['Other cell']",
+                "['MBON neuron']",
+                "['DAN neuron']",
+            ],
         }
     )
 
@@ -136,10 +144,15 @@ def test_loader_integrates_all_tables(tmp_path: Path) -> None:
 
     kc_frame = get_kc_neurons(loader.load_cell_types(), loader.load_classification())
     pn_frame = get_pn_neurons(loader.load_cell_types(), loader.load_classification())
+    pn_glomeruli = infer_pn_glomerulus_labels(
+        pn_frame,
+        processed_labels_df=loader.load_processed_labels(),
+    )
     mbon_frame = get_mbon_neurons(loader.load_cell_types(), loader.load_classification())
     dan_frame = get_dan_neurons(loader.load_cell_types(), loader.load_classification())
     assert set(kc_frame["root_id"]) == {2, 3}
     assert set(pn_frame["root_id"]) == {1}
+    assert pn_glomeruli.tolist() == ["DA1"]
     assert set(mbon_frame["root_id"]) == {5}
     assert set(dan_frame["root_id"]) == {6}
 
@@ -187,13 +200,13 @@ def test_connectome_pipeline_local_cache(tmp_path: Path) -> None:
         {
             "root_id": [101, 201, 301, 401],
             "primary_type": [
-                "Olfactory Projection Neuron",
+                "PN-mALT-DA1",
                 "Kenyon Cell",
                 "Mushroom Body Output Neuron",
                 "PAM Dopaminergic Neuron",
             ],
             "additional_type(s)": [
-                "ALPN",
+                "ALPN; DA1 glomerulus",
                 "Mushroom Body Intrinsic",
                 "MBON",
                 "DAN",
@@ -210,7 +223,7 @@ def test_connectome_pipeline_local_cache(tmp_path: Path) -> None:
                 "dopaminergic",
             ],
             "class": ["projection neuron", "kc", "mbon", "pam_dan"],
-            "sub_class": ["pn", "kc", "mbon", "dan"],
+            "sub_class": ["pn_da1", "kc", "mbon", "dan"],
         }
     )
     neurons = pd.DataFrame(
@@ -228,7 +241,12 @@ def test_connectome_pipeline_local_cache(tmp_path: Path) -> None:
     processed_labels = pd.DataFrame(
         {
             "root_id": [101, 201, 301, 401],
-            "label": ["PN", "KC", "MBON", "DAN"],
+            "processed_labels": [
+                "['PN', 'DA1 glomerulus']",
+                "['KC']",
+                "['MBON']",
+                "['DAN']",
+            ],
         }
     )
 
@@ -251,6 +269,7 @@ def test_connectome_pipeline_local_cache(tmp_path: Path) -> None:
     meta = json.loads(artifacts.meta.read_text())
 
     assert set(nodes["type"]) == {"PN", "KC", "MBON", "DAN"}
+    assert nodes.loc[nodes["type"] == "PN", "glomerulus"].tolist() == ["DA1"]
     assert (edges[["source_id", "target_id"]].values.tolist()) == [[101, 201], [201, 301]]
     assert set(tuple(row) for row in dan_edges[["source_id", "target_id"]].to_numpy()) == {
         (401, 201),
@@ -262,3 +281,5 @@ def test_connectome_pipeline_local_cache(tmp_path: Path) -> None:
     assert meta["mbon_count"] == 1
     assert meta["dan_count"] == 1
     assert Path(meta["local_data_dir"]).exists()
+    assert meta["counts"]["pn_kc_edges"] == 1
+    assert meta["counts"]["nodes"] == len(nodes)

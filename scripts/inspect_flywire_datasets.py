@@ -10,7 +10,11 @@ import pandas as pd
 
 from config import paths
 from data_loaders.flywire_local import FlyWireLocalDataLoader
-from data_loaders.neuron_classification import get_kc_neurons, get_pn_neurons
+from data_loaders.neuron_classification import (
+    get_kc_neurons,
+    get_pn_neurons,
+    infer_pn_glomerulus_labels,
+)
 from utils.data_validation import validate_file_exists
 
 # Expected columns for quick validation and reporting.
@@ -159,8 +163,14 @@ def inspect_datasets(
             loader = FlyWireLocalDataLoader(loader_root)
             cell_types_frame = loader.load_cell_types()
             classification_frame = loader.load_classification()
+            processed_labels_frame = loader.load_processed_labels()
             kc_df = get_kc_neurons(cell_types_frame, classification_frame)
             pn_df = get_pn_neurons(cell_types_frame, classification_frame)
+            pn_glomeruli = infer_pn_glomerulus_labels(
+                pn_df,
+                processed_labels_df=processed_labels_frame,
+            )
+            glomerulus_non_null = int(pn_glomeruli.notna().sum()) if not pn_glomeruli.empty else 0
             report["kc_summary"] = {
                 "count": int(kc_df.shape[0]),
                 "sample_root_ids": kc_df["root_id"].astype("string").head(10).tolist(),
@@ -170,6 +180,12 @@ def inspect_datasets(
                 "count": int(pn_df.shape[0]),
                 "sample_root_ids": pn_df["root_id"].astype("string").head(10).tolist(),
                 "available_columns": list(pn_df.columns),
+                "glomerulus_non_null": glomerulus_non_null,
+                "glomerulus_coverage": (
+                    float(glomerulus_non_null) / float(pn_df.shape[0])
+                    if pn_df.shape[0]
+                    else 0.0
+                ),
             }
         except Exception as exc:  # pragma: no cover - diagnostic output only
             report["classification_error"] = str(exc)
