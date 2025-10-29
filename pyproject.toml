@@ -25,6 +25,7 @@ dependencies = [
     "caveclient",
     "scipy>=1.7.0",
     "scikit-learn>=1.0.0",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -35,6 +36,10 @@ dev = [
 ]
 models = [
     "torch>=2.2,<3",
+]
+api = [
+    "fastapi>=0.110",
+    "uvicorn>=0.23",
 ]
 
 [project.scripts]

@@ -1,0 +1,86 @@
+# Canonical configuration for the multi-task Drosophila reservoir.
+reservoir:
+  cache_dir: data/cache
+  n_pn: 10767
+  n_kc: 5177
+  n_mbon: 96
+  sparsity: 0.05
+  freeze_pn_kc: true
+
+# Each task requires a feature table aligned with PN activity vectors.
+tasks:
+  olfactory_conditioning:
+    input_dim: 10767
+    output_dim: 96
+    loss_function: binary_crossentropy
+    data_loader: behavioral_data
+    batch_size: 64
+    epochs: 35
+    learning_rate: 5.0e-4
+    activation: null
+    dropout: 0.0
+    use_reservoir_head: true
+    feature_table: data/cache/olfactory_conditioning_features.parquet
+    target_column: prediction
+    metadata:
+      description: "KC→MBON plasticity aligned with odor conditioning trials."
+
+  spatial_navigation:
+    input_dim: 10767
+    output_dim: 8
+    loss_function: categorical_crossentropy
+    data_loader: parquet_tensor
+    batch_size: 32
+    epochs: 40
+    learning_rate: 1.0e-3
+    activation: softmax
+    dropout: 0.1
+    feature_table: data/cache/spatial_navigation_features.parquet
+    target_column: target
+    metadata:
+      description: "Eight-way allocentric navigation decisions."
+
+  visual_pattern:
+    input_dim: 10767
+    output_dim: 16
+    loss_function: categorical_crossentropy
+    data_loader: parquet_tensor
+    batch_size: 32
+    epochs: 50
+    learning_rate: 1.0e-3
+    activation: softmax
+    dropout: 0.1
+    feature_table: data/cache/visual_pattern_features.parquet
+    target_column: label
+    metadata:
+      description: "Visual pattern recognition using PN-projected stimuli."
+
+  temporal_sequence:
+    input_dim: 10767
+    output_dim: 12
+    loss_function: categorical_crossentropy
+    data_loader: parquet_tensor
+    batch_size: 32
+    epochs: 45
+    learning_rate: 1.0e-3
+    activation: softmax
+    dropout: 0.1
+    feature_table: data/cache/temporal_sequence_features.parquet
+    target_column: sequence_id
+    metadata:
+      description: "Temporal sequence discrimination with KC sparsity constraints."
+
+  reward_prediction:
+    input_dim: 10767
+    output_dim: 1
+    loss_function: binary_crossentropy
+    data_loader: parquet_tensor
+    batch_size: 64
+    epochs: 30
+    learning_rate: 5.0e-4
+    activation: sigmoid
+    dropout: 0.0
+    feature_table: data/cache/reward_prediction_features.parquet
+    target_column: reward
+    metadata:
+      description: "Single-value reward forecasts driven by DAN-modulated KC states."

@@ -626,3 +626,46 @@ exploratory analysis.
 Unit tests fabricate a deterministic cache to verify schema integrity,
 positive weights, and the absence of direct PN→MBON edges. The `--use-sample-data`
 flag mirrors this behaviour for developers working offline.
+
+## Multi-task reservoir extension
+
+The multi-task build keeps the validated `DrosophilaReservoir` intact while exposing
+task-specific heads for downstream learning problems. Key artefacts:
+
+- `src/pgcn/models/multi_task_model.py` – wraps the reservoir and enforces 5% KC
+  sparsity across every task head. The olfactory conditioning head reuses the
+  canonical KC→MBON layer to honour plasticity constraints.
+- `src/pgcn/models/behavior_connectome.py` – couples behavioural success rates with
+  glomerulus-level connectivity motifs, enabling structural alignment analyses.
+- `src/pgcn/data/task_data_loader.py` – YAML-driven loader registry that validates
+  PN feature dimensionality (10,767) and behavioural row counts (440).
+- `configs/multi_task_config.yaml` – definitive specification of task heads,
+  feature tables, and optimisation hyperparameters aligned with FlyWire v783.
+- `analysis/behavior_connectome_analysis.py` – CLI for enrichment + correlation
+  summaries linking behaviour and structure.
+- `scripts/train_multi_task.py` – sequential trainer that freezes PN→KC weights,
+  logs per-epoch loss curves, and writes consolidated checkpoints.
+- `scripts/deploy_model_server.py` – FastAPI service exposing `/tasks` and
+  `/predict` endpoints for external integrations.
+- `docs/multi_task_usage.md` – step-by-step instructions covering configuration,
+  training, behaviour–connectome analysis, and deployment.
+
+Run the trainer once feature tables exist for each task:
+
+```bash
+python scripts/train_multi_task.py \
+  --config configs/multi_task_config.yaml \
+  --output-dir artifacts/multi_task
+```
+
+To verify structural alignment, execute the behaviour-connectome analysis:
+
+```bash
+python analysis/behavior_connectome_analysis.py \
+  --cache-dir data/cache \
+  --glomerulus-assignments data/connectome/pn_glomerulus.csv \
+  --output-dir artifacts/behavior_connectome
+```
+
+Refer to `docs/multi_task_usage.md` for the complete workflow, including API
+deployment details and expected data layouts.
