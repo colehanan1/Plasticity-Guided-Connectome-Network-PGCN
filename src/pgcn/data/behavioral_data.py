@@ -37,7 +37,7 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency
 PathLike = str | Path
 
 #: Default location for the behavioral CSV relative to the project root.
-BEHAVIORAL_DATA_PATH: Path = Path(__file__).resolve().parents[3] / "data" / "model_predictions.csv"
+BEHAVIORAL_DATA_PATH: Path = Path("/home/ramanlab/Documents/cole/Data/Opto/Combined/model_predictions.csv")
 
 _BASE_COLUMNS = ("dataset", "fly", "trial_label", "prediction")
 
