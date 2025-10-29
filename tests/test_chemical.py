@@ -16,7 +16,7 @@ from pgcn.chemical import (
 
 
 def test_complete_odor_mappings_include_training_conditions():
-    assert set(COMPLETE_ODOR_MAPPINGS) == {"opto_EB", "opto_benz_1", "opto_hex", "hex_control"}
+    assert set(COMPLETE_ODOR_MAPPINGS) == {"opto_EB", "opto_benz_1", "opto_hex", "hex_control", "EB_control"}
     assert COMPLETE_ODOR_MAPPINGS["opto_EB"]["testing_2"] == "ethyl_butyrate"
 
 

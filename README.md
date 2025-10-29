@@ -362,13 +362,15 @@ splits and ChemicalSTDP fine-tuning confined to the KC→MBON projection.
    all other parameters remain frozen. GroupKFold splitting respects the
    `fly` identifier to prevent leakage across individuals.
 
-   When pointing to a non-canonical CSV the script skips the strict 440-trial
-   validation baked into `pgcn.data.behavioral_data.load_behavioral_dataframe`.
-   Confirm your dataset preserves one dataset per fly and consistent
-   `trial_label` coverage before running large experiments. The odor mapping
-   remains identical to the bundled reference, including `hex_control`, which
-   reuses the `opto_hex` test-odor assignments; ensure custom exports honour
-   that mapping so the CLI can resolve the correct chemical identities.
+   The behavioural loader now enforces structural checks (non-empty dataset,
+   duplicate protection, one dataset per fly, consistent `trial_label`
+   coverage) without hard-coding a fixed row or fly count. That lets you append
+   new trials daily while keeping validation meaningful. Ensure external CSVs
+   honour those invariants before running large experiments. The odor mapping
+   includes the newly exported `EB_control` condition, which mirrors the
+   `opto_EB` assignments, alongside the existing `hex_control` → `opto_hex`
+   alias; custom datasets must preserve those aliases so the CLI can resolve
+   the correct chemical identities.
 
 2. **Inspect per-fold outputs**
 

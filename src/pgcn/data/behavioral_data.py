@@ -5,8 +5,9 @@ first sorting on the ``fly`` identifier and then the ``trial_label`` column.
 This ensures downstream consumers (e.g. tensor exports) observe a stable
 ordering regardless of the layout in the raw CSV.  When the canonical dataset
 is loaded from :data:`BEHAVIORAL_DATA_PATH` additional validation checks assert
-expected dataset sizes and grouping invariants so that downstream modelling can
-trust the behavioural annotations.
+dataset consistency (non-empty, uniform trial coverage, stable grouping) so
+that downstream modelling can trust the behavioural annotations even as new
+trials are appended over time.
 """
 
 from __future__ import annotations
@@ -36,10 +37,7 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency
 PathLike = str | Path
 
 #: Default location for the behavioral CSV relative to the project root.
-BEHAVIORAL_DATA_PATH: Path = Path(__file__).resolve().parents[3] / "data" / "model_predictions.csv"
-
-EXPECTED_ROW_COUNT = 440
-EXPECTED_FLY_COUNT = 35
+BEHAVIORAL_DATA_PATH: Path = Path("/home/ramanlab/Documents/cole/Data/Opto/Combined/model_predictions.csv")
 
 _BASE_COLUMNS = ("dataset", "fly", "trial_label", "prediction")
 
@@ -94,15 +92,19 @@ def _unique_in_order(values: Sequence) -> list:
 
 
 def _validate_behavioral_dataframe(df: pd.DataFrame) -> None:
-    if len(df) != EXPECTED_ROW_COUNT:
-        raise ValueError(
-            f"Expected {EXPECTED_ROW_COUNT} behavioural trials, found {len(df)}."
-        )
+    if df.empty:
+        raise ValueError("Behavioral dataframe is empty.")
 
     unique_flies = df["fly"].nunique()
-    if unique_flies != EXPECTED_FLY_COUNT:
+    if unique_flies == 0:
+        raise ValueError("Behavioral dataframe does not include any fly identifiers.")
+
+    duplicate_trials = df.duplicated(subset=["fly", "trial_label"], keep=False)
+    if duplicate_trials.any():
+        duplicates = df.loc[duplicate_trials, ["fly", "trial_label"]].value_counts().to_dict()
         raise ValueError(
-            f"Expected {EXPECTED_FLY_COUNT} unique flies, found {unique_flies}."
+            "Duplicate fly/trial_label combinations detected in behavioral dataset: "
+            f"{duplicates}"
         )
 
     dataset_per_fly = df.groupby("fly")["dataset"].nunique()
@@ -133,9 +135,10 @@ def load_behavioral_dataframe(
         Optional override for the CSV path.  When omitted the loader reads the
         canonical dataset from :data:`BEHAVIORAL_DATA_PATH`.
     validate:
-        When ``True`` perform dataset-level validation checks (row count,
-        grouping invariants).  ``None`` enables validation automatically when
-        reading from :data:`BEHAVIORAL_DATA_PATH` and the file exists.
+        When ``True`` perform dataset-level validation checks (non-empty dataset,
+        duplicate protection, grouping invariants).  ``None`` enables validation
+        automatically when reading from :data:`BEHAVIORAL_DATA_PATH` and the file
+        exists.
 
     Returns
     -------

@@ -18,6 +18,18 @@ COMPLETE_ODOR_MAPPINGS: Mapping[str, Mapping[str, str]] = {
         "testing_9": "citral",
         "testing_10": "linalool",
     },
+    "EB_control": {
+        "testing_1": "hexanol",
+        "testing_2": "ethyl_butyrate",
+        "testing_3": "hexanol",
+        "testing_4": "ethyl_butyrate",
+        "testing_5": "ethyl_butyrate",
+        "testing_6": "apple_cider_vinegar",
+        "testing_7": "3-octanol",
+        "testing_8": "benzaldehyde",
+        "testing_9": "citral",
+        "testing_10": "linalool",
+    },
     "opto_benz_1": {
         "testing_1": "hexanol",
         "testing_2": "benzaldehyde",
