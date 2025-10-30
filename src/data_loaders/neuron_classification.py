@@ -21,7 +21,14 @@ __all__ = [
 ]
 
 _KC_KEYWORDS = ("kenyon", "kc", "mushroom body intrinsic")
-_PN_KEYWORDS = ("projection", "pn", "olfactory", "alpn")
+_PN_KEYWORDS = (
+    "olfactory projection",
+    r"\\bpn\\b",
+    "pn-",
+    r"\\balpn\\b",
+    r"\\buPN\\b",
+    r"\\bmPN\\b",
+)
 _MBON_KEYWORDS = (
     "mbon",
     "mushroom body output",
@@ -118,6 +125,16 @@ _CANONICAL_LOOKUP: Dict[str, str] = {value.upper(): value for value in _CANONICA
 _ALLOWED_PREFIXES = {re.match(r"([A-Z]+)\d", glomerulus).group(1) for glomerulus in _CANONICAL_GLOMERULI if re.match(r"([A-Z]+)\d", glomerulus)}
 _GLOMERULUS_SPLIT_RE = re.compile(r"[^A-Za-z0-9]+")
 
+_CLASSIFICATION_COLUMNS: Sequence[str] = (
+    "primary_type",
+    "additional_type(s)",
+    "cell_type",
+    "cell_type_aliases",
+    "super_class",
+    "class",
+    "sub_class",
+)
+
 
 def _merge_classification(
     cell_types_df: pd.DataFrame,
@@ -133,6 +150,16 @@ def _keyword_mask(series: pd.Series | None, keywords: Sequence[str]) -> pd.Serie
     if series is None:
         series = pd.Series(dtype="string")
     return series.astype(str).str.contains("|".join(keywords), case=False, na=False)
+
+
+def _accumulate_keyword_mask(
+    frame: pd.DataFrame, columns: Sequence[str], keywords: Sequence[str]
+) -> pd.Series:
+    mask = pd.Series(False, index=frame.index, dtype=bool)
+    for column in columns:
+        if column in frame.columns:
+            mask = mask | _keyword_mask(frame[column], keywords)
+    return mask
 
 
 def _normalise_glomerulus_token(token: str) -> str | None:
@@ -250,17 +277,12 @@ def get_kc_neurons(
         name_subset = name_subset.drop_duplicates(subset=["root_id"])
         merged = merged.merge(name_subset, on="root_id", how="left")
 
-    keyword_mask = (
-        _keyword_mask(merged.get("cell_type"), _KC_KEYWORDS)
-        | _keyword_mask(merged.get("cell_type_aliases"), _KC_KEYWORDS)
-        | _keyword_mask(merged.get("super_class"), _KC_KEYWORDS)
-        | _keyword_mask(merged.get("class"), _KC_KEYWORDS)
-        | _keyword_mask(merged.get("sub_class"), _KC_KEYWORDS)
-    )
+    keyword_mask = _accumulate_keyword_mask(merged, _CLASSIFICATION_COLUMNS, _KC_KEYWORDS)
 
     group_series = merged.get("group")
     if group_series is not None:
-        group_mask = group_series.astype(str).str.upper().str.startswith("MB")
+        group_upper = group_series.astype(str).str.upper()
+        group_mask = group_upper.str.contains(r"MB[_-]?CA", regex=True, na=False)
     else:
         group_mask = pd.Series(False, index=merged.index, dtype=bool)
 
@@ -274,13 +296,14 @@ def get_kc_neurons(
     if sub_series is None:
         sub_series = pd.Series(index=merged.index, dtype="string")
 
-    intrinsic_mask = (
-        super_series.astype(str).str.contains("central", case=False, na=False)
-        & (
-            class_series.astype(str).str.contains("kenyon|intrinsic|mushroom", case=False, na=False)
-            | sub_series.astype(str).str.contains("kenyon|kc", case=False, na=False)
-        )
-    )
+    intrinsic_super = super_series.astype(str).str.contains("intrinsic|central", case=False, na=False)
+    intrinsic_class = class_series.astype(str).str.contains(
+        "kenyon|intrinsic|mushroom", case=False, na=False
+    ) | sub_series.astype(str).str.contains("kenyon|kc", case=False, na=False)
+    intrinsic_mask = intrinsic_super & intrinsic_class
+
+    mbon_like = _accumulate_keyword_mask(merged, _CLASSIFICATION_COLUMNS, _MBON_KEYWORDS)
+    dan_like = _accumulate_keyword_mask(merged, _CLASSIFICATION_COLUMNS, _DAN_KEYWORDS)
 
     label_lookup = _build_processed_label_lookup(processed_labels_df)
 
@@ -293,6 +316,7 @@ def get_kc_neurons(
         processed_mask = pd.Series(False, index=merged.index, dtype=bool)
 
     mask = keyword_mask | group_mask | intrinsic_mask | processed_mask
+    mask = mask & ~(mbon_like | dan_like)
     return merged.loc[mask].drop_duplicates(subset=["root_id"]).reset_index(drop=True)
 
 
@@ -325,17 +349,12 @@ def get_pn_neurons(
             neuron_subset = neurons_df.loc[:, ["root_id", *nt_columns]].drop_duplicates(subset=["root_id"])
             merged = merged.merge(neuron_subset, on="root_id", how="left")
 
-    keyword_mask = (
-        _keyword_mask(merged.get("cell_type"), _PN_KEYWORDS)
-        | _keyword_mask(merged.get("cell_type_aliases"), _PN_KEYWORDS)
-        | _keyword_mask(merged.get("super_class"), _PN_KEYWORDS)
-        | _keyword_mask(merged.get("class"), _PN_KEYWORDS)
-        | _keyword_mask(merged.get("sub_class"), _PN_KEYWORDS)
-    )
+    keyword_mask = _accumulate_keyword_mask(merged, _CLASSIFICATION_COLUMNS, _PN_KEYWORDS)
 
     group_series = merged.get("group")
     if group_series is not None:
-        group_mask = group_series.astype(str).str.upper().str.startswith("AL")
+        group_upper = group_series.astype(str).str.upper()
+        group_mask = group_upper.str.startswith("AL") | group_upper.str.contains(r"^AL_", regex=True)
     else:
         group_mask = pd.Series(False, index=merged.index, dtype=bool)
 
@@ -369,9 +388,11 @@ def get_pn_neurons(
     else:
         nt_mask = pd.Series(False, index=merged.index, dtype=bool)
 
-    structural_mask = ascending_mask & nt_mask
+    structural_mask = ascending_mask & nt_mask & (group_mask | label_mask)
 
-    mask = keyword_mask | group_mask | label_mask | structural_mask
+    base_mask = keyword_mask & (group_mask | label_mask)
+    label_only_mask = label_mask & (group_mask | nt_mask)
+    mask = base_mask | label_only_mask | structural_mask
     return merged.loc[mask].drop_duplicates(subset=["root_id"]).reset_index(drop=True)
 
 
@@ -379,13 +400,7 @@ def get_mbon_neurons(cell_types_df: pd.DataFrame, classification_df: pd.DataFram
     """Return mushroom body output neuron annotations."""
 
     merged = _merge_classification(cell_types_df, classification_df)
-    mask = (
-        _keyword_mask(merged.get("cell_type"), _MBON_KEYWORDS)
-        | _keyword_mask(merged.get("cell_type_aliases"), _MBON_KEYWORDS)
-        | _keyword_mask(merged.get("super_class"), _MBON_KEYWORDS)
-        | _keyword_mask(merged.get("class"), _MBON_KEYWORDS)
-        | _keyword_mask(merged.get("sub_class"), _MBON_KEYWORDS)
-    )
+    mask = _accumulate_keyword_mask(merged, _CLASSIFICATION_COLUMNS, _MBON_KEYWORDS)
     return merged.loc[mask].drop_duplicates(subset=["root_id"]).reset_index(drop=True)
 
 
@@ -393,13 +408,7 @@ def get_dan_neurons(cell_types_df: pd.DataFrame, classification_df: pd.DataFrame
     """Return dopaminergic neuron annotations."""
 
     merged = _merge_classification(cell_types_df, classification_df)
-    mask = (
-        _keyword_mask(merged.get("cell_type"), _DAN_KEYWORDS)
-        | _keyword_mask(merged.get("cell_type_aliases"), _DAN_KEYWORDS)
-        | _keyword_mask(merged.get("super_class"), _DAN_KEYWORDS)
-        | _keyword_mask(merged.get("class"), _DAN_KEYWORDS)
-        | _keyword_mask(merged.get("sub_class"), _DAN_KEYWORDS)
-    )
+    mask = _accumulate_keyword_mask(merged, _CLASSIFICATION_COLUMNS, _DAN_KEYWORDS)
     return merged.loc[mask].drop_duplicates(subset=["root_id"]).reset_index(drop=True)
 
 

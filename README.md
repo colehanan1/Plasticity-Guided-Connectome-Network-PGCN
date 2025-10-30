@@ -29,20 +29,24 @@ and PN memberships by fusing the cell-type table, hierarchical classification,
 processed community labels, brain-region names, and neurotransmitter tables.
 The updated filters implement FlyWire-aligned logic so that:
 
-- projection neurons must appear in ``names.group`` entries beginning with
-  ``AL`` *or* carry curated glomerulus labels (``DA1``, ``DL1``, ``VA1d``, etc.)
-  within ``processed_labels``;
-- PN candidates are only retained when their ``super_class`` resides in
-  ascending/sensory/visual-projection hierarchies **and** their neurotransmitter
-  predictions include cholinergic/glutamatergic markers;
-- Kenyon cells require mushroom-body region assignments (``MB_CA`` / ``MB_*``)
-  and kenyon/intrinsic keywords across ``super_class``/``class``/``sub_class``;
-- additional community labels (``KCg``, ``KCab``, ``ALPN``...) are merged into
-  both filters to capture curation variants.
+- projection neurons must fall within ``names.group`` entries rooted in the
+  antennal lobe (``AL*``) *or* expose curated glomerulus labels (``DA1``, ``DL1``,
+  ``VA1d``, …) inside ``processed_labels`` before they are admitted;
+- PN candidates that lack calyx projections are rejected even if the
+  classification tables describe them as generic "projection neurons"—the
+  updated structural checks demand antennal-lobe localisation and compatible
+  cholinergic/glutamatergic neurotransmitter predictions;
+- Kenyon cells must map to the mushroom-body calyx (``MB_CA`` variants in
+  ``names.group``) and carry kenyon/intrinsic keywords in the classification or
+  processed-label tables; MBON/DAN annotations are explicitly removed from the
+  KC mask to prevent bleed-through;
+- additional community labels (``KCg``, ``KCab``, ``ALPN``, glomerulus names)
+  participate in the filters so curation updates automatically propagate.
 
 With the full FAFB v783 exports in place the offline pipeline now recovers the
-expected populations (~130–160 olfactory PNs, ~2,600 Kenyon cells per
-hemisphere) instead of the truncated counts produced by name-only heuristics.
+published populations—approximately 10,767 olfactory projection neurons,
+5,177 Kenyon cells, 96 MBONs, and 331 DANs—rather than the truncated counts
+produced by name-only heuristics.
 
 ### Offline usage checklist
 
@@ -81,8 +85,8 @@ hemisphere) instead of the truncated counts produced by name-only heuristics.
    matrix = build_kc_pn_matrix(connections, kc_ids=kcs['root_id'], pn_ids=pns['root_id'])
    ```
 
-   ``len(pns)`` should fall between 130 and 160 and ``len(kcs)`` should sit near
-   2,600 when the FAFB v783 tables are intact. If the counts collapse toward
+   ``len(pns)`` should be on the order of 10,700 and ``len(kcs)`` should sit near
+   5,200 when the FAFB v783 tables are intact. If the counts collapse toward
    zero, re-run ``scripts/inspect_flywire_datasets.py``—the report will flag
    missing ``names.group`` annotations, absent neurotransmitter predictions, or
    stale processed-label exports that break the discovery heuristics.
