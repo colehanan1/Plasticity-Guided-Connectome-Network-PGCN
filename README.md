@@ -94,16 +94,17 @@ hemisphere) instead of the truncated counts produced by name-only heuristics.
 
 When you need a production-grade sanity check of the olfactory projection
 neurons themselves, run the purpose-built script below. It pins the ALPN
-filters to the FlyWire ``classification`` table (case-insensitive
-``class == 'ALPN'``) while **falling back automatically** whenever
-``super_class`` annotations are missing. ``flow`` is now treated as a diagnostic
-signal only—the script prints the observed values but never discards neurons on
-that column, preventing the null-heavy FAFB export from collapsing to zero
-candidates. Any cholinergic/glutamatergic undercount prompts a controlled
-reintroduction of ``nt_type``-unknown rows (clearly flagged in the console
-output). The pipeline keeps only excitatory ``ACH``/``GLUT`` entries from
-``neurons.csv.gz`` (dropping GABAergic vPNs and logging the discarded counts),
-optionally validates that each neuron projects to the calyx via the
+filters to the FlyWire ``classification`` table (case-insensitive exact match
+first, then substring/whitespace fallbacks) while **automatically relaxing**
+``super_class`` whenever the metadata fails to contain an ``ASCEND`` token.
+``flow`` remains a diagnostic signal only—the script now prints the observed
+values, the class histogram, and the super-class distribution without discarding
+neurons on those columns, preventing the null-heavy FAFB export from collapsing
+to zero candidates. Any cholinergic/glutamatergic undercount prompts a
+controlled reintroduction of ``nt_type``-unknown rows (clearly flagged in the
+console output). The pipeline keeps only excitatory ``ACH``/``GLUT`` entries
+from ``neurons.csv.gz`` (dropping GABAergic vPNs and logging the discarded
+counts), optionally validates that each neuron projects to the calyx via the
 ``output_neuropils`` metadata (``CA_L``/``CA_R`` substring match with an
 automatic fallback when the column is absent), parses community glomerulus
 labels, and reports PN→KC connectivity restricted to the mushroom-body calyx.
@@ -118,9 +119,10 @@ PYTHONPATH=src python scripts/extract_alpn_projection_neurons.py \
 ```
 
 The command prints target checks (PN count, glomerulus coverage,
-neurotransmitter mix with percentages, hemisphere balance, unique ``flow``
-values, neurotransmitter histograms before filtering, and calyx-validation
-diagnostics) and writes two CSV artefacts for downstream analysis:
+neurotransmitter mix with percentages, hemisphere balance, raw class and
+``super_class`` distributions, unique ``flow`` values, neurotransmitter
+histograms before filtering, and calyx-validation diagnostics) and writes two
+CSV artefacts for downstream analysis:
 
 - ``data/cache/alpn_extracted.csv`` with ALPN metadata, neurotransmitter type,
   and parsed glomerulus assignments (one row per neuron);
@@ -136,6 +138,26 @@ when zero ALPNs survive filtering, exporting empty CSVs for audit instead of
 raising ``KeyError`` exceptions. Any deviations (including missing
 neurotransmitter annotations or glomerulus gaps) appear directly in the console
 summary so you can revisit the raw exports without spelunking through notebooks.
+
+#### Rapid KC/MBON/DAN circuit exports
+
+To complement the PN pipeline, ``scripts/extract_circuit.py`` reproduces the
+user workflow above with a reproducible CLI. It merges FlyWire
+``classification.csv.gz``, ``consolidated_cell_types.csv.gz``, and
+``neurons.csv.gz`` into a single metadata table, slices Kenyon-cell subtypes,
+MBONs, and DAN populations, and writes the same CSV breakdowns (KCab, KCg-m,
+KCg-d, KCa'b', MBONs, MBONs with calyx output, glutamatergic MBONs, and DAN
+targets). Invoke it with matching dataset and output directories:
+
+```bash
+python scripts/extract_circuit.py \
+  --dataset-dir data/flywire \
+  --output-dir data/cache
+```
+
+All CSVs land beside the ALPN exports so downstream notebooks can consume a
+consistent dataset bundle (ALPNs, KC subtypes, MBONs, DANs) without manual
+copy/paste from ad-hoc scripts.
 
 ### Build canonical caches from local CSVs
 

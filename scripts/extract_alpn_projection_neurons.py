@@ -300,6 +300,11 @@ def extract_alpns(
     classification_df["class_normalised"] = _normalise_string_series(
         classification_df["class"]
     )
+    classification_df["class_compact"] = (
+        classification_df["class_normalised"]
+        .astype("string")
+        .str.replace(r"[^A-Z0-9]+", "", regex=True)
+    )
 
     if "super_class" in classification_df.columns:
         classification_df["super_class_normalised"] = _normalise_string_series(
@@ -315,20 +320,76 @@ def extract_alpns(
     else:
         classification_df["flow_normalised"] = pd.NA
 
-    class_mask = classification_df["class_normalised"] == "ALPN"
+    class_mask = classification_df["class_compact"] == "ALPN"
     pn_class_only = classification_df[class_mask].copy()
     print(f"ALPN candidates with class=='ALPN': {len(pn_class_only):,}")
-    if pn_class_only.empty:
-        print(
-            "Warning: classification export lacks rows with class=='ALPN' after normalisation."
-        )
 
-    super_class_mask = classification_df["super_class_normalised"].isin({"ASCENDING"})
+    if pn_class_only.empty:
+        contains_mask = classification_df["class_normalised"].fillna("").str.contains(
+            "ALPN", case=False, regex=False
+        )
+        if contains_mask.any():
+            pn_class_only = classification_df[contains_mask].copy()
+            class_mask = contains_mask
+            print(
+                "No exact 'ALPN' matches found; using substring fallback where "
+                "class contains 'ALPN'."
+            )
+            print(
+                f"ALPN candidates with class containing 'ALPN': {len(pn_class_only):,}"
+            )
+        else:
+            approx_mask = (
+                classification_df["class_normalised"].fillna("")
+                .str.replace(" ", "")
+                .str.contains("ALPN", case=False, regex=False)
+            )
+            if approx_mask.any():
+                pn_class_only = classification_df[approx_mask].copy()
+                class_mask = approx_mask
+                print(
+                    "Fell back to approximate class match (ignoring whitespace) containing 'ALPN'."
+                )
+                print(
+                    "Inspect class value examples to confirm alignment:"
+                )
+                print(
+                    pn_class_only["class"]
+                    .dropna()
+                    .astype(str)
+                    .value_counts()
+                    .head(10)
+                    .to_string()
+                )
+            else:
+                print(
+                    "Warning: classification export lacks rows with class identifiers "
+                    "resembling 'ALPN'."
+                )
+
+    super_series = classification_df["super_class_normalised"].astype("string")
+    super_class_mask = super_series.str.contains("ASCEND", case=False, na=False)
+    if not super_class_mask.any() and pn_class_only is not None and not pn_class_only.empty:
+        print(
+            "No ascending super-class annotations detected; proceeding without the "
+            "super_class filter."
+        )
+        super_class_mask = pd.Series(True, index=classification_df.index)
     pn_candidates = classification_df[class_mask & super_class_mask].copy()
     print(
         "ALPN candidates after class & super_class filters: "
         f"{len(pn_candidates):,}"
     )
+
+    if not pn_candidates.empty:
+        print("Unique 'super_class' values in ALPN candidates (normalised):")
+        super_counts = (
+            pn_candidates["super_class_normalised"].value_counts(dropna=False)
+        )
+        if super_counts.empty:
+            print("  <no super_class annotations present>")
+        else:
+            print(super_counts.to_string())
 
     if pn_candidates.empty and not pn_class_only.empty:
         print(
@@ -340,6 +401,15 @@ def extract_alpns(
     if pn_candidates.empty:
         print(
             "No ALPN candidates matched the class criteria even after relaxing filters."
+        )
+        print("Inspecting unique 'class' values for diagnostics:")
+        print(
+            classification_df["class"]
+            .dropna()
+            .astype(str)
+            .value_counts()
+            .head(20)
+            .to_string()
         )
 
     if not pn_candidates.empty:
@@ -457,6 +527,7 @@ def extract_alpns(
             column
             for column in (
                 "class_normalised",
+                "class_compact",
                 "super_class_normalised",
                 "flow_normalised",
             )
