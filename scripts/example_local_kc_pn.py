@@ -19,10 +19,24 @@ def main() -> None:
     connections = loader.load_connections(neuropil_filter=None, min_synapses=5)
     cell_types = loader.load_cell_types()
     classification = loader.load_classification()
+    processed = loader.load_processed_labels()
+    names = loader.load_names()
+    neurons = loader.load_neurotransmitters()
 
     mushroom_connections = filter_mushroom_body_connections(connections)
-    kc_frame = get_kc_neurons(cell_types, classification)
-    pn_frame = get_pn_neurons(cell_types, classification)
+    kc_frame = get_kc_neurons(
+        cell_types,
+        classification,
+        names_df=names,
+        processed_labels_df=processed,
+    )
+    pn_frame = get_pn_neurons(
+        cell_types,
+        classification,
+        names_df=names,
+        neurons_df=neurons,
+        processed_labels_df=processed,
+    )
 
     matrix = build_kc_pn_matrix(
         mushroom_connections,

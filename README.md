@@ -25,8 +25,24 @@ The loader normalises Codex headers automatically: ``primary_type`` is exposed
 as ``cell_type`` and ``additional_type(s)`` is surfaced as ``cell_type_aliases``
 for compatibility with the original online pipeline. No manual renaming is
 required—drop the raw downloads into place and the heuristics will discover KC
-and PN memberships by combining the cell-type and hierarchical classification
-tables.
+and PN memberships by fusing the cell-type table, hierarchical classification,
+processed community labels, brain-region names, and neurotransmitter tables.
+The updated filters implement FlyWire-aligned logic so that:
+
+- projection neurons must appear in ``names.group`` entries beginning with
+  ``AL`` *or* carry curated glomerulus labels (``DA1``, ``DL1``, ``VA1d``, etc.)
+  within ``processed_labels``;
+- PN candidates are only retained when their ``super_class`` resides in
+  ascending/sensory/visual-projection hierarchies **and** their neurotransmitter
+  predictions include cholinergic/glutamatergic markers;
+- Kenyon cells require mushroom-body region assignments (``MB_CA`` / ``MB_*``)
+  and kenyon/intrinsic keywords across ``super_class``/``class``/``sub_class``;
+- additional community labels (``KCg``, ``KCab``, ``ALPN``...) are merged into
+  both filters to capture curation variants.
+
+With the full FAFB v783 exports in place the offline pipeline now recovers the
+expected populations (~130–160 olfactory PNs, ~2,600 Kenyon cells per
+hemisphere) instead of the truncated counts produced by name-only heuristics.
 
 ### Offline usage checklist
 
@@ -42,11 +58,34 @@ tables.
    from data_loaders.neuron_classification import get_kc_neurons, get_pn_neurons
 
    loader = FlyWireLocalDataLoader()
+   cell_types = loader.load_cell_types()
+   classification = loader.load_classification()
+   processed = loader.load_processed_labels()
+   names = loader.load_names()
+   neurons = loader.load_neurotransmitters()
+
    connections = filter_mushroom_body_connections(loader.load_connections())
-   kcs = get_kc_neurons(loader.load_cell_types(), loader.load_classification())
-   pns = get_pn_neurons(loader.load_cell_types(), loader.load_classification())
+   kcs = get_kc_neurons(
+       cell_types,
+       classification,
+       names_df=names,
+       processed_labels_df=processed,
+   )
+   pns = get_pn_neurons(
+       cell_types,
+       classification,
+       names_df=names,
+       neurons_df=neurons,
+       processed_labels_df=processed,
+   )
    matrix = build_kc_pn_matrix(connections, kc_ids=kcs['root_id'], pn_ids=pns['root_id'])
    ```
+
+   ``len(pns)`` should fall between 130 and 160 and ``len(kcs)`` should sit near
+   2,600 when the FAFB v783 tables are intact. If the counts collapse toward
+   zero, re-run ``scripts/inspect_flywire_datasets.py``—the report will flag
+   missing ``names.group`` annotations, absent neurotransmitter predictions, or
+   stale processed-label exports that break the discovery heuristics.
 
 5. Use ``python -m scripts.example_local_kc_pn`` for a command-line demonstration of the
    same workflow.
