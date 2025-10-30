@@ -734,5 +734,9 @@ The example mapping at `configs/trial_to_glomerulus.yaml` assigns each behaviour
 trial label to a placeholder glomerulus. Replace those entries with the glomeruli
 relevant to your experimental catalogue before running the analysis.
 
+> **Heads-up:** placeholder values such as `unknown_glomerulus` are ignored during
+> ingestion. Leaving the defaults untouched will abort the analysis so the enrichment
+> CSVs never render with blank content.
+
 Refer to `docs/multi_task_usage.md` for the complete workflow, including API
 deployment details and expected data layouts.

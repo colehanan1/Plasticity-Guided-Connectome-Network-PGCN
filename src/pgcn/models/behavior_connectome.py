@@ -9,7 +9,11 @@ from typing import Mapping, Optional
 import numpy as np
 import pandas as pd
 from scipy import stats
-import torch
+
+try:  # pragma: no cover - optional dependency resolved at runtime
+    import torch
+except ImportError:  # pragma: no cover - handled for doc builds / CI without torch
+    torch = None  # type: ignore[assignment]
 
 from .reservoir import DrosophilaReservoir
 
@@ -32,6 +36,8 @@ class BehaviorConnectomeAnalyzer:
     """Analyse how connectome structure aligns with behavioural outcomes."""
 
     def __init__(self, cache_dir: Path | str, behavior_data: pd.DataFrame) -> None:
+        if torch is None:
+            raise ImportError("PyTorch is required to instantiate BehaviorConnectomeAnalyzer.")
         if not {"dataset", "trial_label", "prediction"}.issubset(behavior_data.columns):
             raise ValueError(
                 "Behavior dataframe must include 'dataset', 'trial_label', and 'prediction' columns."
@@ -97,11 +103,23 @@ class BehaviorConnectomeAnalyzer:
                     str(row.trial_label): str(row.glomerulus)
                     for row in candidate.itertuples(index=False)
                 }
-        reverse_map = trial_to_glomerulus or {}
+        cleaned_map: dict[str, str] = {}
+        if trial_to_glomerulus is not None:
+            for trial, glomerulus in trial_to_glomerulus.items():
+                if glomerulus is None:
+                    continue
+                value = str(glomerulus).strip()
+                if not value:
+                    continue
+                if value.lower() in {"unknown", "unknown_glomerulus", "todo", "tbd"}:
+                    continue
+                cleaned_map[str(trial)] = value
+        reverse_map = cleaned_map
         if not reverse_map:
             raise ValueError(
-                "No trial→glomerulus mapping available. Provide --trial-to-glomerulus or add a "
-                "trial_label column to the glomerulus assignments file."
+                "No trial→glomerulus mapping available. Update configs/trial_to_glomerulus.yaml "
+                "with real glomerulus labels or supply a populated mapping file via "
+                "--trial-to-glomerulus."
             )
         enrichment_rows: list[dict[str, object]] = []
         for dataset, dataset_frame in behaviour.groupby("dataset"):

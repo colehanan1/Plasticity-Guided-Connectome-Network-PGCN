@@ -1,5 +1,6 @@
 # Example trial→glomerulus mapping used by analysis/behavior_connectome_analysis.py
-# Replace the placeholder assignments with the glomeruli relevant to your dataset.
+# Replace every "unknown_glomerulus" entry with a real PN glomerulus label before running
+# the analysis. Placeholder values are ignored and will trigger an error.
 testing_1: unknown_glomerulus
 testing_2: unknown_glomerulus
 testing_3: unknown_glomerulus

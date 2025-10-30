@@ -315,8 +315,13 @@ def get_kc_neurons(
     else:
         processed_mask = pd.Series(False, index=merged.index, dtype=bool)
 
-    mask = keyword_mask | group_mask | intrinsic_mask | processed_mask
-    mask = mask & ~(mbon_like | dan_like)
+    evidence = (
+        keyword_mask.astype(int)
+        + group_mask.astype(int)
+        + intrinsic_mask.astype(int)
+        + processed_mask.astype(int)
+    )
+    mask = (evidence >= 2) & ~(mbon_like | dan_like)
     return merged.loc[mask].drop_duplicates(subset=["root_id"]).reset_index(drop=True)
 
 
@@ -360,12 +365,17 @@ def get_pn_neurons(
 
     label_lookup = _build_processed_label_lookup(processed_labels_df)
 
-    def _labels_glomerulus(labels: Iterable[str]) -> bool:
-        result = _extract_glomerulus_from_candidates(labels)
-        return not pd.isna(result)
+    def _labels_projection_neuron(labels: Iterable[str]) -> bool:
+        if not labels:
+            return False
+        has_glomerulus = not pd.isna(_extract_glomerulus_from_candidates(labels))
+        has_projection = any(
+            re.search(r"\bpn\b|projection", label, flags=re.IGNORECASE) for label in labels
+        )
+        return has_glomerulus and has_projection
 
     if label_lookup:
-        label_mask = _labels_to_mask(merged["root_id"], label_lookup, _labels_glomerulus)
+        label_mask = _labels_to_mask(merged["root_id"], label_lookup, _labels_projection_neuron)
     else:
         label_mask = pd.Series(False, index=merged.index, dtype=bool)
 
@@ -388,11 +398,17 @@ def get_pn_neurons(
     else:
         nt_mask = pd.Series(False, index=merged.index, dtype=bool)
 
-    structural_mask = ascending_mask & nt_mask & (group_mask | label_mask)
+    structural_mask = ascending_mask & nt_mask & group_mask & keyword_mask
 
-    base_mask = keyword_mask & (group_mask | label_mask)
-    label_only_mask = label_mask & (group_mask | nt_mask)
-    mask = base_mask | label_only_mask | structural_mask
+    mbon_like = _accumulate_keyword_mask(merged, _CLASSIFICATION_COLUMNS, _MBON_KEYWORDS)
+    dan_like = _accumulate_keyword_mask(merged, _CLASSIFICATION_COLUMNS, _DAN_KEYWORDS)
+
+    evidence = (
+        group_mask.astype(int) + keyword_mask.astype(int) + label_mask.astype(int)
+    )
+    base_mask = (evidence >= 2) & (label_mask | nt_mask)
+    fallback_mask = group_mask & keyword_mask & nt_mask
+    mask = (base_mask | fallback_mask | structural_mask) & ~(mbon_like | dan_like)
     return merged.loc[mask].drop_duplicates(subset=["root_id"]).reset_index(drop=True)
 
 

@@ -6,9 +6,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Mapping, MutableMapping, Optional, Sequence
 
-import torch
-from torch import Tensor, nn
-from torch.nn import functional as F
+try:  # pragma: no cover - optional dependency
+    import torch
+    from torch import Tensor, nn
+    from torch.nn import functional as F
+except ImportError:  # pragma: no cover - exercised in environments without PyTorch
+    torch = None  # type: ignore[assignment]
+    Tensor = None  # type: ignore[assignment]
+    nn = None  # type: ignore[assignment]
+    F = None  # type: ignore[assignment]
+
+BaseModule = nn.Module if nn is not None else object
 
 from .reservoir import DrosophilaReservoir
 
@@ -27,6 +35,8 @@ class TaskHeadConfig:
 
 
 def _ensure_2d(tensor: Tensor) -> Tensor:
+    if torch is None:
+        raise ImportError("PyTorch is required for MultiTaskDrosophilaModel operations.")
     if tensor.dim() == 1:
         return tensor.unsqueeze(0)
     if tensor.dim() != 2:
@@ -35,6 +45,8 @@ def _ensure_2d(tensor: Tensor) -> Tensor:
 
 
 def _apply_activation(tensor: Tensor, activation: Optional[str]) -> Tensor:
+    if torch is None:
+        raise ImportError("PyTorch is required for MultiTaskDrosophilaModel operations.")
     if activation is None:
         return tensor
     if activation == "sigmoid":
@@ -49,6 +61,8 @@ def _apply_activation(tensor: Tensor, activation: Optional[str]) -> Tensor:
 def validate_biological_constraints(kc_activity: Tensor, *, expected_sparsity: float = 0.05) -> bool:
     """Validate that KC activity respects the FlyWire sparsity constraint."""
 
+    if torch is None:
+        raise ImportError("PyTorch is required for MultiTaskDrosophilaModel operations.")
     if kc_activity.dim() != 2:
         raise ValueError("KC activity must be a 2D tensor with shape [batch, n_kc].")
     expected_active = int(round(expected_sparsity * kc_activity.size(-1)))
@@ -61,7 +75,7 @@ def validate_biological_constraints(kc_activity: Tensor, *, expected_sparsity: f
     return True
 
 
-class MultiTaskDrosophilaModel(nn.Module):
+class MultiTaskDrosophilaModel(BaseModule):
     """Reservoir backed architecture with task specific linear readouts."""
 
     def __init__(
@@ -72,6 +86,8 @@ class MultiTaskDrosophilaModel(nn.Module):
         task_configs: Optional[Mapping[str, TaskHeadConfig | Mapping[str, object]]] = None,
         dropout: float = 0.0,
     ) -> None:
+        if torch is None or nn is None or F is None:
+            raise ImportError("PyTorch is required to instantiate MultiTaskDrosophilaModel.")
         super().__init__()
         resolved_params: MutableMapping[str, object] = {}
         if reservoir_params is not None:
