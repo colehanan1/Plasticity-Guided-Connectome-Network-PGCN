@@ -96,17 +96,19 @@ When you need a production-grade sanity check of the olfactory projection
 neurons themselves, run the purpose-built script below. It pins the ALPN
 filters to the FlyWire ``classification`` table (case-insensitive
 ``class == 'ALPN'``) while **falling back automatically** whenever
-``super_class`` or ``flow`` annotations are absent or blank. Missing
-``super_class`` values trigger a class-only recovery pass, ``flow`` filtering is
-disabled whenever it would otherwise eliminate every candidate, and any
-cholinergic/glutamatergic undercount prompts a controlled reintroduction of
-``nt_type``-unknown rows (clearly flagged in the console output). The pipeline
-keeps only excitatory ``ACH``/``GLUT`` entries from ``neurons.csv.gz`` (dropping
-GABAergic vPNs and logging the discarded counts), parses community glomerulus
-labels, and reports PN→KC connectivity restricted to the mushroom-body calyx
-(``neuropil`` of ``CA_L``/``CA_R``). The command line interface accepts explicit
-dataset/output directories so you can point the analysis at any FlyWire export
-cache:
+``super_class`` annotations are missing. ``flow`` is now treated as a diagnostic
+signal only—the script prints the observed values but never discards neurons on
+that column, preventing the null-heavy FAFB export from collapsing to zero
+candidates. Any cholinergic/glutamatergic undercount prompts a controlled
+reintroduction of ``nt_type``-unknown rows (clearly flagged in the console
+output). The pipeline keeps only excitatory ``ACH``/``GLUT`` entries from
+``neurons.csv.gz`` (dropping GABAergic vPNs and logging the discarded counts),
+optionally validates that each neuron projects to the calyx via the
+``output_neuropils`` metadata (``CA_L``/``CA_R`` substring match with an
+automatic fallback when the column is absent), parses community glomerulus
+labels, and reports PN→KC connectivity restricted to the mushroom-body calyx.
+The command line interface accepts explicit dataset/output directories so you
+can point the analysis at any FlyWire export cache:
 
 ```bash
 PYTHONPATH=src python scripts/extract_alpn_projection_neurons.py \
@@ -115,9 +117,10 @@ PYTHONPATH=src python scripts/extract_alpn_projection_neurons.py \
   --min-synapses 5
 ```
 
-The command prints target checks (PN count, glomerulus coverage, neurotransmitter
-mix with percentages, hemisphere balance, and flow/NT filtering diagnostics, and
-writes two CSV artefacts for downstream analysis:
+The command prints target checks (PN count, glomerulus coverage,
+neurotransmitter mix with percentages, hemisphere balance, unique ``flow``
+values, neurotransmitter histograms before filtering, and calyx-validation
+diagnostics) and writes two CSV artefacts for downstream analysis:
 
 - ``data/cache/alpn_extracted.csv`` with ALPN metadata, neurotransmitter type,
   and parsed glomerulus assignments (one row per neuron);

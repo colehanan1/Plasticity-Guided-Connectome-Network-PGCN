@@ -316,22 +316,26 @@ def extract_alpns(
         classification_df["flow_normalised"] = pd.NA
 
     class_mask = classification_df["class_normalised"] == "ALPN"
-    if not class_mask.any():
+    pn_class_only = classification_df[class_mask].copy()
+    print(f"ALPN candidates with class=='ALPN': {len(pn_class_only):,}")
+    if pn_class_only.empty:
         print(
             "Warning: classification export lacks rows with class=='ALPN' after normalisation."
         )
 
     super_class_mask = classification_df["super_class_normalised"].isin({"ASCENDING"})
     pn_candidates = classification_df[class_mask & super_class_mask].copy()
-    print(f"ALPN candidates after class/super_class filters: {len(pn_candidates):,}")
+    print(
+        "ALPN candidates after class & super_class filters: "
+        f"{len(pn_candidates):,}"
+    )
 
-    if pn_candidates.empty:
-        fallback_candidates = classification_df[class_mask].copy()
+    if pn_candidates.empty and not pn_class_only.empty:
         print(
             "Super-class filter removed all ALPN candidates. Falling back to class-only "
-            f"selection ({len(fallback_candidates):,} rows)."
+            f"selection ({len(pn_class_only):,} rows)."
         )
-        pn_candidates = fallback_candidates
+        pn_candidates = pn_class_only
 
     if pn_candidates.empty:
         print(
@@ -339,29 +343,14 @@ def extract_alpns(
         )
 
     if not pn_candidates.empty:
-        flow_series = pn_candidates["flow_normalised"]
-        ascending_mask = (flow_series == "ASCENDING").fillna(False)
-        pn_with_flow = pn_candidates[ascending_mask].copy()
-        print(
-            "ALPN candidates with flow=='ascending': "
-            f"{len(pn_with_flow):,}"
-        )
-        if pn_with_flow.empty:
-            relaxed_mask = ascending_mask | flow_series.isna()
-            pn_with_flow = pn_candidates[relaxed_mask].copy()
-            missing_flow = int(flow_series.isna().sum())
-            print(
-                "Flow filter removed all candidates; retaining entries with missing/empty "
-                f"flow annotations ({missing_flow} rows)."
-            )
-        if pn_with_flow.empty:
-            print("Still no candidates after flow filtering; ignoring flow constraint entirely.")
-            pn_with_flow = pn_candidates.copy()
-        pn_candidates = pn_with_flow
-    else:
-        print("Skipping flow filter because no PN candidates survived earlier filters.")
+        print("Unique 'flow' values in ALPN candidates (normalised):")
+        flow_counts = pn_candidates["flow_normalised"].value_counts(dropna=False)
+        if flow_counts.empty:
+            print("  <no flow annotations present>")
+        else:
+            print(flow_counts.to_string())
 
-    join_columns = ["root_id", "nt_type", "group"]
+    join_columns = ["root_id", "nt_type", "group", "output_neuropils"]
     available_join_columns = [column for column in join_columns if column in neurons_df.columns]
     neurotransmitters = neurons_df.loc[:, available_join_columns].drop_duplicates(
         subset=["root_id"]
@@ -369,6 +358,8 @@ def extract_alpns(
     pn_enriched = pn_candidates.merge(
         neurotransmitters, on="root_id", how="left", indicator=True
     )
+
+    print(f"ALPN candidates after merging neurons table: {len(pn_enriched):,}")
 
     missing_nt = int((pn_enriched["_merge"] == "left_only").sum())
     if missing_nt:
@@ -387,6 +378,12 @@ def extract_alpns(
     )
 
     nt_series = pn_enriched["nt_type_normalised"]
+    print("\nUnique 'nt_type' values in ALPN candidates (normalised):")
+    nt_counts = nt_series.value_counts(dropna=False)
+    if nt_counts.empty:
+        print("  <no neurotransmitter annotations present>")
+    else:
+        print(nt_counts.to_string())
     ach_mask = nt_series == "ACH"
     cholinergic_mask = nt_series == "CHOLINERGIC"
     glut_mask = nt_series.str.contains("GLUT", case=False, na=False)
@@ -404,7 +401,7 @@ def extract_alpns(
         unknown_reintroduced = True
 
     print(
-        "Filtered to excitatory uniglomerular/multiglomerular PNs: "
+        "After nt_type filtering (ACH/GLUT only): "
         f"{len(pn_filtered):,} (excluded {gaba_excluded} GABAergic entries, "
         f"{non_excitatory_excluded} non-excitatory entries)"
     )
@@ -417,6 +414,25 @@ def extract_alpns(
 
     pn_filtered["nt_type_normalised"] = pn_filtered["nt_type_normalised"].fillna("UNKNOWN")
 
+    pn_validated = pn_filtered
+    if "output_neuropils" in pn_filtered.columns:
+        neuropil_series = pn_filtered["output_neuropils"].astype("string")
+        calyx_mask = neuropil_series.str.contains("CA", case=False, na=False)
+        pn_validated = pn_filtered[calyx_mask].copy()
+        removed = len(pn_filtered) - len(pn_validated)
+        print(
+            f"After calyx neuropil validation: {len(pn_validated):,} "
+            f"(removed {removed} lacking CA outputs)"
+        )
+        if pn_validated.empty:
+            print(
+                "Calyx validation removed all candidates; reverting to neurotransmitter "
+                "filtered set."
+            )
+            pn_validated = pn_filtered
+    else:
+        print("output_neuropils column not available; skipping calyx neuropil validation.")
+
     # Merge optional cell-type annotations for richer metadata
     if cell_types_df is not None and not cell_types_df.empty:
         ct_columns = [
@@ -428,12 +444,12 @@ def extract_alpns(
             cell_type_subset = cell_types_df.loc[
                 :, ["root_id", *ct_columns]
             ].drop_duplicates(subset=["root_id"])
-            pn_filtered = pn_filtered.merge(cell_type_subset, on="root_id", how="left")
+            pn_validated = pn_validated.merge(cell_type_subset, on="root_id", how="left")
     else:
         print("Cell-type table missing or empty; glomerulus inference will rely on labels only.")
 
     processed_lookup = _build_processed_label_lookup(processed_labels_df)
-    pn_with_glomeruli = _infer_glomeruli(pn_filtered, processed_lookup)
+    pn_with_glomeruli = _infer_glomeruli(pn_validated, processed_lookup)
 
     pn_with_glomeruli = pn_with_glomeruli.drop_duplicates(subset=["root_id"]).reset_index(drop=True)
     pn_with_glomeruli = pn_with_glomeruli.drop(
