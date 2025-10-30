@@ -8,6 +8,21 @@ exposes command line interfaces for cache generation and structural metrics.
 
 ## Local FlyWire dataset workflow (offline-first)
 
+### Project status artefacts
+
+Three living documents capture the current delivery posture and day-to-day
+execution plan:
+
+- [`PROJECT_STATUS.md`](PROJECT_STATUS.md) — executive roll-up of completed work,
+  open items, integration points, and success metrics.
+- [`NEXT_STEPS_DETAILED.md`](NEXT_STEPS_DETAILED.md) — step-by-step build plan for
+  the connectivity backbone modules slated for Phase 1.
+- [`CHECKLIST.md`](CHECKLIST.md) — recurring operational checklist covering
+  environment prep, quality gates, and release hygiene.
+
+Review these references before adding new functionality to ensure roadmap
+alignment and up-to-date context.
+
 The repository no longer requires authenticated FlyWire access for KC→PN analyses.
 Download the public FAFB v783 CSV exports listed below and point the tooling at the
 local directory. Every loader honours the ``PGCN_FLYWIRE_DATA`` environment variable;
