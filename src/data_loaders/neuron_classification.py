@@ -292,7 +292,23 @@ def get_kc_neurons(
     else:
         processed_mask = pd.Series(False, index=merged.index, dtype=bool)
 
-    mask = keyword_mask | group_mask | intrinsic_mask | processed_mask
+    # Exclude neurons that are explicitly MBONs or DANs (even if they have MB group)
+    mbon_exclude_mask = (
+        _keyword_mask(merged.get("cell_type"), _MBON_KEYWORDS)
+        | _keyword_mask(merged.get("cell_type_aliases"), _MBON_KEYWORDS)
+        | _keyword_mask(merged.get("super_class"), _MBON_KEYWORDS)
+        | _keyword_mask(merged.get("class"), _MBON_KEYWORDS)
+        | _keyword_mask(merged.get("sub_class"), _MBON_KEYWORDS)
+    )
+    dan_exclude_mask = (
+        _keyword_mask(merged.get("cell_type"), _DAN_KEYWORDS)
+        | _keyword_mask(merged.get("cell_type_aliases"), _DAN_KEYWORDS)
+        | _keyword_mask(merged.get("super_class"), _DAN_KEYWORDS)
+        | _keyword_mask(merged.get("class"), _DAN_KEYWORDS)
+        | _keyword_mask(merged.get("sub_class"), _DAN_KEYWORDS)
+    )
+
+    mask = (keyword_mask | group_mask | intrinsic_mask | processed_mask) & ~mbon_exclude_mask & ~dan_exclude_mask
     return merged.loc[mask].drop_duplicates(subset=["root_id"]).reset_index(drop=True)
 
 

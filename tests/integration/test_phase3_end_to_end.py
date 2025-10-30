@@ -451,3 +451,17 @@ def test_phase3_full_pipeline_phase1_2_3(circuit):
 
     # All phases should have succeeded without errors
     assert True, "Full pipeline test completed successfully!"
+
+
+def test_complete_phase3_pipeline(circuit):
+    """Complete Phase 3 pipeline test (alias for test_phase3_full_pipeline_phase1_2_3).
+
+    This test verifies the complete integration of all three phases:
+    - Phase 1: Connectivity backbone (PN→KC→MBON circuit)
+    - Phase 2: Learning dynamics (dopamine-gated plasticity)
+    - Phase 3: Optogenetic perturbations, behavioral validation, multi-task learning
+
+    This is the comprehensive end-to-end test showing all components working together.
+    """
+    # Reuse the comprehensive full pipeline test
+    test_phase3_full_pipeline_phase1_2_3(circuit)
