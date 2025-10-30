@@ -1,5 +1,4 @@
 """Serve the multi-task Drosophila model behind a FastAPI interface."""
-
 from __future__ import annotations
 
 import argparse
