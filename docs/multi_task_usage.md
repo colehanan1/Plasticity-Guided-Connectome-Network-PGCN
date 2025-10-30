@@ -110,19 +110,22 @@ keeping KC→MBON gradients enabled) and adhering to 5% KC sparsity. Outputs:
 
 ## 5. Behaviour–Connectome Alignment
 
-Use the dedicated CLI to correlate behavioural accuracy with connectome structure:
+Use the dedicated CLI to correlate behavioural accuracy with connectome structure.
+Glomerulus labels are inferred from the FlyWire cache when the CSV argument is
+omitted or unavailable, so the option is only mandatory for custom annotations:
 
 ```bash
 python analysis/behavior_connectome_analysis.py \
   --cache-dir data/cache \
-  --glomerulus-assignments data/connectome/pn_glomerulus.csv \
   --trial-to-glomerulus configs/trial_to_glomerulus.yaml \
   --output-dir artifacts/behavior_connectome
 ```
 
 The script produces enrichment statistics and Pearson correlations linking glomerular
-fan-in with behavioural success rates. Provide a CSV with columns `pn_index` and
-`glomerulus`. Optional mapping files (YAML/JSON) associate `trial_label` with glomeruli.
+fan-in with behavioural success rates. When you supply a CSV, ensure it contains
+`pn_index` and `glomerulus` columns; otherwise the tool will mine the metadata embedded
+within `data/cache/nodes.parquet`. Optional mapping files (YAML/JSON) associate
+`trial_label` with glomeruli.
 
 ## 6. Deployment
 

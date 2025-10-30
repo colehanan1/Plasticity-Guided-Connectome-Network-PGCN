@@ -668,14 +668,21 @@ python scripts/train_multi_task.py \
   --output-dir artifacts/multi_task
 ```
 
-To verify structural alignment, execute the behaviour-connectome analysis:
+To verify structural alignment, execute the behaviour-connectome analysis. The CLI
+automatically infers PN glomerulus labels from the FlyWire cache when an explicit
+CSV is unavailable, so `--glomerulus-assignments` is optional unless your cache
+omits glomerulus metadata:
 
 ```bash
 python analysis/behavior_connectome_analysis.py \
   --cache-dir data/cache \
-  --glomerulus-assignments data/connectome/pn_glomerulus.csv \
   --output-dir artifacts/behavior_connectome
 ```
+
+Supply `--glomerulus-assignments` to override the inferred labels or when working
+with bespoke PN catalogues. The command will emit a console notice when it falls
+back to auto-inference so you can confirm the underlying cache contains the
+expected annotations.
 
 Refer to `docs/multi_task_usage.md` for the complete workflow, including API
 deployment details and expected data layouts.
