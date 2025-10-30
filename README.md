@@ -681,7 +681,9 @@ task-specific heads for downstream learning problems. Key artefacts:
 - `src/pgcn/models/behavior_connectome.py` – couples behavioural success rates with
   glomerulus-level connectivity motifs, enabling structural alignment analyses.
 - `src/pgcn/data/task_data_loader.py` – YAML-driven loader registry that validates
-  PN feature dimensionality (10,767) and behavioural row counts (440).
+  behavioural row counts (440) and now probes the FlyWire cache to auto-derive PN/KC
+  dimensionality. Configuration `input_dim` values are overridden with the cache
+  counts unless `lock_input_dim: true` is provided for a task.
 - `configs/multi_task_config.yaml` – definitive specification of task heads,
   feature tables, and optimisation hyperparameters aligned with FlyWire v783.
 - `analysis/behavior_connectome_analysis.py` – CLI for enrichment + correlation
@@ -694,7 +696,9 @@ task-specific heads for downstream learning problems. Key artefacts:
   training, behaviour–connectome analysis, and deployment.
 
 Generate deterministic PN feature tables before training (provide the behavioural CSV
-path when it lives outside the repository):
+path when it lives outside the repository). Re-run this command with `--overwrite`
+whenever `pgcn-cache` refreshes the connectome; the generator will adopt the updated
+PN dimensionality reported by the cache:
 
 ```bash
 python scripts/generate_multi_task_features.py \

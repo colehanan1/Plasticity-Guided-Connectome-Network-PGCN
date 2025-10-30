@@ -29,10 +29,11 @@ def _reservoir_kwargs(config: Any) -> dict[str, object]:
     params: dict[str, object] = {}
     if config.cache_dir is not None:
         params["cache_dir"] = config.cache_dir
-    if config.n_pn is not None:
-        params["n_pn"] = config.n_pn
-    if config.n_kc is not None:
-        params["n_kc"] = config.n_kc
+    if config.cache_dir is None:
+        if config.n_pn is not None:
+            params["n_pn"] = config.n_pn
+        if config.n_kc is not None:
+            params["n_kc"] = config.n_kc
     if config.n_mbon is not None:
         params["n_mbon"] = config.n_mbon
     if config.sparsity is not None:

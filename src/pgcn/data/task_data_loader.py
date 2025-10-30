@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import warnings
 from pathlib import Path
-from typing import Callable, Dict, Mapping, MutableMapping, Optional
+from typing import Callable, Dict, Mapping, MutableMapping, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 import yaml
+
+from pgcn.models.reservoir import DrosophilaReservoir, ReservoirConfig
 
 from .behavioral_data import load_behavioral_dataframe
 
@@ -53,6 +56,7 @@ class TaskSpec:
     feature_table: Optional[Path] = None
     target_column: Optional[str] = None
     metadata: Mapping[str, object] = field(default_factory=dict)
+    lock_input_dim: bool = False
 
 
 @dataclass(frozen=True)
@@ -69,6 +73,50 @@ def _coerce_path(value: Optional[str | Path]) -> Optional[Path]:
     return Path(value)
 
 
+def _probe_reservoir_dimensions(
+    cache_dir: Optional[Path],
+    configured_n_pn: Optional[int],
+    configured_n_kc: Optional[int],
+    configured_n_mbon: Optional[int],
+) -> Tuple[Optional[int], Optional[int], Optional[int]]:
+    if cache_dir is None or not cache_dir.exists():
+        return configured_n_pn, configured_n_kc, configured_n_mbon
+    try:
+        probe = DrosophilaReservoir(
+            cache_dir=cache_dir,
+            n_mbon=configured_n_mbon if configured_n_mbon is not None else ReservoirConfig.n_mbon,
+        )
+    except Exception as exc:  # pragma: no cover - surfaced as warning to avoid hard failure
+        warnings.warn(
+            f"Failed to probe reservoir dimensions from cache at {cache_dir}: {exc}",
+            stacklevel=2,
+        )
+        return configured_n_pn, configured_n_kc, configured_n_mbon
+    actual_n_pn = probe.n_pn
+    actual_n_kc = probe.n_kc
+    actual_n_mbon = probe.n_mbon
+    del probe
+    if configured_n_pn is not None and configured_n_pn != actual_n_pn:
+        warnings.warn(
+            "Overriding configured n_pn with cache-derived value "
+            f"{actual_n_pn} (configured {configured_n_pn}).",
+            stacklevel=2,
+        )
+    if configured_n_kc is not None and configured_n_kc != actual_n_kc:
+        warnings.warn(
+            "Overriding configured n_kc with cache-derived value "
+            f"{actual_n_kc} (configured {configured_n_kc}).",
+            stacklevel=2,
+        )
+    if configured_n_mbon is not None and configured_n_mbon != actual_n_mbon:
+        warnings.warn(
+            "Cache-derived MBON count differs from configuration: "
+            f"{actual_n_mbon} (configured {configured_n_mbon}).",
+            stacklevel=2,
+        )
+    return actual_n_pn, actual_n_kc, configured_n_mbon or actual_n_mbon
+
+
 def load_multi_task_config(path: Path | str) -> MultiTaskConfig:
     with open(path, "r", encoding="utf-8") as handle:
         config = yaml.safe_load(handle)
@@ -76,11 +124,19 @@ def load_multi_task_config(path: Path | str) -> MultiTaskConfig:
         raise ValueError("Multi-task configuration must define 'reservoir' and 'tasks' sections.")
 
     reservoir_payload = config["reservoir"]
+    cache_dir = _coerce_path(reservoir_payload.get("cache_dir"))
+    configured_n_pn = reservoir_payload.get("n_pn")
+    configured_n_kc = reservoir_payload.get("n_kc")
+    configured_n_mbon = reservoir_payload.get("n_mbon")
+    actual_n_pn, actual_n_kc, actual_n_mbon = _probe_reservoir_dimensions(
+        cache_dir, configured_n_pn, configured_n_kc, configured_n_mbon
+    )
+
     reservoir = ReservoirSpec(
-        cache_dir=_coerce_path(reservoir_payload.get("cache_dir")),
-        n_pn=reservoir_payload.get("n_pn"),
-        n_kc=reservoir_payload.get("n_kc"),
-        n_mbon=reservoir_payload.get("n_mbon"),
+        cache_dir=cache_dir,
+        n_pn=actual_n_pn,
+        n_kc=actual_n_kc,
+        n_mbon=actual_n_mbon,
         sparsity=reservoir_payload.get("sparsity", 0.05),
         freeze_pn_kc=reservoir_payload.get("freeze_pn_kc", True),
     )
@@ -88,9 +144,19 @@ def load_multi_task_config(path: Path | str) -> MultiTaskConfig:
     tasks_config: MutableMapping[str, TaskSpec] = {}
     for name, payload in config["tasks"].items():
         feature_table = _coerce_path(payload.get("feature_table"))
+        lock_input_dim = bool(payload.get("lock_input_dim", False))
+        resolved_input_dim = int(payload["input_dim"])
+        if actual_n_pn is not None and not lock_input_dim and resolved_input_dim != actual_n_pn:
+            warnings.warn(
+                f"Task '{name}' input_dim {resolved_input_dim} overridden with cache-derived "
+                f"PN count {actual_n_pn}.",
+                stacklevel=2,
+            )
+            resolved_input_dim = actual_n_pn
+
         task_spec = TaskSpec(
             name=name,
-            input_dim=int(payload["input_dim"]),
+            input_dim=resolved_input_dim,
             output_dim=int(payload["output_dim"]),
             loss_function=str(payload["loss_function"]),
             data_loader=str(payload["data_loader"]),
@@ -103,6 +169,7 @@ def load_multi_task_config(path: Path | str) -> MultiTaskConfig:
             feature_table=feature_table,
             target_column=payload.get("target_column"),
             metadata=payload.get("metadata", {}),
+            lock_input_dim=lock_input_dim,
         )
         tasks_config[name] = task_spec
     return MultiTaskConfig(reservoir=reservoir, tasks=dict(tasks_config))

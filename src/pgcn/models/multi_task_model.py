@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Mapping, MutableMapping, Optional, Sequence
@@ -97,7 +98,30 @@ class MultiTaskDrosophilaModel(BaseModule):
         if "sparsity" in resolved_params and "kc_sparsity" not in resolved_params:
             resolved_params["kc_sparsity"] = resolved_params.pop("sparsity")
         filtered_params = {key: value for key, value in resolved_params.items() if value is not None}
+        expected_dims: dict[str, int] = {}
+        cache_dir_param = filtered_params.get("cache_dir")
+        if cache_dir_param is not None:
+            for dimension_key in ("n_pn", "n_kc"):
+                if dimension_key in filtered_params:
+                    value = filtered_params.pop(dimension_key)
+                    if isinstance(value, int):
+                        expected_dims[dimension_key] = value
+        else:
+            for dimension_key in ("n_pn", "n_kc"):
+                value = filtered_params.get(dimension_key)
+                if isinstance(value, int):
+                    expected_dims[dimension_key] = value
+
         self.reservoir = DrosophilaReservoir(**filtered_params)
+        actual_dims = {"n_pn": self.reservoir.n_pn, "n_kc": self.reservoir.n_kc}
+        for dimension_key, expected in expected_dims.items():
+            actual = actual_dims.get(dimension_key)
+            if actual is not None and actual != expected:
+                warnings.warn(
+                    "Multi-task reservoir dimensions overrode configuration values: "
+                    f"configured {dimension_key}={expected}, observed {actual}.",
+                    stacklevel=2,
+                )
         self.n_kc = self.reservoir.n_kc
         self._head_configs: MutableMapping[str, TaskHeadConfig] = {}
         self.task_heads = nn.ModuleDict()

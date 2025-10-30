@@ -19,18 +19,20 @@ extra ensures PyTorch is available for training the readout heads.
 
 ## 2. Data Expectations
 
-All tasks consume PN activity tensors aligned to the FlyWire v783 connectome:
+All tasks consume PN activity tensors aligned to the FlyWire v783 connectome. The loader
+now probes the cache to determine the PN/KC counts at runtime, so expect the values below
+to update when the FlyWire exports change. With the current v783 cache:
 
-- **Input dimensionality:** 10,767 PN features per trial
-- **Reservoir KC dimensionality:** 5,177 Kenyon Cells (KC)
-- **MBON readout dimensionality:** 96 outputs shared with behavioural conditioning
+- **Input dimensionality:** cache-derived PN count
+- **Reservoir KC dimensionality:** cache-derived KC count
+- **MBON readout dimensionality:** configuration-specified (96 for v783)
 
 Feature tables must store PN activity with one row per behavioural trial (440 rows for the
 canonical dataset). Provide the columns detailed below:
 
 | Column            | Description                                                   |
 |-------------------|---------------------------------------------------------------|
-| `pn_0` … `pn_10766` | PN activity vector aligned with FlyWire indices               |
+| `pn_0` … `pn_{N-1}` | PN activity vector aligned with FlyWire indices               |
 | `prediction`      | Binary conditioning outcome (0/1) for olfactory task          |
 | `target` / `label` | Integer or float target specific to the auxiliary task       |
 | Additional metadata | Optional contextual columns (ignored by the loader)        |
@@ -69,9 +71,12 @@ Key points:
   those labels to match the 96 MBON outputs whenever the head reuses the reservoir readout.
 - New tasks should typically leverage `parquet_tensor` loader with their own targets.
 - Adjust batch size, epochs, and learning rate per task as required.
-- Reservoir fields (`n_pn`, `n_kc`, `n_mbon`, `sparsity`) are now passed straight into
-  `MultiTaskDrosophilaModel`, ensuring the cached FlyWire dimensions (10,767 PN / 5,177 KC /
-  96 MBON) are honoured during training.
+- Reservoir fields (`n_pn`, `n_kc`, `n_mbon`, `sparsity`) act as hints. When `cache_dir`
+  is provided the loader instantiates `DrosophilaReservoir` to read the PN/KC counts
+  directly from disk and overrides mismatched configuration values.
+- Task `input_dim` values follow the same rule. To pin a bespoke dimension (for example,
+  when working with reduced PN projections), set `lock_input_dim: true` within the task
+  block; otherwise the cache-derived PN count replaces the configured value.
 - `freeze_pn_kc: true` only locks the developmental PN→KC matrix; the shared KC→MBON
   weights remain plastic so the behavioural head continues to update during training.
 
@@ -154,8 +159,10 @@ KC sparsity compliance per query.
 - `analysis/behavior_connectome_analysis.py` verifies behavioural alignment.
 - `scripts/train_multi_task.py` enforces PN→KC freezing and KC sparsity via the
   shared reservoir wrapper.
-- Feature tables must contain exactly 10,767 PN columns. The loader raises descriptive
-  errors when shapes or row counts drift from expectations.
+- Feature tables must match the PN count reported by the cache. Regenerate the Parquet
+  files with `scripts/generate_multi_task_features.py --overwrite` whenever `pgcn-cache`
+  introduces a new connectome export. The loader raises descriptive errors when shapes
+  or row counts drift from expectations.
 
 ## 8. Custom Loader Interface
 

@@ -1,4 +1,6 @@
 # Canonical configuration for the multi-task Drosophila reservoir.
+# PN/KC dimensionality values act as hints – they are replaced with cache-derived
+# counts when `pgcn.data.load_multi_task_config` probes `data/cache`.
 reservoir:
   cache_dir: data/cache
   n_pn: 10767
@@ -84,3 +86,4 @@ tasks:
     target_column: reward
     metadata:
       description: "Single-value reward forecasts driven by DAN-modulated KC states."
+    # lock_input_dim: true  # Uncomment to prevent cache-derived PN counts overriding input_dim
