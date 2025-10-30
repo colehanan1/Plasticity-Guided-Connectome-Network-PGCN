@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Dict, Iterable, Tuple
+from typing import Dict, Iterable, Optional, Tuple
 
 import pandas as pd
 
@@ -12,6 +12,7 @@ DEFAULT_DATA_FILES: Dict[str, str] = {
     "classification": "classification.csv.gz",
     "cell_types": "consolidated_cell_types.csv.gz",
     "neurons": "neurons.csv.gz",
+    "connections": "connections_princeton.csv.gz",
 }
 
 
@@ -41,6 +42,7 @@ def _merge_metadata(
         if column in neurons.columns
     ]
     cells = cells.merge(neurons[neuron_columns], on="root_id", how="left", validate="one_to_one")
+    cells["root_id"] = pd.to_numeric(cells["root_id"], errors="coerce").astype("Int64")
     return cells
 
 
@@ -63,6 +65,91 @@ def _summarise_total(total: int, label: str, subset_count: int) -> str:
     return f"  {label}: {subset_count} ({percentage:.1f}%)"
 
 
+def _load_connections(dataset_dir: Path, filename: str) -> Optional[pd.DataFrame]:
+    path = dataset_dir / filename
+    if not path.exists():
+        print(
+            f"Connections file not found at {path}. Continuing without neuropil annotations."
+        )
+        return None
+
+    print(f"Loading connections (this may take a moment): {path}")
+    try:
+        dtype = {
+            "pre_root_id": "int64",
+            "post_root_id": "int64",
+            "neuropil": "string",
+        }
+        connections = pd.read_csv(
+            path,
+            compression="gzip",
+            usecols=["pre_root_id", "post_root_id", "neuropil"],
+            dtype=dtype,
+            low_memory=False,
+        )
+    except Exception as exc:  # pragma: no cover - defensive against CSV issues
+        print(
+            "Failed to load connections file due to error: "
+            f"{exc}. Continuing without neuropil annotations."
+        )
+        return None
+
+    print(f"Loaded connections: {len(connections):,} rows from {path}")
+    return connections
+
+
+def _join_unique(values: pd.Series) -> str:
+    strings = values.astype("string").dropna()
+    unique_values = sorted({value for value in strings if value and value != "<NA>"})
+    return "|".join(unique_values)
+
+
+def get_output_neuropils(
+    root_ids: Iterable[int], connections_df: Optional[pd.DataFrame]
+) -> pd.Series:
+    """Get neuropils where pre_root_id outputs."""
+
+    if connections_df is None:
+        return pd.Series(dtype="string")
+
+    root_index = pd.Index(root_ids).dropna().unique()
+    if root_index.empty:
+        return pd.Series(dtype="string")
+
+    subset = connections_df[connections_df["pre_root_id"].isin(root_index)][
+        ["pre_root_id", "neuropil"]
+    ]
+    if subset.empty:
+        return pd.Series(dtype="string")
+
+    subset = subset.assign(neuropil=subset["neuropil"].astype("string"))
+    neuropils = subset.drop_duplicates().groupby("pre_root_id")["neuropil"].apply(_join_unique)
+    return neuropils
+
+
+def get_input_neuropils(
+    root_ids: Iterable[int], connections_df: Optional[pd.DataFrame]
+) -> pd.Series:
+    """Get neuropils where post_root_id receives input."""
+
+    if connections_df is None:
+        return pd.Series(dtype="string")
+
+    root_index = pd.Index(root_ids).dropna().unique()
+    if root_index.empty:
+        return pd.Series(dtype="string")
+
+    subset = connections_df[connections_df["post_root_id"].isin(root_index)][
+        ["post_root_id", "neuropil"]
+    ]
+    if subset.empty:
+        return pd.Series(dtype="string")
+
+    subset = subset.assign(neuropil=subset["neuropil"].astype("string"))
+    neuropils = subset.drop_duplicates().groupby("post_root_id")["neuropil"].apply(_join_unique)
+    return neuropils
+
+
 def extract_circuit(dataset_dir: Path, output_dir: Path) -> None:
     dataset_dir = dataset_dir.expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -74,6 +161,7 @@ def extract_circuit(dataset_dir: Path, output_dir: Path) -> None:
     neurons = _load_csv(dataset_dir, DEFAULT_DATA_FILES["neurons"], "neurons")
 
     cells = _merge_metadata(classification, cell_types, neurons)
+    connections = _load_connections(dataset_dir, DEFAULT_DATA_FILES["connections"])
 
     print("\n=== TASK 4: KC SUBTYPES ===")
     subtype_specs: Dict[str, Tuple[str, str]] = {
@@ -101,22 +189,62 @@ def extract_circuit(dataset_dir: Path, output_dir: Path) -> None:
 
     print("\n=== TASK 5: MBONs ===")
     mbon_all = cells[cells["class"] == "MBON"].copy()
+    if connections is not None:
+        print("  Deriving input neuropils from connections...")
+        mbon_input_neuropils = get_input_neuropils(mbon_all["root_id"], connections)
+        mbon_all = mbon_all.merge(
+            mbon_input_neuropils.rename("input_neuropils"),
+            left_on="root_id",
+            right_index=True,
+            how="left",
+        )
+    else:
+        mbon_all = mbon_all.assign(input_neuropils=pd.NA)
+        print("  Neuropil derivation skipped for MBONs (connections unavailable).")
+
     _write_subset(
         mbon_all,
-        ("root_id", "primary_type", "class", "nt_type", "group", "output_neuropils"),
+        (
+            "root_id",
+            "primary_type",
+            "class",
+            "nt_type",
+            "group",
+            "input_neuropils",
+        ),
         output_dir / "mbon_all.csv",
         "All MBONs",
     )
 
-    mbon_outputs = mbon_all["output_neuropils"].astype("string")
-    mbon_calyx = mbon_all[
-        mbon_outputs.str.contains("MB_CA", case=False, na=False)
-    ].copy()
+    mbon_inputs = mbon_all["input_neuropils"].astype("string")
+    mbon_calyx = mbon_all[mbon_inputs.str.contains("CA", case=False, na=False)].copy()
     _write_subset(
         mbon_calyx,
-        ("root_id", "primary_type", "class", "nt_type", "group"),
+        (
+            "root_id",
+            "primary_type",
+            "class",
+            "nt_type",
+            "group",
+            "input_neuropils",
+        ),
         output_dir / "mbon_calyx.csv",
         "MBONs with calyx input",
+    )
+
+    mbon_ml = mbon_all[mbon_inputs.str.contains("MB_ML", case=False, na=False)].copy()
+    _write_subset(
+        mbon_ml,
+        (
+            "root_id",
+            "primary_type",
+            "class",
+            "nt_type",
+            "group",
+            "input_neuropils",
+        ),
+        output_dir / "mbon_ml.csv",
+        "MBONs with medial lobe input",
     )
 
     mbon_glut = mbon_all[mbon_all["nt_type"] == "GLUT"].copy()
@@ -129,9 +257,29 @@ def extract_circuit(dataset_dir: Path, output_dir: Path) -> None:
 
     print("\n=== TASK 6: DANs (Dopaminergic Neurons) ===")
     dans = cells[cells["nt_type"] == "DA"].copy()
+    if connections is not None:
+        print("  Deriving output neuropils from connections...")
+        dan_output_neuropils = get_output_neuropils(dans["root_id"], connections)
+        dans = dans.merge(
+            dan_output_neuropils.rename("output_neuropils"),
+            left_on="root_id",
+            right_index=True,
+            how="left",
+        )
+    else:
+        dans = dans.assign(output_neuropils=pd.NA)
+        print("  Neuropil derivation skipped for DANs (connections unavailable).")
+
     _write_subset(
         dans,
-        ("root_id", "primary_type", "class", "nt_type", "group", "output_neuropils"),
+        (
+            "root_id",
+            "primary_type",
+            "class",
+            "nt_type",
+            "group",
+            "output_neuropils",
+        ),
         output_dir / "dan_all.csv",
         "All DANs",
     )
@@ -148,7 +296,14 @@ def extract_circuit(dataset_dir: Path, output_dir: Path) -> None:
     dan_calyx = dans[dan_outputs.str.contains("MB_CA", case=False, na=False)].copy()
     _write_subset(
         dan_calyx,
-        ("root_id", "primary_type", "class", "nt_type", "group"),
+        (
+            "root_id",
+            "primary_type",
+            "class",
+            "nt_type",
+            "group",
+            "output_neuropils",
+        ),
         output_dir / "dan_calyx.csv",
         "DANs targeting calyx",
     )
@@ -156,7 +311,14 @@ def extract_circuit(dataset_dir: Path, output_dir: Path) -> None:
     dan_medial = dans[dan_outputs.str.contains("MB_ML", case=False, na=False)].copy()
     _write_subset(
         dan_medial,
-        ("root_id", "primary_type", "class", "nt_type", "group"),
+        (
+            "root_id",
+            "primary_type",
+            "class",
+            "nt_type",
+            "group",
+            "output_neuropils",
+        ),
         output_dir / "dan_ml.csv",
         "DANs targeting medial lobes",
     )

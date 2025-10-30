@@ -142,12 +142,16 @@ summary so you can revisit the raw exports without spelunking through notebooks.
 #### Rapid KC/MBON/DAN circuit exports
 
 To complement the PN pipeline, ``scripts/extract_circuit.py`` reproduces the
-user workflow above with a reproducible CLI. It merges FlyWire
-``classification.csv.gz``, ``consolidated_cell_types.csv.gz``, and
-``neurons.csv.gz`` into a single metadata table, slices Kenyon-cell subtypes,
-MBONs, and DAN populations, and writes the same CSV breakdowns (KCab, KCg-m,
-KCg-d, KCa'b', MBONs, MBONs with calyx output, glutamatergic MBONs, and DAN
-targets). Invoke it with matching dataset and output directories:
+user workflow above with a reproducible CLI. It now merges FlyWire
+``classification.csv.gz``, ``consolidated_cell_types.csv.gz``, ``neurons.csv.gz``,
+**and** the 5.3 M-row ``connections_princeton.csv.gz`` synapse table when
+available. The connectivity pass derives mushroom-body neuropil annotations
+directly from observed synapses, solving the historical ``output_neuropils`` gaps
+in ``neurons.csv.gz`` and enabling MBON/DAN calyx or medial-lobe filters without
+manual patches. The command prints explicit progress while loading the large
+connections file and automatically falls back to the legacy behaviour (sans
+neuropil filters) when the dataset is absent or unreadable. Invoke it with
+matching dataset and output directories:
 
 ```bash
 python scripts/extract_circuit.py \
@@ -157,7 +161,27 @@ python scripts/extract_circuit.py \
 
 All CSVs land beside the ALPN exports so downstream notebooks can consume a
 consistent dataset bundle (ALPNs, KC subtypes, MBONs, DANs) without manual
-copy/paste from ad-hoc scripts.
+copy/paste from ad-hoc scripts. The generated circuit summaries now embed the
+derived neuropil annotations so downstream notebooks can inspect and filter on
+synaptic targets without reprocessing:
+
+- ``kc_ab.csv``, ``kc_g_main.csv``, ``kc_g_dorsal.csv``, ``kc_apb.csv`` — KC
+  subtype inventories;
+- ``mbon_all.csv`` — complete MBON roster with an ``input_neuropils`` column
+  assembled from postsynaptic connections;
+- ``mbon_calyx.csv`` / ``mbon_ml.csv`` — MBON subsets with calyx or medial-lobe
+  inputs, preserving the same neuropil annotations;
+- ``mbon_glut.csv`` — glutamatergic MBONs for neurotransmitter-specific
+  analyses;
+- ``dan_all.csv`` — full dopaminergic cohort including ``output_neuropils``
+  targets derived from presynaptic edges;
+- ``dan_mb.csv`` / ``dan_calyx.csv`` / ``dan_ml.csv`` — DAN subsets filtered by
+  mushroom-body, calyx, or medial-lobe projection patterns.
+
+When the connections table is missing the script still emits the CSV scaffold
+with empty neuropil columns and logs that the derivation step was skipped, so
+pipeline consumers retain a predictable file layout irrespective of the data
+drop.
 
 ### Build canonical caches from local CSVs
 
