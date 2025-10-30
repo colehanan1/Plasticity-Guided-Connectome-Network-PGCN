@@ -1,0 +1,483 @@
+root_id,flow,super_class,class,sub_class,hemilineage,side,nerve,nt_type,group,nt_type_normalised,cell_type,cell_type_aliases,glomeruli,primary_glomerulus,has_multiple_glomeruli
+720575940603231916,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,DA1_lPN,aDT3,DA1,DA1,False
+720575940603446374,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL,ACH,M_lvPNm47,,,,False
+720575940603453286,intrinsic,central,ALPN,multiglomerular,ALad1,right,,ACH,AL.LH,ACH,M_adPNm4a,"M_adPNm5a, M_adPNm4, M_adPNm5",,,False
+720575940603464672,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,AL.LH,ACH,VL2a_adPN,,VLA2,VLA2,False
+720575940603985952,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,D_adPN,,,,False
+720575940604352172,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.LH,ACH,DA4m_adPN,,DA4m,DA4m,False
+720575940604403628,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL,ACH,VP5+_l2PN,VP5+VP2_l2PN,VP5|VP2,VP5,True
+720575940604407468,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,DA1_lPN,aDT3,DA1,DA1,False
+720575940604412588,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.PLP,ACH,M_lPNm11A,,,,False
+720575940604414636,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL,ACH,VP5+_l2PN,VP5+VP2_l2PN,VP5|VP2,VP5,True
+720575940604418988,intrinsic,central,ALPN,multiglomerular,putative_primary,right,,ACH,AL.LH,ACH,M_spPN5t10,,DM6,DM6,False
+720575940604431584,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VA3_adPN,,VA3,VA3,False
+720575940604624574,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,PLP,ACH,M_lvPNm48,,,,False
+720575940604911793,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,PLP,ACH,CB1321,"VP1m+VP2_lvPN1, VP1m+VP2_lvPN2",VPM1|VP2,VPM1,True
+720575940604919473,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.LH,ACH,CB3383,"M_lvPNm38, VC5_lvPN",VC5|VM6,VC5,True
+720575940604974978,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL,ACH,CB1988,"M_lvPNm33, M_lvPNm34",,,False
+720575940605102694,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,DA1_lPN,aDT3,DA1,DA1,False
+720575940605309361,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VM7v_adPN,,VM7v,VM7v,False
+720575940605400096,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.PLP,ACH,M_l2PNm16,,,,False
+720575940605421442,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.LH,ACH,DL2d_adPN,,DL2d,DL2d,False
+720575940606498313,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.LH,ACH,M_lvPNm41,,,,False
+720575940606590338,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,VM1_lPN,,VM1,VM1,False
+720575940606649865,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VM5d_adPN,,VM5d,VM5d,False
+720575940606757041,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.SMP,ACH,M_lvPNm24,,,,False
+720575940606762686,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL,ACH,M_l2PNl20,,,,False
+720575940607001986,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,LH,ACH,M_lvPNm41,,,,False
+720575940607195826,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,LH,ACH,M_lvPNm39,,,,False
+720575940607439964,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VC3_adPN,VC3l_adPN,VC3|VCL3,VC3,True
+720575940607539907,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,PLP,ACH,M_lvPNm48,,,,False
+720575940607687260,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VM2_adPN,,VM2,VM2,False
+720575940607990229,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,M_l2PNl22,,,,False
+720575940608199748,intrinsic,central,ALPN,uniglomerular,ALlv1,left,,ACH,AL.MB_CA,ACH,VC5_lvPN,VC3m_lvPN,VC5|VCM3,VC5,True
+720575940608293129,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL,ACH,VP2_adPN,,VP2,VP2,False
+720575940608376622,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,LH,ACH,M_lvPNm46,,VM6,VM6,False
+720575940608628419,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VM7v_adPN,,VM7v,VM7v,False
+720575940608845525,intrinsic,central,ALPN,uniglomerular,ALlv1,left,,ACH,AL.MB_CA,ACH,VC5_lvPN,VC3m_lvPN,VC5|VCM3,VC5,True
+720575940608898005,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,AL.MB_CA,ACH,VM4_adPN,,VM4,VM4,False
+720575940608970197,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,AL.LH,ACH,DA4l_adPN,,DA4l|VL1,DA4l,True
+720575940609447179,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VC4_adPN,,VC4,VC4,False
+720575940609454603,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VC4_adPN,,VC4,VC4,False
+720575940609460491,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,AL.LH,ACH,VA2_adPN,,VA2,VA2,False
+720575940609553419,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL,ACH,CB1461,"M_lvPNm30, M_lvPNm32",,,False
+720575940609739669,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.WED,ACH,M_l2PN10t19b,M_l2PN10t19,,,False
+720575940609775115,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,PLP,ACH,M_lvPNm48,,,,False
+720575940609891886,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.MB_CA,ACH,VA7m_lPN,,VA7m,VA7m,False
+720575940609903077,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,DL2d_adPN,,DL2d,DL2d,False
+720575940610048981,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,AL.MB_CA,ACH,VM3_adPN,,VM3,VM3,False
+720575940610052266,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,DA2_lPN,,DA2,DA2,False
+720575940610070442,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.PLP,ACH,M_lPNm12b,"M_lPNm13b, M_lPNm12, M_lPNm13",,,False
+720575940610100437,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.LH,ACH,VM7d_adPN,,VM7d,VM7d,False
+720575940610292430,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.PLP,ACH,M_l2PN3t18,,,,False
+720575940610423538,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL,ACH,M_lvPNm35,,,,False
+720575940610505170,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VM5v_adPN,,VM5v,VM5v,False
+720575940610511043,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL,ACH,MZ_lvPN,,VP2,VP2,False
+720575940610609454,intrinsic,central,ALPN,,ALlv1,right,,ACH,AL.LH,ACH,CB3623,"VP2+Z_lvPN, Z_lvPNm1",VP2,VP2,False
+720575940610658766,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.LH,ACH,M_lvPNm46,,,,False
+720575940610752068,intrinsic,central,ALPN,multiglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,M_adPNm4b,"M_adPNm5b, M_adPNm4, M_adPNm5",,,False
+720575940611022515,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,DL2v_adPN,,DL2v,DL2v,False
+720575940611079236,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,AL.MB_CA,ACH,VA2_adPN,,VA2,VA2,False
+720575940611323670,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL,ACH,M_lvPNm35,,,,False
+720575940611352014,intrinsic,central,ALPN,multiglomerular,putative_primary,left,,ACH,AL.LH,ACH,VP3+VP1l_ivPN,,VP3|VPL1,VP3,True
+720575940611372714,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VM5d_adPN,,VM5d,VM5d,False
+720575940611520721,intrinsic,central,ALPN,uniglomerular,ALlv1,right,,ACH,AL.SMP,ACH,VP1l+_lvPN,,VPL1,VPL1,False
+720575940611557785,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,LH,ACH,M_lvPNm44,,,,False
+720575940611703080,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.LH,ACH,D_adPN,,,,False
+720575940611849187,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,DA2_lPN,,DA2,DA2,False
+720575940611856498,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.LH,ACH,M_lvPNm41,,,,False
+720575940612031986,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,GLUT,AL.LH,GLUT,VP1m+_lvPN,,VPM1,VPM1,False
+720575940612197374,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,D_adPN,,,,False
+720575940612217342,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.PLP,ACH,M_lvPNm37,,,,False
+720575940612284569,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,VP1d+VP4_l2PN1,,VPD1|VP4,VPD1,True
+720575940612433614,intrinsic,central,ALPN,multiglomerular,ALad1,left,,ACH,AL.LH,ACH,M_adPNm8,,,,False
+720575940612526819,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,LH,ACH,M_lvPNm45,,DA1,DA1,False
+720575940612551594,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,M_l2PNm14,,,,False
+720575940612598499,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.PLP,ACH,M_lPNm11A,,,,False
+720575940612605667,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.WED,ACH,M_l2PN10t19a,M_l2PN10t19,,,False
+720575940612678637,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.LH,ACH,M_lvPNm45,,DA1,DA1,False
+720575940612699761,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,DM6_adPN,,DM6,DM6,False
+720575940612714723,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,M_l2PNl22,,,,False
+720575940612821727,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,LH,ACH,M_lvPNm40,,,,False
+720575940612829663,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.LH,ACH,CB3383,"M_lvPNm38, VC5_lvPN",VC5,VC5,False
+720575940612856273,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL,ACH,VP5+_l2PN,VP5+VP2_l2PN,VP5|VP2,VP5,True
+720575940612856342,intrinsic,central,ALPN,multiglomerular,ALad1,left,,ACH,AL.LH,ACH,VP2+_adPN,,VP2,VP2,False
+720575940613016104,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.PLP,ACH,M_lvPNm37,,,,False
+720575940613050577,intrinsic,central,ALPN,multiglomerular,ALad1,right,,ACH,AL.LH,ACH,M_adPNm4d,"M_adPNm5d, M_adPNm4, M_adPNm5",,,False
+720575940613058802,intrinsic,central,ALPN,multiglomerular,ALad1,right,,ACH,AL.LH,ACH,M_adPNm8,,,,False
+720575940613167007,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.LH,ACH,VM7d_adPN,,VM7d,VM7d,False
+720575940613203119,intrinsic,central,ALPN,multiglomerular,putative_primary,right,,ACH,AL.MB_CA,ACH,VP3+VP1l_ivPN,,VP3|VPL1,VP3,True
+720575940613271219,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.IPS,ACH,M_l2PN10t19a,M_l2PN10t19,,,False
+720575940613345442,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,DA1_lPN,aDT3,DA1,DA1,False
+720575940613347793,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.PLP,ACH,M_lPNm12b,"M_lPNm13b, M_lPNm12, M_lPNm13",,,False
+720575940613419695,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,DC3_adPN,,DC3,DC3,False
+720575940613579943,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.LH,ACH,DC4_adPN,,DC4,DC4,False
+720575940613613619,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.PLP,ACH,M_lPNm11A,,,,False
+720575940613655483,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,DL2d_adPN,,DL2d,DL2d,False
+720575940613751186,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.LH,ACH,M_lvPNm31,,,,False
+720575940613809554,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL,ACH,M_lPNm11D,,,,False
+720575940613864401,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.MB_CA,ACH,DM5_lPN,,DM5,DM5,False
+720575940613869777,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL,ACH,VP5+VP3_l2PN,,VP5|VP3,VP5,True
+720575940614009827,intrinsic,central,ALPN,multiglomerular,ALad1,left,,ACH,AL.LH,ACH,M_adPNm7,,,,False
+720575940614065676,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL,ACH,VP5+_l2PN,VP5+VP2_l2PN,VP5|VP2,VP5,True
+720575940614238114,intrinsic,central,ALPN,multiglomerular,putative_primary,left,,ACH,AL.LH,ACH,M_imPNl92,,,,False
+720575940614309535,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,DA1_lPN,aDT3,DA1,DA1,False
+720575940614316731,intrinsic,central,ALPN,multiglomerular,ALad1,left,,ACH,SCL.LH,ACH,M_adPNm4b,"M_adPNm5b, M_adPNm4, M_adPNm5",,,False
+720575940614326162,intrinsic,central,ALPN,multiglomerular,ALad1,right,,ACH,AL.PLP,ACH,M_adPNm3,,,,False
+720575940614344354,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.WED,ACH,VP4+VL1_l2PN,,VP4|VL1,VP4,True
+720575940614576396,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.SLP,ACH,M_lvPNm37,,,,False
+720575940614714178,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,DL2v_adPN,,DL2v,DL2v,False
+720575940614727903,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,AL.MB_CA,ACH,DM3_adPN,,DM3,DM3,False
+720575940614871106,intrinsic,central,ALPN,multiglomerular,putative_primary,left,,ACH,AL.PLP,ACH,VP1l+VP3_ilPN,,VPL1|VP3,VPL1,True
+720575940615160386,intrinsic,central,ALPN,uniglomerular,putative_primary,right,,ACH,AL.LH,ACH,VL1_ilPN,,VL1,VL1,False
+720575940615255993,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,DL3_lPN,,DL3,DL3,False
+720575940615270545,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,PLP,ACH,M_lvPNm48,,,,False
+720575940615366055,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,AL.LH,ACH,DM4_adPN,,DM4,DM4,False
+720575940615394719,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VC3_adPN,VC3l_adPN,VC3|VCL3,VC3,True
+720575940615529414,intrinsic,central,ALPN,multiglomerular,putative_primary,right,,ACH,AL.LH,ACH,M_spPN4t9,,,,False
+720575940615594658,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,M_l2PNl23,,,,False
+720575940615808029,intrinsic,central,ALPN,uniglomerular,ALlv1,right,,ACH,AL.LH,ACH,VM4_lvPN,,VM4,VM4,False
+720575940616020795,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VM5d_adPN,,VM5d,VM5d,False
+720575940616079035,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,AL.MB_CA,ACH,DL1_adPN,,DL1|VL1,DL1,True
+720575940616273631,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.SMP,ACH,M_lvPNm24,,,,False
+720575940616345686,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.IPS,ACH,M_l2PN10t19b,M_l2PN10t19,,,False
+720575940616566133,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,AL.MB_CA,ACH,VM3_adPN,,VM3,VM3,False
+720575940616800780,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL,ACH,CB2161,"M_lvPNm30, M_lvPNm32",,,False
+720575940616824588,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,DC2_adPN,,DC2,DC2,False
+720575940617030178,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.SIP,ACH,M_lvPNm29,,,,False
+720575940617179451,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VM2_adPN,,VM2,VM2,False
+720575940617207185,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,AL.LH,ACH,DL5_adPN,,DL5,DL5,False
+720575940617229632,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.MB_CA,ACH,DA1_lPN,aDT3,DA1,DA1,False
+720575940617343316,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,AL.LH,ACH,DL4_adPN,,DL4,DL4,False
+720575940617381681,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.SCL,ACH,M_lPNm12b,"M_lPNm13b, M_lPNm12, M_lPNm13",,,False
+720575940617422641,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.IPS,ACH,VP3+_l2PN,,VP3|VP5,VP3,True
+720575940617552541,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.PLP,ACH,M_l2PN3t18,,VC5|VM1|VP2,VC5,True
+720575940617642832,intrinsic,central,ALPN,uniglomerular,ALlv1,right,,ACH,AL.LH,ACH,VM4_lvPN,,VM4,VM4,False
+720575940617668747,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,VA4_lPN,,VA4,VA4,False
+720575940617781383,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,DC3_adPN,,DC3,DC3,False
+720575940617839739,intrinsic,central,ALPN,,ALlv1,left,,ACH,AL.LH,ACH,CB3623,"VP2+Z_lvPN, Z_lvPNm1",VP2,VP2,False
+720575940617903168,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.LH,ACH,VM7d_adPN,,VM7d,VM7d,False
+720575940617917760,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,AL.LH,ACH,VM3_adPN,,VM3,VM3,False
+720575940617972901,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,PLP,ACH,M_lvPNm47,,,,False
+720575940618210614,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL,ACH,VP3+_l2PN,,VP3|VP5,VP3,True
+720575940618277184,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,AL.LH,ACH,VA7l_adPN,,VA7l,VA7l,False
+720575940618295454,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,AL.LH,ACH,VL2a_adPN,,VLA2,VLA2,False
+720575940618308825,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,AL.MB_CA,ACH,DP1m_adPN,,DP1m,DP1m,False
+720575940618404510,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.PLP,ACH,M_lvPNm37,,,,False
+720575940618461121,intrinsic,central,ALPN,uniglomerular,ALlv1,left,,ACH,AL.LH,ACH,VM4_lvPN,,VM4,VM4,False
+720575940618499238,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.LH,ACH,D_adPN,,,,False
+720575940618615360,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL,ACH,M_l2PNl21,,,,False
+720575940618800225,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,PLP,ACH,M_lvPNm48,,,,False
+720575940618855344,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.SMP,ACH,M_lvPNm25,,,,False
+720575940618865112,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,AL.LH,ACH,VL2p_adPN,,VLP2,VLP2,False
+720575940618897693,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL,ACH,CB2161,"M_lvPNm30, M_lvPNm32",,,False
+720575940618901533,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL,ACH,CB1461,"M_lvPNm30, M_lvPNm32",,,False
+720575940619071005,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.MB_CA,ACH,DM1_lPN,,DM1,DM1,False
+720575940619280705,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VM2_adPN,,VM2,VM2,False
+720575940619337536,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VM7v_adPN,,VM7v,VM7v,False
+720575940619385765,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,DA1_lPN,aDT3,DA1,DA1,False
+720575940619411147,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL,ACH,VP1m_l2PN,,VPM1,VPM1,False
+720575940619456728,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VA3_adPN,,VA3,VA3,False
+720575940619531373,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,DL2v_adPN,,DL2v,DL2v,False
+720575940619637780,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VM5v_adPN,,VM5v,VM5v,False
+720575940619766219,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.SMP,ACH,M_l2PNm14,,,,False
+720575940619772525,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL,ACH,VP5+_l2PN,VP5+VP2_l2PN,VP5|VP2,VP5,True
+720575940619807397,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,DL3_lPN,,DL3,DL3,False
+720575940619838912,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,VA5_lPN,,VA5,VA5,False
+720575940619895125,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.LH,ACH,VP2_adPN,,VP2,VP2,False
+720575940619902598,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VC3_adPN,VC3l_adPN,VC3|VCL3,VC3,True
+720575940619928429,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VC3_adPN,VC3l_adPN,VC3|VCL3,VC3,True
+720575940619964788,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.LH,ACH,M_lvPNm43,,,,False
+720575940620068518,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,VA7m_lPN,,VA7m,VA7m,False
+720575940620103590,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,DL2d_adPN,,DL2d,DL2d,False
+720575940620189790,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VM5v_adPN,,VM5v,VM5v,False
+720575940620199962,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.LH,ACH,VA1v_adPN,,VA1v,VA1v,False
+720575940620233307,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.SIP,ACH,M_lPNm12a,"M_lPNm13a, M_lPNm12, M_lPNm13",,,False
+720575940620266406,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VA1d_adPN,,VA1d,VA1d,False
+720575940620437339,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,DM6_adPN,,DM6,DM6,False
+720575940620445062,intrinsic,central,ALPN,multiglomerular,ALad1,left,,ACH,GNG.LH,ACH,VP5+Z_adPN,,VP5,VP5,False
+720575940620465904,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VC3_adPN,VC3l_adPN,VC3|VCL3,VC3,True
+720575940620467438,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.LH,ACH,DL2v_adPN,,DL2v,DL2v,False
+720575940620551259,intrinsic,central,ALPN,multiglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,M_adPNm4c,"M_adPNm5c, M_adPNm4, M_adPNm5",,,False
+720575940620565673,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.PLP,ACH,M_lPNm11B,,,,False
+720575940620566808,intrinsic,central,ALPN,uniglomerular,ALlv1,right,,ACH,AL.SLP,ACH,VP1l+_lvPN,,VPL1,VPL1,False
+720575940620595053,intrinsic,central,ALPN,uniglomerular,putative_primary,left,,ACH,AL.LH,ACH,VL1_ilPN,,VL1,VL1,False
+720575940620624589,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.SLP,ACH,M_lvPNm35,,,,False
+720575940620638335,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,DL3_lPN,,DL3,DL3,False
+720575940620725720,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.LH,ACH,M_lvPNm41,,,,False
+720575940620840368,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.LH,ACH,M_lvPNm41,,,,False
+720575940620875861,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.LH,ACH,M_lvPNm46,,VM6,VM6,False
+720575940620920831,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.WED,ACH,M_lPNm11A,,,,False
+720575940620931312,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL,ACH,VP5+_l2PN,VP5+VP2_l2PN,VP5|VP2,VP5,True
+720575940621123113,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,DL2d_adPN,,DL2d,DL2d,False
+720575940621185050,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,DA1_lPN,aDT3,DA1,DA1,False
+720575940621196224,intrinsic,central,ALPN,multiglomerular,putative_primary,left,,ACH,AL.LH,ACH,M_spPN5t10,,VLPP2,VLPP2,False
+720575940621203632,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,DL3_lPN,,DL3,DL3,False
+720575940621239679,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.MB_CA,ACH,DA1_lPN,aDT3,DA1,DA1,False
+720575940621256212,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VM7v_adPN,,VM7v,VM7v,False
+720575940621316033,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VC3_adPN,VC3l_adPN,VC3|VCL3,VC3,True
+720575940621333696,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.MB_CA,ACH,VA5_lPN,,VA5,VA5,False
+720575940621414676,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.LH,ACH,M_lvPNm31,,,,False
+720575940621529435,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,AL.MB_CA,ACH,DC1_adPN,,DC1,DC1,False
+720575940621533985,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VC3_adPN,VC3l_adPN,VC3|VCL3,VC3,True
+720575940621696747,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.LH,ACH,VA1v_adPN,,VA1v,VA1v,False
+720575940621753377,intrinsic,central,ALPN,multiglomerular,putative_primary,right,,ACH,AL.MB_CA,ACH,VP1m+VP5_ilPN,,VPM1|VP5,VPM1,True
+720575940621776161,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,M_l2PNm15,,,,False
+720575940621792438,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.LH,ACH,M_lvPNm43,,,,False
+720575940621817046,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL,ACH,M_lPNm11D,,,,False
+720575940621926669,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,DL3_lPN,,DL3,DL3,False
+720575940621926765,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.LH,ACH,M_lvPNm42,,,,False
+720575940622070554,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.PLP,ACH,M_l2PNm16,,,,False
+720575940622192822,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.SMP,ACH,M_lvPNm25,,,,False
+720575940622287142,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VM5v_adPN,,VM5v,VM5v,False
+720575940622311704,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,DA2_lPN,,DA2,DA2,False
+720575940622331882,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL,ACH,VP3+_l2PN,,VP3|VP5,VP3,True
+720575940622334448,intrinsic,central,ALPN,multiglomerular,putative_primary,right,,ACH,AL.LH,ACH,M_spPN5t10,,,,False
+720575940622364184,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,DA2_lPN,,DA2,DA2,False
+720575940622368792,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,AL.MB_CA,ACH,DL1_adPN,,DL1,DL1,False
+720575940622448166,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.SMP,ACH,M_lvPNm26,,,,False
+720575940622448589,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VA1d_adPN,,VA1d,VA1d,False
+720575940622547421,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,LH,ACH,M_lvPNm45,,,,False
+720575940622567659,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,LH,ACH,M_lvPNm41,,,,False
+720575940622574532,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.MB_CA,ACH,VA7m_lPN,,VA7m,VA7m,False
+720575940622726271,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,AL.MB_CA,ACH,DP1m_adPN,,DP1m,DP1m,False
+720575940622734835,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,DA2_lPN,,DA2,DA2,False
+720575940622762995,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,DA2_lPN,,DA2,DA2,False
+720575940622785062,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,DM6_adPN,,DM6,DM6,False
+720575940622793310,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.SMP,ACH,M_lvPNm25,,,,False
+720575940622811430,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VA1d_adPN,,VA1d,VA1d,False
+720575940623137741,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,M_lPNm11C,,,,False
+720575940623237161,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,GLUT,AL.LH,GLUT,VP1m+_lvPN,,VPM1,VPM1,False
+720575940623287228,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL,ACH,M_lPNm11D,,,,False
+720575940623303108,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,DA1_lPN,aDT3,DA1,DA1,False
+720575940623307447,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL,ACH,CB1321,"VP1m+VP2_lvPN1, VP1m+VP2_lvPN2",VPM1|VP2,VPM1,True
+720575940623444715,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,VM1_lPN,,VM1,VM1,False
+720575940623465909,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL,ACH,M_lPNm11D,,,,False
+720575940623528925,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,AL.MB_CA,ACH,DM4_adPN,,DM4,DM4,False
+720575940623543881,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,DA1_lPN,aDT3,DA1,DA1,False
+720575940623547133,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,M_l2PNm15,,,,False
+720575940623576141,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL,ACH,M_lvPNm37,,,,False
+720575940623605943,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.PLP,ACH,VP2_l2PN,,VP2,VP2,False
+720575940623617973,intrinsic,central,ALPN,multiglomerular,ALad1,right,,ACH,AL.LH,ACH,VP5+Z_adPN,,VP5,VP5,False
+720575940623673802,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.PLP,ACH,CB1321,"VP1m+VP2_lvPN1, VP1m+VP2_lvPN2",VPM1|VP2,VPM1,True
+720575940623707575,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.PLP,ACH,M_l2PN3t18,,,,False
+720575940623739076,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.LH,ACH,VA1v_adPN,,VA1v,VA1v,False
+720575940623815486,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,LH,ACH,M_lvPNm44,,DA1,DA1,False
+720575940623875819,intrinsic,central,ALPN,multiglomerular,ALad1,left,,ACH,AL.PLP,ACH,M_adPNm3,,,,False
+720575940623902471,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,DM6_adPN,,DM6,DM6,False
+720575940623913364,intrinsic,central,ALPN,uniglomerular,putative_primary,right,,ACH,AL,ACH,VP1d_il2PN,,VPD1,VPD1,False
+720575940623945404,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VC3_adPN,VC3l_adPN,VC3|VCL3,VC3,True
+720575940623986364,intrinsic,central,ALPN,,ALlv1,left,,ACH,GNG.SCL,ACH,CB3623,"VP2+Z_lvPN, Z_lvPNm1",VP2,VP2,False
+720575940624001321,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VC4_adPN,,VC4,VC4,False
+720575940624030819,intrinsic,central,ALPN,uniglomerular,ALlv1,right,,ACH,AL.SMP,ACH,VP1l+_lvPN,,VPL1,VPL1,False
+720575940624039560,intrinsic,central,ALPN,multiglomerular,ALad1,left,,ACH,AL.GNG,ACH,M_adPNm4d,"M_adPNm5d, M_adPNm4, M_adPNm5",,,False
+720575940624057853,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,AL.MB_CA,ACH,VM6_adPN,VC5_adPN,VM6|VC5,VM6,True
+720575940624083484,intrinsic,central,ALPN,uniglomerular,ALlv1,right,,ACH,AL.SLP,ACH,VP1l+_lvPN,,VPL1,VPL1,False
+720575940624106442,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,DA2_lPN,,DA2,DA2,False
+720575940624200974,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.LH,ACH,CB3383,"M_lvPNm38, VC5_lvPN",VC5,VC5,False
+720575940624515571,intrinsic,central,ALPN,uniglomerular,ALlv1,left,,ACH,AL.MB_CA,ACH,VC5_lvPN,VC3m_lvPN,VC5|VCM3,VC5,True
+720575940624620952,intrinsic,central,ALPN,multiglomerular,ALad1,right,,ACH,AL.LH,ACH,M_adPNm4b,"M_adPNm5b, M_adPNm4, M_adPNm5",,,False
+720575940624661552,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VM5v_adPN,,VM5v,VM5v,False
+720575940624695629,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,M_l2PNm17,,,,False
+720575940624770791,intrinsic,central,ALPN,multiglomerular,putative_primary,left,,ACH,AL.LH,ACH,VP1m+VP5_ilPN,,VPM1|VP5,VPM1,True
+720575940624789125,intrinsic,central,ALPN,multiglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,M_adPNm4b,"M_adPNm5b, M_adPNm4, M_adPNm5",,,False
+720575940624834697,intrinsic,central,ALPN,uniglomerular,ALlv1,right,,ACH,AL.LH,ACH,VM4_lvPN,,VM4,VM4,False
+720575940624879911,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.MB_CA,ACH,VP1d+VP4_l2PN1,,VPD1|VP4,VPD1,True
+720575940624941244,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,DL2d_adPN,,DL2d,DL2d,False
+720575940625014928,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.LH,ACH,VA1v_adPN,,VA1v,VA1v,False
+720575940625022270,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL,ACH,M_lPNm11D,,,,False
+720575940625040053,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.SMP,ACH,M_lvPNm26,,,,False
+720575940625056509,intrinsic,central,ALPN,multiglomerular,putative_primary,left,,ACH,AL.LH,ACH,M_ilPN8t91,M_ilPNm90,,,False
+720575940625176094,intrinsic,central,ALPN,uniglomerular,ALlv1,left,,ACH,AL.SLP,ACH,VP1l+_lvPN,,VPL1,VPL1,False
+720575940625237891,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.LH,ACH,M_lvPNm43,,,,False
+720575940625368976,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.PLP,ACH,M_lPNm12b,"M_lPNm13b, M_lPNm12, M_lPNm13",,,False
+720575940625413395,intrinsic,central,ALPN,multiglomerular,ALad1,left,,ACH,AL.LH,ACH,M_adPNm4a,"M_adPNm5a, M_adPNm4, M_adPNm5",,,False
+720575940625431866,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VM5v_adPN,,VM5v,VM5v,False
+720575940625431870,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.PLP,ACH,M_l2PNm16,,,,False
+720575940625493400,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,DM6_adPN,,DM6,DM6,False
+720575940625521899,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,SLP.AL,ACH,CB1988,"M_lvPNm33, M_lvPNm34",,,False
+720575940625544069,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.LH,ACH,M_lvPNm46,,,,False
+720575940625564676,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VA1d_adPN,,VA1d,VA1d,False
+720575940625627023,intrinsic,central,ALPN,uniglomerular,ALlv1,left,,ACH,AL.SMP,ACH,VP1l+_lvPN,,VPL1,VPL1,False
+720575940625784153,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,AL.MB_CA,ACH,VA7l_adPN,,VA7l,VA7l,False
+720575940625805084,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.PLP,ACH,M_lPNm11A,,,,False
+720575940625819138,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,M_lPNm11B,,,,False
+720575940625924618,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,LH,ACH,DA3_adPN,,DA3,DA3,False
+720575940626034819,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,DA1_lPN,aDT3,DA1,DA1,False
+720575940626086158,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,PLP,ACH,M_lvPNm47,,,,False
+720575940626143806,intrinsic,central,ALPN,uniglomerular,putative_primary,right,,ACH,AL.LH,ACH,V_ilPN,,,,False
+720575940626247823,intrinsic,central,ALPN,uniglomerular,ALlv1,left,,ACH,AL.LH,ACH,VM4_lvPN,,VM4,VM4,False
+720575940626507834,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL,ACH,M_lvPNm27,,,,False
+720575940626650776,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.WED,ACH,VP2+VC5_l2PN,,VP2|VC5,VP2,True
+720575940626675837,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,VP1d+VP4_l2PN2,,VPD1|VP4,VPD1,True
+720575940626682682,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL,ACH,MZ_lvPN,,VP2,VP2,False
+720575940626768656,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.PLP,ACH,M_lPNm12b,"M_lPNm13b, M_lPNm12, M_lPNm13",,,False
+720575940626937617,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,DA2_lPN,,DA2,DA2,False
+720575940626986885,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.LH,ACH,VC4_adPN,,VC4,VC4,False
+720575940626991147,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL,ACH,VP5+_l2PN,VP5+VP2_l2PN,VP5|VP2,VP5,True
+720575940627035388,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VM5d_adPN,,VM5d,VM5d,False
+720575940627042064,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,AL.MB_CA,ACH,DL1_adPN,,DL1,DL1,False
+720575940627114492,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.LH,ACH,M_lvPNm40,,,,False
+720575940627160322,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,DC2_adPN,,DC2,DC2,False
+720575940627172100,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.SMP,ACH,M_lPNm12b,"M_lPNm13b, M_lPNm12, M_lPNm13",,,False
+720575940627244986,intrinsic,central,ALPN,multiglomerular,ALad1,left,,ACH,AL.LH,ACH,M_adPNm8,,,,False
+720575940627265274,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.IPS,ACH,VP2+VC5_l2PN,,VP2|VC5,VP2,True
+720575940627353426,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,DL3_lPN,,DL3,DL3,False
+720575940627399724,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,PLP,ACH,M_lvPNm47,,,,False
+720575940627480586,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,AL.MB_CA,ACH,VM3_adPN,,VM3,VM3,False
+720575940627677017,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.SMP,ACH,M_lvPNm24,,,,False
+720575940627708688,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,AL.LH,ACH,DL4_adPN,,DL4,DL4,False
+720575940627772009,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,DL2v_adPN,,DL2v,DL2v,False
+720575940627844734,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.LH,ACH,D_adPN,,,,False
+720575940627928911,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,SLP.LH,ACH,M_lvPNm45,,DA1,DA1,False
+720575940627949929,intrinsic,central,ALPN,multiglomerular,ALad1,left,,ACH,AL.LH,ACH,M_adPNm4b,"M_adPNm5b, M_adPNm4, M_adPNm5",,,False
+720575940628024107,intrinsic,central,ALPN,,ALlv1,left,,ACH,GNG.LH,ACH,CB3623,"VP2+Z_lvPN, Z_lvPNm1",VP2,VP2,False
+720575940628035543,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.MB_CA,ACH,VA7m_lPN,,VA7m,VA7m,False
+720575940628059722,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.PLP,ACH,M_l2PN3t18,,,,False
+720575940628077568,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,VM1_lPN,,VM1,VM1,False
+720575940628164222,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.LH,ACH,CB3383,"M_lvPNm38, VC5_lvPN",VC5,VC5,False
+720575940628181520,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,DL2v_adPN,,DL2v,DL2v,False
+720575940628200506,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,M_l2PNl21,,,,False
+720575940628259407,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,DA2_lPN,,DA2,DA2,False
+720575940628283560,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.LH,ACH,VA1v_adPN,,VA1v,VA1v,False
+720575940628303607,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,LH,ACH,M_lvPNm45,,DA1,DA1,False
+720575940628316047,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,DL2d_adPN,,DL2d,DL2d,False
+720575940628338028,intrinsic,central,ALPN,multiglomerular,putative_primary,right,,ACH,AL.PLP,ACH,VP1l+VP3_ilPN,,VPL1|VP3,VPL1,True
+720575940628346194,intrinsic,central,ALPN,uniglomerular,ALlv1,left,,ACH,AL.SMP,ACH,VP1l+_lvPN,,VPL1,VPL1,False
+720575940628420008,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.SMP,ACH,M_lvPNm25,,,,False
+720575940628467611,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,AL.LH,ACH,VL2p_adPN,,VLP2|VL1,VLP2,True
+720575940628504919,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.PLP,ACH,M_lPNm11A,,,,False
+720575940628514647,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.PLP,ACH,M_lPNm11A,,,,False
+720575940628524292,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.LH,ACH,VM7d_adPN,,VM7d,VM7d,False
+720575940628739560,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,VC2_lPN,,VC2,VC2,False
+720575940628750248,intrinsic,central,ALPN,multiglomerular,putative_primary,left,,ACH,AL.LH,ACH,M_spPN4t9,,DM6,DM6,False
+720575940628834832,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL,ACH,M_lvPNm28,,,,False
+720575940628882450,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,DL3_lPN,,DL3,DL3,False
+720575940628954112,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL,ACH,M_lPNm11D,,,,False
+720575940629009513,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VA3_adPN,,VA3,VA3,False
+720575940629011655,intrinsic,central,ALPN,uniglomerular,putative_primary,left,,ACH,AL,ACH,VP1d_il2PN,,VPD1,VPD1,False
+720575940629089068,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL,ACH,M_lvPNm35,,,,False
+720575940629097922,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.LH,ACH,VA1v_adPN,,VA1v,VA1v,False
+720575940629279544,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VM5d_adPN,,VM5d,VM5d,False
+720575940629301248,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,V_l2PN,,,,False
+720575940629346103,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.SCL,ACH,M_lPNm12b,"M_lPNm13b, M_lPNm12, M_lPNm13",,,False
+720575940629587671,intrinsic,central,ALPN,multiglomerular,ALad1,right,,ACH,AL.LH,ACH,M_adPNm4b,"M_adPNm5b, M_adPNm4, M_adPNm5",,,False
+720575940629733626,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.LH,ACH,VA1v_adPN,,VA1v,VA1v,False
+720575940629752219,intrinsic,central,ALPN,multiglomerular,ALad1,right,,ACH,AL.PLP,ACH,VP2+_adPN,,VP2,VP2,False
+720575940629874806,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL,ACH,M_lvPNm28,,,,False
+720575940629894716,intrinsic,central,ALPN,,ALlv1,right,,ACH,GNG.LH,ACH,CB3623,"VP2+Z_lvPN, Z_lvPNm1",VP2,VP2,False
+720575940629906425,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,LH,ACH,CB3383,"M_lvPNm38, VC5_lvPN",VC5|VM6,VC5,True
+720575940629926159,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,DM5_lPN,,DM5,DM5,False
+720575940629963855,intrinsic,central,ALPN,multiglomerular,putative_primary,right,,ACH,AL.LH,ACH,M_ilPN8t91,M_ilPNm90,,,False
+720575940630003472,intrinsic,central,ALPN,multiglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,M_adPNm4b,"M_adPNm5b, M_adPNm4, M_adPNm5",,,False
+720575940630024566,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,DM2_lPN,,DM2,DM2,False
+720575940630057728,intrinsic,central,ALPN,multiglomerular,FLAa2,left,,GLUT,AL.LH,GLUT,CB0650,hb-519236349,,,False
+720575940630066007,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.MB_CA,ACH,DA1_lPN,aDT3,DA1,DA1,False
+720575940630097103,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.MB_CA,ACH,VC2_lPN,,VC2,VC2,False
+720575940630131663,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,DC3_adPN,,DC3,DC3,False
+720575940630134839,intrinsic,central,ALPN,multiglomerular,FLAa2,right,,GLUT,AL.LH,GLUT,CB0650,hb-519236349,,,False
+720575940630155083,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,LH,ACH,DA3_adPN,,DA3,DA3,False
+720575940630217086,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,DL2d_adPN,,DL2d,DL2d,False
+720575940630275269,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.WED,ACH,VP3+_l2PN,,VP3|VP5,VP3,True
+720575940630432815,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.SMP,ACH,M_lvPNm35,,,,False
+720575940630493818,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.LH,ACH,DC2_adPN,,DC2,DC2,False
+720575940630546540,intrinsic,central,ALPN,uniglomerular,putative_primary,left,,ACH,AL.LH,ACH,V_ilPN,,,,False
+720575940630547909,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VA1d_adPN,,VA1d,VA1d,False
+720575940630549370,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,AL.MB_CA,ACH,DM3_adPN,,DM3,DM3,False
+720575940630584079,intrinsic,central,ALPN,uniglomerular,ALlv1,left,,ACH,AL.SLP,ACH,VP1l+_lvPN,,VPL1,VPL1,False
+720575940630686060,intrinsic,central,ALPN,,ALlv1,right,,ACH,GNG.SCL,ACH,CB3623,"VP2+Z_lvPN, Z_lvPNm1",VP2,VP2,False
+720575940630770042,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,DM1_lPN,,DM1|VL1,DM1,True
+720575940630778428,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,DL3_lPN,,DL3,DL3,False
+720575940630895055,intrinsic,central,ALPN,uniglomerular,ALlv1,right,,ACH,AL.MB_CA,ACH,VC5_lvPN,VC3m_lvPN,VC5|VCM3,VC5,True
+720575940630914858,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.LH,ACH,DC4_adPN,,DC4,DC4,False
+720575940630928715,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,DL2d_adPN,,DL2d,DL2d,False
+720575940630989354,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.LH,ACH,VA1v_adPN,,VA1v,VA1v,False
+720575940631054634,intrinsic,central,ALPN,uniglomerular,ALlv1,right,,ACH,AL.LH,ACH,VC5_lvPN,VC3m_lvPN,VC5|VCM3,VC5,True
+720575940631161570,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.LH,ACH,DL2v_adPN,,DL2v,DL2v,False
+720575940631193052,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.LH,ACH,DC2_adPN,,DC2,DC2,False
+720575940631301715,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.LH,ACH,M_lvPNm46,,,,False
+720575940631328104,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,DM6_adPN,,DM6,DM6,False
+720575940631347011,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL,ACH,VP2_l2PN,,VP2,VP2,False
+720575940631462200,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.LH,ACH,VM7d_adPN,,VM7d,VM7d,False
+720575940631469964,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL,ACH,M_lPNm11D,,,,False
+720575940631576351,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,PLP,ACH,M_lvPNm47,,,,False
+720575940631633401,intrinsic,central,ALPN,multiglomerular,ALad1,right,,ACH,AL.LH,ACH,M_adPNm8,,,,False
+720575940631683927,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL,ACH,M_l2PNl20,,,,False
+720575940631725561,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.SMP,ACH,M_lvPNm25,,,,False
+720575940631801671,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,M_l2PNl23,,,,False
+720575940631930828,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.LH,ACH,DA4m_adPN,,DA4m,DA4m,False
+720575940632128908,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL,ACH,CB3206,"VP1m+VP2_lvPN1, VP1m+VP2_lvPN2",VPM1|VP2,VPM1,True
+720575940632167085,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,AL.MB_CA,ACH,DL1_adPN,,DL1,DL1,False
+720575940632216928,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,LH,ACH,M_lvPNm43,,,,False
+720575940632243019,intrinsic,central,ALPN,multiglomerular,ALad1,left,,ACH,AL.LH,ACH,M_adPNm6,,,,False
+720575940632627757,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,LH,ACH,M_lvPNm37,,,,False
+720575940632698797,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,AL.LH,ACH,VM6_adPN,VC5_adPN,VM6|VC5,VM6,True
+720575940632868563,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,VA5_lPN,,VA5,VA5,False
+720575940632890681,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.LH,ACH,M_lvPNm42,,,,False
+720575940633036369,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.SMP,ACH,M_lvPNm29,,,,False
+720575940633074145,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL,ACH,VP3+_l2PN,,VP3|VP5,VP3,True
+720575940633165025,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.LH,ACH,VA1v_adPN,,VA1v,VA1v,False
+720575940633190847,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,VC1_lPN,,VC1,VC1,False
+720575940633356883,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,GLUT,LH,GLUT,VP1m+_lvPN,,VPM1,VPM1,False
+720575940633499548,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,VA5_lPN,,VA5,VA5,False
+720575940633552028,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.LH,ACH,CB1321,"VP1m+VP2_lvPN1, VP1m+VP2_lvPN2",VPM1|VP2,VPM1,True
+720575940633804212,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,D_adPN,,,,False
+720575940633884333,intrinsic,central,ALPN,multiglomerular,ALad1,right,,ACH,AL.LH,ACH,M_adPNm7,,,,False
+720575940634035863,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.PLP,ACH,M_l2PNm17,,,,False
+720575940634325087,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VM5d_adPN,,VM5d,VM5d,False
+720575940634710629,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,DL3_lPN,,DL3,DL3,False
+720575940634903403,intrinsic,central,ALPN,multiglomerular,FLAa2,left,,GLUT,AL.LH,GLUT,CB0650,hb-519236349,,,False
+720575940634939327,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,DC3_adPN,,DC3,DC3,False
+720575940635066975,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL,ACH,VP1m_l2PN,,VPM1,VPM1,False
+720575940635082871,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VM5d_adPN,,VM5d,VM5d,False
+720575940635209884,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,SIP,ACH,M_lPNm12a,"M_lPNm13a, M_lPNm12, M_lPNm13",,,False
+720575940635604581,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,DL3_lPN,,DL3,DL3,False
+720575940635838606,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL,ACH,M_lPNm11D,,,,False
+720575940635933119,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VC4_adPN,,VC4,VC4,False
+720575940635983770,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,AL.MB_CA,ACH,DP1l_adPN,,DP1l,DP1l,False
+720575940636096948,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.LH,ACH,M_lvPNm42,,,,False
+720575940636873791,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,AL.MB_CA,ACH,VA6_adPN,,VA6,VA6,False
+720575940637009636,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,VA5_lPN,,VA5,VA5,False
+720575940637056887,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,AL.MB_CA,ACH,DC1_adPN,,DC1,DC1,False
+720575940637185252,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL,ACH,CB3206,"VP1m+VP2_lvPN1, VP1m+VP2_lvPN2",VPM1|VP2,VPM1,True
+720575940637208718,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,DA1_lPN,aDT3,DA1,DA1,False
+720575940637231593,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,VA5_lPN,,VA5,VA5,False
+720575940637282167,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,SLP.AL,ACH,CB1988,"M_lvPNm33, M_lvPNm34",,,False
+720575940637449023,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL,ACH,VP3+_l2PN,,VP3|VP5,VP3,True
+720575940637469254,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,DA1_lPN,aDT3,DA1,DA1,False
+720575940637526190,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,VC1_lPN,,VC1|VL1,VC1,True
+720575940637594334,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,AL.LH,ACH,VA6_adPN,,VA6,VA6,False
+720575940637628762,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,DM2_lPN,,DM2,DM2,False
+720575940637712243,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.WED,ACH,VP4+VL1_l2PN,,VP4|VL1,VP4,True
+720575940637864355,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.LH,ACH,DL2v_adPN,,DL2v,DL2v,False
+720575940637910106,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,V_l2PN,,,,False
+720575940637943374,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,DC3_adPN,,DC3,DC3,False
+720575940638149744,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,GLUT,LH,GLUT,VP1m+_lvPN,,VPM1,VPM1,False
+720575940638415731,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,PLP,ACH,M_lvPNm48,,,,False
+720575940638624189,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.MB_CA,ACH,DM2_lPN,,DM2,DM2,False
+720575940638633535,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,DM2_lPN,,DM2,DM2,False
+720575940638689001,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.SIP,ACH,M_lvPNm29,,,,False
+720575940638719104,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.LH,ACH,DA2_lPN,,DA2,DA2,False
+720575940638778165,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL,ACH,M_lPNm11D,,,,False
+720575940639017050,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL.PLP,ACH,M_l2PNm16,,,,False
+720575940639080765,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,AL.LH,ACH,DL5_adPN,,DL5,DL5,False
+720575940639121571,intrinsic,central,ALPN,uniglomerular,ALad1,right,,ACH,AL.MB_CA,ACH,VM5d_adPN,,VM5d,VM5d,False
+720575940639202467,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,PLP,ACH,CB1321,"VP1m+VP2_lvPN1, VP1m+VP2_lvPN2",VPM1|VP2,VPM1,True
+720575940639337461,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,DA2_lPN,,DA2,DA2,False
+720575940639384947,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.SLP,ACH,M_lvPNm37,,,,False
+720575940639479366,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,LH,ACH,M_lvPNm39,,,,False
+720575940639669592,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,M_lPNm11C,,,,False
+720575940639680957,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,VA7m_lPN,,VA7m,VA7m,False
+720575940640032896,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,DM5_lPN,,DM5,DM5,False
+720575940640398477,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,VA7m_lPN,,VA7m,VA7m,False
+720575940640639293,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.SMP,ACH,M_lvPNm24,,,,False
+720575940640697808,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VM2_adPN,,VM2,VM2,False
+720575940640804853,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VA1d_adPN,,VA1d,VA1d,False
+720575940640883363,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,LH,ACH,M_lvPNm46,,,,False
+720575940640971995,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,AL.MB_CA,ACH,VM4_adPN,,VM4,VM4,False
+720575940641369808,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL,ACH,CB1988,"M_lvPNm33, M_lvPNm34",,,False
+720575940642046453,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,DL2d_adPN,,DL2d,DL2d,False
+720575940642086389,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.MB_CA,ACH,VA4_lPN,,VA4,VA4,False
+720575940642212552,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.LH,ACH,M_lvPNm40,,,,False
+720575940642492576,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.MB_CA,ACH,DM5_lPN,,DM5,DM5,False
+720575940642962286,intrinsic,central,ALPN,multiglomerular,ALad1,right,,ACH,AL.LH,ACH,M_adPNm6,,,,False
+720575940644004768,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,right,,ACH,AL.LH,ACH,VM1_lPN,,VM1,VM1,False
+720575940644238871,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL,ACH,M_lPNm11D,,,,False
+720575940644258327,intrinsic,central,ALPN,uniglomerular,ALl1_ventral,left,,ACH,AL.MB_CA,ACH,DM5_lPN,,DM5,DM5,False
+720575940644744864,intrinsic,central,ALPN,multiglomerular,FLAa2,right,,GLUT,AL.LH,GLUT,CB0650,hb-519236349,,,False
+720575940644961588,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VM5d_adPN,,VM5d,VM5d,False
+720575940645106723,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL.LH,ACH,M_lvPNm45,,DA1,DA1,False
+720575940645532292,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,PLP,ACH,M_lvPNm48,,,,False
+720575940645680407,intrinsic,central,ALPN,multiglomerular,ALlv1,left,,ACH,AL.SIP,ACH,M_lvPNm26,,,,False
+720575940646416419,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,LH,ACH,M_lvPNm40,,,,False
+720575940646661252,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL,ACH,M_lPNm11D,,,,False
+720575940648206468,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL,ACH,CB3206,"VP1m+VP2_lvPN1, VP1m+VP2_lvPN2",VPM1|VP2,VPM1,True
+720575940648650884,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,AL.MB_CA,ACH,DP1l_adPN,,DP1l,DP1l,False
+720575940649045369,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,AL.LH,ACH,DA4l_adPN,,DA4l,DA4l,False
+720575940649133945,intrinsic,central,ALPN,uniglomerular,ALad1__prim,right,,ACH,SLP.LH,ACH,DA3_adPN,,DA3,DA3,False
+720575940652941217,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,right,,ACH,AL.PLP,ACH,M_lPNm12b,"M_lPNm13b, M_lPNm12, M_lPNm13",,,False
+720575940656090017,intrinsic,central,ALPN,uniglomerular,ALad1,left,,ACH,AL.MB_CA,ACH,VA3_adPN,,VA3,VA3,False
+720575940659400577,intrinsic,central,ALPN,uniglomerular,ALad1__prim,left,,ACH,LH,ACH,DA3_adPN,,DA3,DA3,False
+720575940659611777,intrinsic,central,ALPN,multiglomerular,ALl1_ventral,left,,ACH,AL,ACH,VP1d+VP4_l2PN2,,VPD1|VP4,VPD1,True
+720575940660912001,intrinsic,central,ALPN,multiglomerular,ALlv1,right,,ACH,AL,ACH,M_lvPNm27,,,,False
+720575940661114753,intrinsic,central,ALPN,multiglomerular,putative_primary,right,,ACH,AL.LH,ACH,M_imPNl92,,,,False
