@@ -290,7 +290,7 @@ def extract_alpns(
 ) -> pd.DataFrame:
     """Filter ALPNs with neurotransmitter and glomerulus annotations."""
 
-    required_columns = {"root_id", "class", "super_class", "flow"}
+    required_columns = {"root_id", "class"}
     missing_columns = required_columns - set(classification_df.columns)
     if missing_columns:
         missing = ", ".join(sorted(missing_columns))
@@ -300,37 +300,47 @@ def extract_alpns(
     classification_df["class_normalised"] = _normalise_string_series(
         classification_df["class"]
     )
-    classification_df["super_class_normalised"] = _normalise_string_series(
-        classification_df["super_class"]
-    )
 
-    class_mask = classification_df["class_normalised"] == "ALPN"
-    super_class_mask = classification_df["super_class_normalised"].isin({"ASCENDING"})
-    pn_candidates = classification_df[class_mask & super_class_mask].copy()
-    print(f"ALPN candidates after class/super_class filters: {len(pn_candidates):,}")
-    if pn_candidates.empty:
-        print(
-            "No ALPN candidates matched the class/super_class criteria. "
-            "Verify the classification export before proceeding."
+    if "super_class" in classification_df.columns:
+        classification_df["super_class_normalised"] = _normalise_string_series(
+            classification_df["super_class"]
         )
-        return pn_candidates.drop(
-            columns=[
-                column
-                for column in (
-                    "class_normalised",
-                    "super_class_normalised",
-                    "flow_normalised",
-                )
-                if column in pn_candidates.columns
-            ]
-        )
+    else:
+        classification_df["super_class_normalised"] = pd.NA
 
     if "flow" in classification_df.columns:
         classification_df["flow_normalised"] = _normalise_string_series(
             classification_df["flow"]
         )
-        flow_series = classification_df.loc[pn_candidates.index, "flow_normalised"]
-        ascending_mask = flow_series == "ASCENDING"
+    else:
+        classification_df["flow_normalised"] = pd.NA
+
+    class_mask = classification_df["class_normalised"] == "ALPN"
+    if not class_mask.any():
+        print(
+            "Warning: classification export lacks rows with class=='ALPN' after normalisation."
+        )
+
+    super_class_mask = classification_df["super_class_normalised"].isin({"ASCENDING"})
+    pn_candidates = classification_df[class_mask & super_class_mask].copy()
+    print(f"ALPN candidates after class/super_class filters: {len(pn_candidates):,}")
+
+    if pn_candidates.empty:
+        fallback_candidates = classification_df[class_mask].copy()
+        print(
+            "Super-class filter removed all ALPN candidates. Falling back to class-only "
+            f"selection ({len(fallback_candidates):,} rows)."
+        )
+        pn_candidates = fallback_candidates
+
+    if pn_candidates.empty:
+        print(
+            "No ALPN candidates matched the class criteria even after relaxing filters."
+        )
+
+    if not pn_candidates.empty:
+        flow_series = pn_candidates["flow_normalised"]
+        ascending_mask = (flow_series == "ASCENDING").fillna(False)
         pn_with_flow = pn_candidates[ascending_mask].copy()
         print(
             "ALPN candidates with flow=='ascending': "
@@ -341,12 +351,15 @@ def extract_alpns(
             pn_with_flow = pn_candidates[relaxed_mask].copy()
             missing_flow = int(flow_series.isna().sum())
             print(
-                "Flow filter removed all candidates; retaining entries with "
-                f"missing/empty flow annotations ({missing_flow} rows)."
+                "Flow filter removed all candidates; retaining entries with missing/empty "
+                f"flow annotations ({missing_flow} rows)."
             )
+        if pn_with_flow.empty:
+            print("Still no candidates after flow filtering; ignoring flow constraint entirely.")
+            pn_with_flow = pn_candidates.copy()
         pn_candidates = pn_with_flow
     else:
-        print("'flow' column missing from classification table; skipping flow filter.")
+        print("Skipping flow filter because no PN candidates survived earlier filters.")
 
     join_columns = ["root_id", "nt_type", "group"]
     available_join_columns = [column for column in join_columns if column in neurons_df.columns]
@@ -373,20 +386,34 @@ def extract_alpns(
         pn_enriched["nt_type"].str.strip().str.upper().replace({"": pd.NA})
     )
 
-    excitatory_mask = pn_enriched["nt_type_normalised"].str.contains(
-        "ACH|CHOLINERGIC|GLUT", case=False, na=False
-    )
-    gabanergic_mask = pn_enriched["nt_type_normalised"].str.contains(
-        "GABA", case=False, na=False
-    )
+    nt_series = pn_enriched["nt_type_normalised"]
+    ach_mask = nt_series == "ACH"
+    cholinergic_mask = nt_series == "CHOLINERGIC"
+    glut_mask = nt_series.str.contains("GLUT", case=False, na=False)
+    excitatory_mask = ach_mask | cholinergic_mask | glut_mask
+    gabanergic_mask = nt_series.str.contains("GABA", case=False, na=False)
+    unknown_mask = nt_series.isna()
+
     gaba_excluded = int(gabanergic_mask.sum())
+    non_excitatory_excluded = int((~excitatory_mask & ~gabanergic_mask).sum())
+
     pn_filtered = pn_enriched[excitatory_mask & ~gabanergic_mask].copy()
-    dropped_non_excitatory = len(pn_enriched) - len(pn_filtered) - gaba_excluded
+    unknown_reintroduced = False
+    if pn_filtered.empty and unknown_mask.any():
+        pn_filtered = pn_enriched[(excitatory_mask | unknown_mask) & ~gabanergic_mask].copy()
+        unknown_reintroduced = True
+
     print(
         "Filtered to excitatory uniglomerular/multiglomerular PNs: "
         f"{len(pn_filtered):,} (excluded {gaba_excluded} GABAergic entries, "
-        f"{dropped_non_excitatory} non-excitatory entries)"
+        f"{non_excitatory_excluded} non-excitatory entries)"
     )
+    if unknown_reintroduced:
+        unknown_retained = int((pn_filtered["nt_type_normalised"].isna()).sum())
+        print(
+            f"  Included {unknown_retained} ALPNs with missing nt_type annotations due to "
+            "the absence of labelled cholinergic/glutamatergic entries."
+        )
 
     pn_filtered["nt_type_normalised"] = pn_filtered["nt_type_normalised"].fillna("UNKNOWN")
 
@@ -427,10 +454,19 @@ def summarise_alpn_population(pn_df: pd.DataFrame) -> None:
     print("\n=== ALPN Population Summary ===")
     total = len(pn_df)
     print(f"Total ALPNs extracted: {total:,}")
+    if total == 0:
+        print("No ALPN population statistics available.")
+        return
 
-    glomeruli = pn_df["primary_glomerulus"].dropna()
-    unique_glomeruli = sorted(glomeruli.unique())
-    print(f"Unique glomeruli: {len(unique_glomeruli):,}")
+    if "primary_glomerulus" in pn_df.columns:
+        glomeruli = pn_df["primary_glomerulus"].dropna()
+        unique_glomeruli = sorted(glomeruli.unique())
+        print(f"Unique glomeruli: {len(unique_glomeruli):,}")
+    else:
+        glomeruli = pd.Series(dtype=object)
+        print(
+            "primary_glomerulus column missing; glomerulus summaries unavailable."
+        )
 
     nt_column = "nt_type_normalised" if "nt_type_normalised" in pn_df.columns else "nt_type"
     neurotransmitter_counts = pn_df[nt_column].value_counts(dropna=False).sort_values(
@@ -442,22 +478,26 @@ def summarise_alpn_population(pn_df: pd.DataFrame) -> None:
         percentage = (count / total) * 100 if total else 0
         print(f"  {label}: {count} ({percentage:.1f}%)")
 
-    sample_counts = pn_df.groupby("primary_glomerulus", dropna=True)["root_id"].apply(list)
-    sample_counts = sample_counts.sort_values(
-        key=lambda series: series.apply(len), ascending=False
-    )
-    for glomerulus, root_ids in sample_counts.head(10).items():
-        preview_ids = [str(value) for value in root_ids[:5]]
-        preview = ", ".join(preview_ids)
-        if len(root_ids) > 5:
-            preview += ", ..."
-        print(f"  {glomerulus}: {len(root_ids)} PNs (root_ids: [{preview}])")
+    if "primary_glomerulus" in pn_df.columns and not pn_df.empty:
+        sample_counts = pn_df.groupby("primary_glomerulus", dropna=True)["root_id"].apply(list)
+        sample_counts = sample_counts.sort_values(
+            key=lambda series: series.apply(len), ascending=False
+        )
+        for glomerulus, root_ids in sample_counts.head(10).items():
+            preview_ids = [str(value) for value in root_ids[:5]]
+            preview = ", ".join(preview_ids)
+            if len(root_ids) > 5:
+                preview += ", ..."
+            print(f"  {glomerulus}: {len(root_ids)} PNs (root_ids: [{preview}])")
 
-    missing = pn_df[pn_df["primary_glomerulus"].isna()]
-    if not missing.empty:
-        print(f"PNs missing glomerulus assignments: {len(missing):,} ({len(missing) / total:.1%})")
-    else:
-        print("No PNs missing glomerulus assignments.")
+        missing = pn_df[pn_df["primary_glomerulus"].isna()]
+        if not missing.empty and total:
+            print(
+                "PNs missing glomerulus assignments: "
+                f"{len(missing):,} ({len(missing) / total:.1%})"
+            )
+        elif total:
+            print("No PNs missing glomerulus assignments.")
 
     if "group" in pn_df.columns:
         hemispheres = pn_df["group"].dropna().astype(str).str.extract(r"(L|R)", expand=False)
@@ -618,6 +658,13 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     pn_df = extract_alpns(classification, neurons, cell_types, processed_labels)
     summarise_alpn_population(pn_df)
+
+    if pn_df.empty:
+        print(
+            "No ALPNs extracted after filtering; skipping PN→KC connectivity computation."
+        )
+        save_outputs(pn_df, pd.DataFrame(), config.output_dir)
+        return
 
     kc_df = get_kc_neurons(
         cell_types,

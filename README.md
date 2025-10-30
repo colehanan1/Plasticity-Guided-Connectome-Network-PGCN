@@ -95,15 +95,18 @@ hemisphere) instead of the truncated counts produced by name-only heuristics.
 When you need a production-grade sanity check of the olfactory projection
 neurons themselves, run the purpose-built script below. It pins the ALPN
 filters to the FlyWire ``classification`` table (case-insensitive
-``class == 'ALPN'`` and ``super_class == 'ascending'``) and keeps the
-``flow == 'ascending'`` entries **with an automatic fallback** that retains
-rows where ``flow`` is missing/empty to protect against sparse annotations.
-The pipeline keeps only excitatory ``ACH``/``GLUT`` entries from
-``neurons.csv.gz`` (dropping GABAergic vPNs and logging the discarded counts),
-parses community glomerulus labels, and reports PN→KC connectivity restricted to
-the mushroom-body calyx (``neuropil`` of ``CA_L``/``CA_R``). The command line
-interface accepts explicit dataset/output directories so you can point the
-analysis at any FlyWire export cache:
+``class == 'ALPN'``) while **falling back automatically** whenever
+``super_class`` or ``flow`` annotations are absent or blank. Missing
+``super_class`` values trigger a class-only recovery pass, ``flow`` filtering is
+disabled whenever it would otherwise eliminate every candidate, and any
+cholinergic/glutamatergic undercount prompts a controlled reintroduction of
+``nt_type``-unknown rows (clearly flagged in the console output). The pipeline
+keeps only excitatory ``ACH``/``GLUT`` entries from ``neurons.csv.gz`` (dropping
+GABAergic vPNs and logging the discarded counts), parses community glomerulus
+labels, and reports PN→KC connectivity restricted to the mushroom-body calyx
+(``neuropil`` of ``CA_L``/``CA_R``). The command line interface accepts explicit
+dataset/output directories so you can point the analysis at any FlyWire export
+cache:
 
 ```bash
 PYTHONPATH=src python scripts/extract_alpn_projection_neurons.py \
@@ -125,7 +128,9 @@ writes two CSV artefacts for downstream analysis:
 Expect totals to fall within the published FAFB ranges—~130–160 ALPNs across
 50–58 glomeruli, dominated by cholinergic neurons with a minority of
 glutamatergic multiglomerular PNs, and ~40k–50k PN→KC synapses delivering 5–8
-distinct PN partners per KC on average. Any deviations (including missing
+distinct PN partners per KC on average. The script now short-circuits cleanly
+when zero ALPNs survive filtering, exporting empty CSVs for audit instead of
+raising ``KeyError`` exceptions. Any deviations (including missing
 neurotransmitter annotations or glomerulus gaps) appear directly in the console
 summary so you can revisit the raw exports without spelunking through notebooks.
 
