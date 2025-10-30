@@ -9,7 +9,7 @@ import sys
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence
 
 import pandas as pd
 
@@ -18,20 +18,20 @@ from data_loaders.flywire_local import FlyWireLocalDataLoader
 from data_loaders.neuron_classification import get_kc_neurons
 
 # Canonical glomerulus catalogue adapted from community standards and hemibrain exports.
-_CANONICAL_GLOMERULI: Sequence[str] = (
+_CANONICAL_GLOMERULI_SET = {
     "DA1",
     "DA2",
     "DA3",
+    "DA4",
     "DA4l",
     "DA4m",
-    "DA4",
     "DA5",
     "DA6",
     "DA7",
     "DL1",
+    "DL2",
     "DL2d",
     "DL2v",
-    "DL2",
     "DL3",
     "DL4",
     "DL5",
@@ -43,49 +43,6 @@ _CANONICAL_GLOMERULI: Sequence[str] = (
     "DM6",
     "DM7",
     "DM8",
-    "VA1d",
-    "VA1v",
-    "VA2",
-    "VA3",
-    "VA4",
-    "VA5",
-    "VA6",
-    "VA7l",
-    "VA7m",
-    "VA7",
-    "VA8",
-    "VA9",
-    "VM1",
-    "VM2",
-    "VM3",
-    "VM4",
-    "VM5",
-    "VM6",
-    "VM7d",
-    "VM7v",
-    "VM7",
-    "VM8",
-    "VM9",
-    "VL1",
-    "VL2",
-    "VL3",
-    "VP1",
-    "VP2",
-    "VP3",
-    "VP4",
-    "VP5",
-    "VC1",
-    "VC2",
-    "VC3",
-    "VC4",
-    "VC5",
-    "DC1",
-    "DC2",
-    "DC3",
-    "DC4",
-    "DC5",
-    "DC6",
-    "DC7",
     "DP1",
     "DP1l",
     "DP1m",
@@ -95,6 +52,66 @@ _CANONICAL_GLOMERULI: Sequence[str] = (
     "DP5",
     "DP6",
     "DP7",
+    "VA1d",
+    "VA1v",
+    "VA2",
+    "VA3",
+    "VA4",
+    "VA5",
+    "VA6",
+    "VA7",
+    "VA7d",
+    "VA7l",
+    "VA7m",
+    "VA7v",
+    "VA8",
+    "VA9",
+    "VC1",
+    "VC2",
+    "VC3",
+    "VC4",
+    "VC5",
+    "VL1",
+    "VL2",
+    "VL3",
+    "VM1",
+    "VM2",
+    "VM3",
+    "VM4",
+    "VM5",
+    "VM5d",
+    "VM5v",
+    "VM6",
+    "VM7",
+    "VM7d",
+    "VM7v",
+    "VM8",
+    "VM9",
+    "VP1",
+    "VP2",
+    "VP3",
+    "VP4",
+    "VP5",
+    "DC1",
+    "DC2",
+    "DC3",
+    "DC4",
+    "DC5",
+    "DC6",
+    "DC7",
+}
+
+
+def _glomerulus_sort_key(value: str) -> tuple[str, int, str]:
+    match = re.match(r"([A-Z]+)(\d+)(.*)", value)
+    if match:
+        prefix, digits, suffix = match.groups()
+        return (prefix, int(digits), suffix)
+    return (value, 0, "")
+
+
+_CANONICAL_GLOMERULI: Sequence[str] = tuple(
+    sorted(_CANONICAL_GLOMERULI_SET, key=_glomerulus_sort_key)
 )
 
 _CANONICAL_LOOKUP = {value.upper(): value for value in _CANONICAL_GLOMERULI}
@@ -126,6 +143,18 @@ def _load_dataframe(loader: FlyWireLocalDataLoader, name: str, load_fn) -> pd.Da
         raise SystemExit(msg) from exc
     print(f"Loaded {name}: {len(df):,} rows")
     return df
+
+
+def _normalise_string_series(series: pd.Series) -> pd.Series:
+    """Standardise string columns for reliable comparisons."""
+
+    normalised = (
+        series.astype("string")
+        .str.strip()
+        .str.replace(r"\s+", " ", regex=True)
+        .str.upper()
+    )
+    return normalised.replace({"": pd.NA})
 
 
 def _parse_processed_label_entry(value: object) -> List[str]:
@@ -256,7 +285,7 @@ def _infer_glomeruli(pn_df: pd.DataFrame, processed_lookup: Dict[int, List[str]]
 def extract_alpns(
     classification_df: pd.DataFrame,
     neurons_df: pd.DataFrame,
-    cell_types_df: pd.DataFrame,
+    cell_types_df: Optional[pd.DataFrame],
     processed_labels_df: pd.DataFrame | None,
 ) -> pd.DataFrame:
     """Filter ALPNs with neurotransmitter and glomerulus annotations."""
@@ -267,51 +296,130 @@ def extract_alpns(
         missing = ", ".join(sorted(missing_columns))
         raise SystemExit(f"classification table missing required columns: {missing}")
 
-    pn_candidates = classification_df[
-        (classification_df["class"].astype(str) == "ALPN")
-        & (classification_df["super_class"].astype(str) == "ascending")
-        & (classification_df["flow"].astype(str) == "ascending")
-    ].copy()
-    print(f"ALPN candidates after flow filters: {len(pn_candidates):,}")
+    classification_df = classification_df.copy()
+    classification_df["class_normalised"] = _normalise_string_series(
+        classification_df["class"]
+    )
+    classification_df["super_class_normalised"] = _normalise_string_series(
+        classification_df["super_class"]
+    )
+
+    class_mask = classification_df["class_normalised"] == "ALPN"
+    super_class_mask = classification_df["super_class_normalised"].isin({"ASCENDING"})
+    pn_candidates = classification_df[class_mask & super_class_mask].copy()
+    print(f"ALPN candidates after class/super_class filters: {len(pn_candidates):,}")
+    if pn_candidates.empty:
+        print(
+            "No ALPN candidates matched the class/super_class criteria. "
+            "Verify the classification export before proceeding."
+        )
+        return pn_candidates.drop(
+            columns=[
+                column
+                for column in (
+                    "class_normalised",
+                    "super_class_normalised",
+                    "flow_normalised",
+                )
+                if column in pn_candidates.columns
+            ]
+        )
+
+    if "flow" in classification_df.columns:
+        classification_df["flow_normalised"] = _normalise_string_series(
+            classification_df["flow"]
+        )
+        flow_series = classification_df.loc[pn_candidates.index, "flow_normalised"]
+        ascending_mask = flow_series == "ASCENDING"
+        pn_with_flow = pn_candidates[ascending_mask].copy()
+        print(
+            "ALPN candidates with flow=='ascending': "
+            f"{len(pn_with_flow):,}"
+        )
+        if pn_with_flow.empty:
+            relaxed_mask = ascending_mask | flow_series.isna()
+            pn_with_flow = pn_candidates[relaxed_mask].copy()
+            missing_flow = int(flow_series.isna().sum())
+            print(
+                "Flow filter removed all candidates; retaining entries with "
+                f"missing/empty flow annotations ({missing_flow} rows)."
+            )
+        pn_candidates = pn_with_flow
+    else:
+        print("'flow' column missing from classification table; skipping flow filter.")
 
     join_columns = ["root_id", "nt_type", "group"]
     available_join_columns = [column for column in join_columns if column in neurons_df.columns]
     neurotransmitters = neurons_df.loc[:, available_join_columns].drop_duplicates(
         subset=["root_id"]
     )
-    pn_enriched = pn_candidates.merge(neurotransmitters, on="root_id", how="left")
+    pn_enriched = pn_candidates.merge(
+        neurotransmitters, on="root_id", how="left", indicator=True
+    )
+
+    missing_nt = int((pn_enriched["_merge"] == "left_only").sum())
+    if missing_nt:
+        print(
+            f"Warning: {missing_nt} ALPN candidates lack neurotransmitter annotations;"
+            " treating them as UNKNOWN."
+        )
+    pn_enriched = pn_enriched.drop(columns=["_merge"])
 
     if "nt_type" not in pn_enriched.columns:
         raise SystemExit("neurons table is missing 'nt_type' column")
 
     pn_enriched["nt_type"] = pn_enriched["nt_type"].astype("string")
-    pn_enriched["nt_type_normalised"] = pn_enriched["nt_type"].str.upper().fillna("UNKNOWN")
+    pn_enriched["nt_type_normalised"] = (
+        pn_enriched["nt_type"].str.strip().str.upper().replace({"": pd.NA})
+    )
 
     excitatory_mask = pn_enriched["nt_type_normalised"].str.contains(
-        "ACH|GLUT", case=False, na=False
+        "ACH|CHOLINERGIC|GLUT", case=False, na=False
     )
     gabanergic_mask = pn_enriched["nt_type_normalised"].str.contains(
         "GABA", case=False, na=False
     )
+    gaba_excluded = int(gabanergic_mask.sum())
     pn_filtered = pn_enriched[excitatory_mask & ~gabanergic_mask].copy()
-    print(f"Filtered to excitatory uniglomerular/multiglomerular PNs: {len(pn_filtered):,}")
+    dropped_non_excitatory = len(pn_enriched) - len(pn_filtered) - gaba_excluded
+    print(
+        "Filtered to excitatory uniglomerular/multiglomerular PNs: "
+        f"{len(pn_filtered):,} (excluded {gaba_excluded} GABAergic entries, "
+        f"{dropped_non_excitatory} non-excitatory entries)"
+    )
+
+    pn_filtered["nt_type_normalised"] = pn_filtered["nt_type_normalised"].fillna("UNKNOWN")
 
     # Merge optional cell-type annotations for richer metadata
-    ct_columns = [
-        column
-        for column in ("cell_type", "cell_type_aliases", "sub_class")
-        if column in cell_types_df.columns
-    ]
-    if ct_columns:
-        cell_type_subset = cell_types_df.loc[:, ["root_id", *ct_columns]].drop_duplicates(
-            subset=["root_id"]
-        )
-        pn_filtered = pn_filtered.merge(cell_type_subset, on="root_id", how="left")
+    if cell_types_df is not None and not cell_types_df.empty:
+        ct_columns = [
+            column
+            for column in ("cell_type", "cell_type_aliases", "sub_class")
+            if column in cell_types_df.columns
+        ]
+        if ct_columns:
+            cell_type_subset = cell_types_df.loc[
+                :, ["root_id", *ct_columns]
+            ].drop_duplicates(subset=["root_id"])
+            pn_filtered = pn_filtered.merge(cell_type_subset, on="root_id", how="left")
+    else:
+        print("Cell-type table missing or empty; glomerulus inference will rely on labels only.")
 
     processed_lookup = _build_processed_label_lookup(processed_labels_df)
     pn_with_glomeruli = _infer_glomeruli(pn_filtered, processed_lookup)
 
     pn_with_glomeruli = pn_with_glomeruli.drop_duplicates(subset=["root_id"]).reset_index(drop=True)
+    pn_with_glomeruli = pn_with_glomeruli.drop(
+        columns=[
+            column
+            for column in (
+                "class_normalised",
+                "super_class_normalised",
+                "flow_normalised",
+            )
+            if column in pn_with_glomeruli.columns
+        ]
+    )
     return pn_with_glomeruli
 
 
@@ -325,10 +433,14 @@ def summarise_alpn_population(pn_df: pd.DataFrame) -> None:
     print(f"Unique glomeruli: {len(unique_glomeruli):,}")
 
     nt_column = "nt_type_normalised" if "nt_type_normalised" in pn_df.columns else "nt_type"
-    neurotransmitter_counts = pn_df[nt_column].value_counts().sort_values(ascending=False)
+    neurotransmitter_counts = pn_df[nt_column].value_counts(dropna=False).sort_values(
+        ascending=False
+    )
     print("Neurotransmitter distribution:")
     for nt, count in neurotransmitter_counts.items():
-        print(f"  {nt}: {count}")
+        label = nt if pd.notna(nt) else "<NA>"
+        percentage = (count / total) * 100 if total else 0
+        print(f"  {label}: {count} ({percentage:.1f}%)")
 
     sample_counts = pn_df.groupby("primary_glomerulus", dropna=True)["root_id"].apply(list)
     sample_counts = sample_counts.sort_values(
@@ -366,6 +478,11 @@ def compute_pn_kc_connectivity(
     pn_ids_set = {int(node) for node in pn_ids}
     kc_ids_set = {int(node) for node in kc_ids}
 
+    print(
+        f"Evaluating connectivity for {len(pn_ids_set):,} PNs and "
+        f"{len(kc_ids_set):,} KCs"
+    )
+
     print("\nLoading PN→KC connectivity table (filtered to calyx neuropils)...")
     connections = loader.load_connections(
         neuropil_filter=("CA_L", "CA_R"),
@@ -378,6 +495,19 @@ def compute_pn_kc_connectivity(
     )
     pn_kc_connections = connections.loc[mask].reset_index(drop=True)
     print(f"PN→KC connections after filtering: {len(pn_kc_connections):,}")
+
+    observed_pns = pn_kc_connections["pre_root_id"].nunique()
+    if observed_pns < len(pn_ids_set):
+        print(
+            f"  {len(pn_ids_set) - observed_pns} PNs lacked calyx outputs "
+            "above the threshold."
+        )
+    observed_kcs = pn_kc_connections["post_root_id"].nunique()
+    if observed_kcs < len(kc_ids_set):
+        print(
+            f"  {len(kc_ids_set) - observed_kcs} KCs received no calyx input "
+            "from the filtered PNs."
+        )
 
     return pn_kc_connections
 
@@ -392,6 +522,7 @@ def summarise_connectivity(
         print("No PN→KC connections found with the specified filters.")
         return
 
+    print(f"Total PN→KC connections: {len(pn_kc_df):,}")
     total_synapses = int(pn_kc_df["syn_count"].sum())
     unique_pairs = len(pn_kc_df[["pre_root_id", "post_root_id"]].drop_duplicates())
     avg_synapses = pn_kc_df["syn_count"].mean()
