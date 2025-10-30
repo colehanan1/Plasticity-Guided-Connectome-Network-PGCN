@@ -90,6 +90,39 @@ hemisphere) instead of the truncated counts produced by name-only heuristics.
 5. Use ``python -m scripts.example_local_kc_pn`` for a command-line demonstration of the
    same workflow.
 
+#### Dedicated ALPN extraction pipeline
+
+When you need a production-grade sanity check of the olfactory projection
+neurons themselves, run the purpose-built script below. It pins the ALPN
+filters to the FlyWire ``classification`` table (``class == 'ALPN'``,
+``super_class == 'ascending'``, ``flow == 'ascending'``), keeps only excitatory
+``ACH``/``GLUT`` entries from ``neurons.csv.gz`` (dropping GABAergic vPNs),
+parses community glomerulus labels, and reports PN→KC connectivity restricted to
+the mushroom-body calyx (``neuropil`` of ``CA_L``/``CA_R``):
+
+```bash
+PYTHONPATH=src python scripts/extract_alpn_projection_neurons.py \
+  --dataset-dir data/flywire \
+  --output-dir data/cache \
+  --min-synapses 5
+```
+
+The command prints target checks (PN count, glomerulus coverage, neurotransmitter
+mix, hemisphere balance) and writes two CSV artefacts for downstream analysis:
+
+- ``data/cache/alpn_extracted.csv`` with ALPN metadata, neurotransmitter type,
+  and parsed glomerulus assignments (one row per neuron);
+- ``data/cache/pn_to_kc_connectivity.csv`` containing the calyx-filtered
+  connectivity edges between the extracted PNs and automatically discovered
+  Kenyon cells (≥5 synapses).
+
+Expect totals to fall within the published FAFB ranges—~130–160 ALPNs across
+50–58 glomeruli, dominated by cholinergic neurons with a minority of
+glutamatergic multiglomerular PNs, and ~40k–50k PN→KC synapses delivering 5–8
+distinct PN partners per KC on average. Any deviations will appear directly in
+the console summary so you can revisit the raw exports without spelunking
+through notebooks.
+
 ### Build canonical caches from local CSVs
 
 When you need the full ``data/cache`` artefact expected by the legacy quicksetup
