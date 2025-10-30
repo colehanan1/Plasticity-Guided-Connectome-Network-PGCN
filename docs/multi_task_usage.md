@@ -163,6 +163,11 @@ KC sparsity compliance per query.
   files with `scripts/generate_multi_task_features.py --overwrite` whenever `pgcn-cache`
   introduces a new connectome export. The loader raises descriptive errors when shapes
   or row counts drift from expectations.
+- Treat `UserWarning: Overriding configured n_pn ...` as a red flag. The tightened
+  FlyWire filters only emit those overrides when the cache still contains
+  non-olfactory projections or glomerulus-free neurons. Re-run
+  `scripts/inspect_flywire_datasets.py` and fix the annotations until the cache reports
+  exactly 10 767 projection neurons and 5 177 Kenyon cells.
 
 ## 8. Custom Loader Interface
 

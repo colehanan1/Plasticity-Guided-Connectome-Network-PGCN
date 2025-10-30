@@ -688,7 +688,9 @@ task-specific heads for downstream learning problems. Key artefacts:
   antennal-lobe localisation, projection-keyword evidence, neurotransmitter support,
   and glomerulus annotations before neurons are classed as PNs or KCs. This restores
   the canonical counts reported by the FlyWire v783 cache (10 767 PNs, 5 177 KCs)
-  and prevents MBON/DAN contamination.
+  and prevents MBON/DAN contamination. Nodes lacking processed-label glomerulus
+  evidence must expose matching classification metadata; otherwise they will be
+  rejected and the cache build will emit a mismatch warning.
 - `configs/multi_task_config.yaml` – definitive specification of task heads,
   feature tables, and optimisation hyperparameters aligned with FlyWire v783.
 - `analysis/behavior_connectome_analysis.py` – CLI for enrichment + correlation
@@ -707,6 +709,14 @@ PN dimensionality reported by the cache. If `pgcn-cache` surfaces counts that di
 from the canonical 10 767/5 177 split, validate your local FlyWire export with
 `scripts/inspect_flywire_datasets.py`—the stricter neuron filters treat missing
 glomerulus metadata as a data issue that needs to be resolved before training:
+
+> **Dimension overrides?** If `generate_multi_task_features.py` or the task data
+> loader reports cache-derived PN/KC counts that differ from the configuration,
+> your FlyWire CSV export still includes non-olfactory projections or missing
+> glomerulus labels. Clean the annotations (fill processed-label glomeruli or
+> refresh the export) until the reported counts stabilise at 10 767 PNs and
+> 5 177 KCs. The multi-task trainer now refuses to proceed when the cache drifts
+> from these canonical dimensions.
 
 ```bash
 python scripts/generate_multi_task_features.py \

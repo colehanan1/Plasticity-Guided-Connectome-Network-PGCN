@@ -23,12 +23,10 @@ __all__ = [
 _KC_KEYWORDS = ("kenyon", "kc", "mushroom body intrinsic")
 _PN_KEYWORDS = (
     "olfactory projection",
-    "projection neuron",
-    r"\\bpn\\b",
-    "pn-",
     r"\\balpn\\b",
     r"\\buPN\\b",
     r"\\bmPN\\b",
+    r"\\bpn-",
 )
 _MBON_KEYWORDS = (
     "mbon",
@@ -386,6 +384,12 @@ def get_pn_neurons(
 
     keyword_mask = _accumulate_keyword_mask(merged, _CLASSIFICATION_COLUMNS, _PN_KEYWORDS)
 
+    projection_mask = _accumulate_keyword_mask(
+        merged,
+        ("primary_type", "additional_type(s)", "class", "sub_class"),
+        ("projection", "alpn", "upn", "mpn"),
+    )
+
     primary_series = merged.get("primary_type")
     if primary_series is None:
         primary_series = pd.Series(index=merged.index, dtype="string")
@@ -443,7 +447,7 @@ def get_pn_neurons(
     else:
         nt_mask = pd.Series(False, index=merged.index, dtype=bool)
 
-    glomerulus_mask = classification_glomerulus_mask | label_mask
+    glomerulus_mask = label_mask | (classification_glomerulus_mask & projection_mask)
 
     mbon_like = _accumulate_keyword_mask(merged, _CLASSIFICATION_COLUMNS, _MBON_KEYWORDS)
     dan_like = _accumulate_keyword_mask(merged, _CLASSIFICATION_COLUMNS, _DAN_KEYWORDS)
@@ -451,11 +455,19 @@ def get_pn_neurons(
     evidence = (
         (group_mask.astype(int) * 2)
         + glomerulus_mask.astype(int)
-        + type_mask.astype(int)
+        + (type_mask | projection_mask).astype(int)
         + nt_mask.astype(int)
         + ascending_mask.astype(int)
     )
-    mask = group_mask & glomerulus_mask & nt_mask & type_mask
+    strict_label_mask = group_mask & nt_mask & label_mask
+    strict_class_mask = (
+        group_mask
+        & nt_mask
+        & classification_glomerulus_mask
+        & projection_mask
+        & ascending_mask
+    )
+    mask = strict_label_mask | strict_class_mask
     mask |= evidence >= 5
     mask &= ~(mbon_like | dan_like)
     return merged.loc[mask].drop_duplicates(subset=["root_id"]).reset_index(drop=True)
