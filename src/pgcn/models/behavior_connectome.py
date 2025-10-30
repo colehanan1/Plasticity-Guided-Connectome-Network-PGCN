@@ -97,8 +97,13 @@ class BehaviorConnectomeAnalyzer:
                     str(row.trial_label): str(row.glomerulus)
                     for row in candidate.itertuples(index=False)
                 }
-        enrichment_rows: list[dict[str, object]] = []
         reverse_map = trial_to_glomerulus or {}
+        if not reverse_map:
+            raise ValueError(
+                "No trial→glomerulus mapping available. Provide --trial-to-glomerulus or add a "
+                "trial_label column to the glomerulus assignments file."
+            )
+        enrichment_rows: list[dict[str, object]] = []
         for dataset, dataset_frame in behaviour.groupby("dataset"):
             for glomerulus, summary in structural.items():
                 trial_mask = dataset_frame["trial_label"].map(reverse_map)
@@ -117,6 +122,11 @@ class BehaviorConnectomeAnalyzer:
                         "mean_edges_per_pn": summary.mean_edges_per_pn,
                     }
                 )
+        if not enrichment_rows:
+            raise ValueError(
+                "No behavioural trials matched the provided glomerulus mapping. "
+                "Verify that trial labels correspond to the mapping entries."
+            )
         return pd.DataFrame(enrichment_rows)
 
     def structural_performance_correlation(
@@ -129,8 +139,6 @@ class BehaviorConnectomeAnalyzer:
         """Compute correlations between structural statistics and behaviour."""
 
         enrichment = self.analyze_glomerulus_enrichment(glomerulus_assignments, trial_to_glomerulus)
-        if enrichment.empty:
-            return pd.DataFrame(columns=["dataset", "metric", "correlation", "p_value", "n"])
         results: list[dict[str, object]] = []
         for dataset, frame in enrichment.groupby("dataset"):
             metric_values = frame[structural_metric].to_numpy(dtype=float)

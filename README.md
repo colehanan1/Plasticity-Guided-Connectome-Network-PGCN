@@ -671,18 +671,25 @@ python scripts/train_multi_task.py \
 To verify structural alignment, execute the behaviour-connectome analysis. The CLI
 automatically infers PN glomerulus labels from the FlyWire cache when an explicit
 CSV is unavailable, so `--glomerulus-assignments` is optional unless your cache
-omits glomerulus metadata:
+omits glomerulus metadata. A trial→glomerulus mapping is mandatory to avoid empty
+reports—provide it with `--trial-to-glomerulus` unless your assignments CSV already
+contains a `trial_label` column:
 
 ```bash
 python analysis/behavior_connectome_analysis.py \
   --cache-dir data/cache \
+  --trial-to-glomerulus configs/trial_to_glomerulus.yaml \
   --output-dir artifacts/behavior_connectome
 ```
 
 Supply `--glomerulus-assignments` to override the inferred labels or when working
-with bespoke PN catalogues. The command will emit a console notice when it falls
-back to auto-inference so you can confirm the underlying cache contains the
-expected annotations.
+with bespoke PN catalogues. The command now halts with an actionable error when no
+behavioural trials match the glomerulus mapping, preventing silently empty CSV
+outputs.
+
+The example mapping at `configs/trial_to_glomerulus.yaml` assigns each behavioural
+trial label to a placeholder glomerulus. Replace those entries with the glomeruli
+relevant to your experimental catalogue before running the analysis.
 
 Refer to `docs/multi_task_usage.md` for the complete workflow, including API
 deployment details and expected data layouts.

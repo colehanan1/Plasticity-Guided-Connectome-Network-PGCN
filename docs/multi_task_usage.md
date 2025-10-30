@@ -112,7 +112,10 @@ keeping KC→MBON gradients enabled) and adhering to 5% KC sparsity. Outputs:
 
 Use the dedicated CLI to correlate behavioural accuracy with connectome structure.
 Glomerulus labels are inferred from the FlyWire cache when the CSV argument is
-omitted or unavailable, so the option is only mandatory for custom annotations:
+omitted or unavailable, so the option is only mandatory for custom annotations.
+You must supply a trial→glomerulus mapping (either by providing `--trial-to-glomerulus`
+or embedding a `trial_label` column within the assignments CSV); otherwise the tool
+terminates with a descriptive error instead of producing empty reports:
 
 ```bash
 python analysis/behavior_connectome_analysis.py \
@@ -125,7 +128,9 @@ The script produces enrichment statistics and Pearson correlations linking glome
 fan-in with behavioural success rates. When you supply a CSV, ensure it contains
 `pn_index` and `glomerulus` columns; otherwise the tool will mine the metadata embedded
 within `data/cache/nodes.parquet`. Optional mapping files (YAML/JSON) associate
-`trial_label` with glomeruli.
+`trial_label` with glomeruli. The repository ships with a placeholder mapping at
+`configs/trial_to_glomerulus.yaml`; customise the values to reflect your FlyWire or
+neuPrint annotations before executing the CLI.
 
 ## 6. Deployment
 

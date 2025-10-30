@@ -121,8 +121,11 @@ def run_analysis(args: argparse.Namespace) -> None:
     mapping = _load_mapping(Path(args.trial_to_glomerulus) if args.trial_to_glomerulus else None)
 
     analyzer = BehaviorConnectomeAnalyzer(cache_dir=cache_dir, behavior_data=behavior_df)
-    enrichment = analyzer.analyze_glomerulus_enrichment(glomerulus_df, mapping)
-    correlations = analyzer.structural_performance_correlation(glomerulus_df, mapping)
+    try:
+        enrichment = analyzer.analyze_glomerulus_enrichment(glomerulus_df, mapping)
+        correlations = analyzer.structural_performance_correlation(glomerulus_df, mapping)
+    except ValueError as exc:  # surface actionable guidance
+        raise SystemExit(f"Behavior-connectome analysis failed: {exc}") from exc
 
     if args.output_dir:
         output_dir = Path(args.output_dir)
