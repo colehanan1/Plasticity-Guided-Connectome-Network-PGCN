@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional, Sequence
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -65,11 +66,14 @@ class DrosophilaReservoir(BaseModule):
                 resolved_n_pn = matrix_pn
                 resolved_n_kc = matrix_kc
             elif (resolved_n_pn, resolved_n_kc) != (matrix_pn, matrix_kc):
-                raise ValueError(
-                    "Provided PN→KC matrix has shape "
-                    f"{matrix_data.shape} but reservoir configured for "
-                    f"({resolved_n_kc}, {resolved_n_pn})."
+                warnings.warn(
+                    f"Connectome matrix dimensions ({matrix_kc}, {matrix_pn}) override configured "
+                    f"values ({resolved_n_kc}, {resolved_n_pn}).",
+                    RuntimeWarning,
+                    stacklevel=2,
                 )
+                resolved_n_pn = matrix_pn
+                resolved_n_kc = matrix_kc
 
         super().__init__()
         self.n_pn = resolved_n_pn

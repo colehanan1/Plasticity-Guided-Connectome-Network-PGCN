@@ -162,6 +162,23 @@ def _accumulate_keyword_mask(
     return mask
 
 
+def _classification_glomerulus_mask(frame: pd.DataFrame) -> pd.Series:
+    """Return boolean mask indicating whether any classification column encodes a glomerulus."""
+
+    if frame.empty:
+        return pd.Series(dtype=bool)
+
+    glomerulus_flags: list[bool] = []
+    for row in frame.itertuples(index=False):
+        candidates: list[str] = []
+        for column in ("cell_type", "cell_type_aliases", "super_class", "class", "sub_class"):
+            value = getattr(row, column, None)
+            if isinstance(value, str) and value:
+                candidates.append(value)
+        glomerulus_flags.append(not pd.isna(_extract_glomerulus_from_candidates(candidates)))
+    return pd.Series(glomerulus_flags, index=frame.index, dtype=bool)
+
+
 def _normalise_glomerulus_token(token: str) -> str | None:
     token = token.strip()
     if not token:
@@ -364,6 +381,7 @@ def get_pn_neurons(
         group_mask = pd.Series(False, index=merged.index, dtype=bool)
 
     label_lookup = _build_processed_label_lookup(processed_labels_df)
+    classification_glomerulus_mask = _classification_glomerulus_mask(merged)
 
     def _labels_projection_neuron(labels: Iterable[str]) -> bool:
         if not labels:
@@ -398,17 +416,27 @@ def get_pn_neurons(
     else:
         nt_mask = pd.Series(False, index=merged.index, dtype=bool)
 
-    structural_mask = ascending_mask & nt_mask & group_mask & keyword_mask
+    glomerulus_mask = classification_glomerulus_mask | label_mask
+
+    structural_mask = group_mask & glomerulus_mask & nt_mask & (keyword_mask | ascending_mask)
 
     mbon_like = _accumulate_keyword_mask(merged, _CLASSIFICATION_COLUMNS, _MBON_KEYWORDS)
     dan_like = _accumulate_keyword_mask(merged, _CLASSIFICATION_COLUMNS, _DAN_KEYWORDS)
 
     evidence = (
-        group_mask.astype(int) + keyword_mask.astype(int) + label_mask.astype(int)
+        group_mask.astype(int)
+        + keyword_mask.astype(int)
+        + glomerulus_mask.astype(int)
+        + ascending_mask.astype(int)
+        + nt_mask.astype(int)
     )
-    base_mask = (evidence >= 2) & (label_mask | nt_mask)
-    fallback_mask = group_mask & keyword_mask & nt_mask
-    mask = (base_mask | fallback_mask | structural_mask) & ~(mbon_like | dan_like)
+    base_mask = (
+        group_mask
+        & glomerulus_mask
+        & nt_mask
+        & (keyword_mask | ascending_mask | label_mask)
+    )
+    mask = (base_mask | (evidence >= 4) | structural_mask) & ~(mbon_like | dan_like)
     return merged.loc[mask].drop_duplicates(subset=["root_id"]).reset_index(drop=True)
 
 

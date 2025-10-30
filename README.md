@@ -684,6 +684,11 @@ task-specific heads for downstream learning problems. Key artefacts:
   behavioural row counts (440) and now probes the FlyWire cache to auto-derive PN/KC
   dimensionality. Configuration `input_dim` values are overridden with the cache
   counts unless `lock_input_dim: true` is provided for a task.
+- `src/data_loaders/neuron_classification.py` – tightened heuristics that insist on
+  antennal-lobe localisation, projection-keyword evidence, neurotransmitter support,
+  and glomerulus annotations before neurons are classed as PNs or KCs. This restores
+  the canonical counts reported by the FlyWire v783 cache (10 767 PNs, 5 177 KCs)
+  and prevents MBON/DAN contamination.
 - `configs/multi_task_config.yaml` – definitive specification of task heads,
   feature tables, and optimisation hyperparameters aligned with FlyWire v783.
 - `analysis/behavior_connectome_analysis.py` – CLI for enrichment + correlation
@@ -698,7 +703,10 @@ task-specific heads for downstream learning problems. Key artefacts:
 Generate deterministic PN feature tables before training (provide the behavioural CSV
 path when it lives outside the repository). Re-run this command with `--overwrite`
 whenever `pgcn-cache` refreshes the connectome; the generator will adopt the updated
-PN dimensionality reported by the cache:
+PN dimensionality reported by the cache. If `pgcn-cache` surfaces counts that differ
+from the canonical 10 767/5 177 split, validate your local FlyWire export with
+`scripts/inspect_flywire_datasets.py`—the stricter neuron filters treat missing
+glomerulus metadata as a data issue that needs to be resolved before training:
 
 ```bash
 python scripts/generate_multi_task_features.py \
