@@ -165,8 +165,10 @@ copy/paste from ad-hoc scripts. The generated circuit summaries now embed the
 derived neuropil annotations so downstream notebooks can inspect and filter on
 synaptic targets without reprocessing:
 
-- ``kc_ab.csv``, ``kc_g_main.csv``, ``kc_g_dorsal.csv``, ``kc_apb.csv`` — KC
-  subtype inventories;
+- ``kc_ab.csv``, ``kc_ab_p.csv``, ``kc_g_main.csv``, ``kc_g_dorsal.csv``,
+  ``kc_g_sparse.csv``, ``kc_apbp_main.csv``, ``kc_apbp_ap1.csv``,
+  ``kc_apbp_ap2.csv`` — KC subtype inventories covering α/β, γ, and α'/β'
+  Kenyon cells;
 - ``mbon_all.csv`` — complete MBON roster with an ``input_neuropils`` column
   assembled from postsynaptic connections;
 - ``mbon_calyx.csv`` / ``mbon_ml.csv`` — MBON subsets with calyx or medial-lobe

@@ -62,7 +62,7 @@ def _write_subset(df: pd.DataFrame, columns: Iterable[str], output_path: Path, l
 
 def _summarise_total(total: int, label: str, subset_count: int) -> str:
     percentage = (subset_count / total * 100) if total else 0
-    return f"  {label}: {subset_count} ({percentage:.1f}%)"
+    return f"  {label}: {subset_count:,} ({percentage:.1f}%)"
 
 
 def _load_connections(dataset_dir: Path, filename: str) -> Optional[pd.DataFrame]:
@@ -165,10 +165,14 @@ def extract_circuit(dataset_dir: Path, output_dir: Path) -> None:
 
     print("\n=== TASK 4: KC SUBTYPES ===")
     subtype_specs: Dict[str, Tuple[str, str]] = {
-        "KCab": (r"KCab", "kc_ab.csv"),
+        "KCab": (r"KCab(?!-)", "kc_ab.csv"),
+        "KCab-p": (r"KCab-p", "kc_ab_p.csv"),
         "KCg-m": (r"KCg-m", "kc_g_main.csv"),
         "KCg-d": (r"KCg-d", "kc_g_dorsal.csv"),
-        "KCa'b'": (r"KCa'b'|KCabp", "kc_apb.csv"),
+        "KCg-s": (r"KCg-s", "kc_g_sparse.csv"),
+        "KCapbp-m": (r"KCapbp-m", "kc_apbp_main.csv"),
+        "KCapbp-ap1": (r"KCapbp-ap1", "kc_apbp_ap1.csv"),
+        "KCapbp-ap2": (r"KCapbp-ap2", "kc_apbp_ap2.csv"),
     }
     subtype_frames: Dict[str, pd.DataFrame] = {}
     for label, (pattern, filename) in subtype_specs.items():
