@@ -695,7 +695,7 @@ path when it lives outside the repository):
 ```bash
 python scripts/generate_multi_task_features.py \
   --config configs/multi_task_config.yaml \
-  --behavior-csv /path/to/model_predictions.csv \
+  --behavior-csv /home/ramanlab/Documents/cole/Data/Opto/Combined/model_predictions.csv \
   --report-json artifacts/multi_task/feature_report.json
 ```
 
