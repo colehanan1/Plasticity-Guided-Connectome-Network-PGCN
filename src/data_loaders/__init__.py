@@ -1,5 +1,6 @@
 """Local FlyWire data loader utilities."""
 
+from .circuit_loader import CircuitLoader
 from .connectivity import build_kc_pn_matrix, filter_mushroom_body_connections, select_kc_pn_connections
 from .flywire_local import FlyWireLocalDataLoader, load_flywire_connections
 from .neuron_classification import (
@@ -13,6 +14,7 @@ from .neuron_classification import (
 )
 
 __all__ = [
+    "CircuitLoader",
     "FlyWireLocalDataLoader",
     "load_flywire_connections",
     "filter_mushroom_body_connections",

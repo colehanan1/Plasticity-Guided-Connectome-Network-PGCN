@@ -1,6 +1,8 @@
 """Model components for PGCN."""
 
 from .chemical_model import ChemicallyInformedDrosophilaModel, ChemicalSTDP
+from .connectivity_matrix import ConnectivityMatrix
+from .olfactory_circuit import OlfactoryCircuit
 from .reservoir import DrosophilaReservoir
 from .multi_task_model import (
     MultiTaskDrosophilaModel,
@@ -12,6 +14,8 @@ from .behavior_connectome import BehaviorConnectomeAnalyzer
 __all__ = [
     "ChemicallyInformedDrosophilaModel",
     "ChemicalSTDP",
+    "ConnectivityMatrix",
+    "OlfactoryCircuit",
     "DrosophilaReservoir",
     "MultiTaskDrosophilaModel",
     "TaskHeadConfig",
