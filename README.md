@@ -36,8 +36,8 @@ The updated filters implement FlyWire-aligned logic so that:
   classification tables describe them as generic "projection neurons"—the
   updated structural checks demand antennal-lobe localisation and compatible
   cholinergic/glutamatergic neurotransmitter predictions;
-- Kenyon cells must map to the mushroom-body calyx (``MB_CA`` variants in
-  ``names.group``) and carry kenyon/intrinsic keywords in the classification or
+- Kenyon cells must map to the mushroom-body entries in ``names.group`` (``MB``
+  and the more specific ``MB_CA`` variants) and carry kenyon/intrinsic keywords in the classification or
   processed-label tables; MBON/DAN annotations are explicitly removed from the
   KC mask to prevent bleed-through;
 - additional community labels (``KCg``, ``KCab``, ``ALPN``, glomerulus names)
