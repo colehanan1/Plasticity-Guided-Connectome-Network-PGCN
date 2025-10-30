@@ -2,6 +2,7 @@
 
 from .chemical_model import ChemicallyInformedDrosophilaModel, ChemicalSTDP
 from .connectivity_matrix import ConnectivityMatrix
+from .learning_model import DopamineModulatedPlasticity, LearningExperiment
 from .olfactory_circuit import OlfactoryCircuit
 from .reservoir import DrosophilaReservoir
 from .multi_task_model import (
@@ -15,6 +16,8 @@ __all__ = [
     "ChemicallyInformedDrosophilaModel",
     "ChemicalSTDP",
     "ConnectivityMatrix",
+    "DopamineModulatedPlasticity",
+    "LearningExperiment",
     "OlfactoryCircuit",
     "DrosophilaReservoir",
     "MultiTaskDrosophilaModel",
