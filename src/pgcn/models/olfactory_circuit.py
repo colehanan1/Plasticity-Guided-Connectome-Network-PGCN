@@ -472,6 +472,7 @@ class OlfactoryCircuit:
         self,
         activations: np.ndarray,
         k: int,
+        apply_to_connected_only: bool = True,
     ) -> np.ndarray:
         """Keep top-k activations, zero the rest (k-WTA lateral inhibition).
 
@@ -490,6 +491,14 @@ class OlfactoryCircuit:
         This dynamic threshold mechanism is approximated here as a static k-WTA
         operation: rank KCs by activation strength, keep top k, zero the rest.
 
+        **Critical Fix (2025-10-30)**: When apply_to_connected_only=True (default),
+        k-WTA is applied only to KCs receiving input (non-zero activation). This
+        ensures that sparsity target (e.g., 5%) is maintained even when sparse
+        connectivity means only a subset of KCs receive PN input for a given odor.
+
+        Biological interpretation: APL inhibition suppresses weakly-responding KCs
+        among those detecting the odor, not globally across all KCs in the brain.
+
         Implementation Details
         ----------------------
         Uses np.partition for O(n) complexity instead of O(n log n) sorting.
@@ -501,6 +510,10 @@ class OlfactoryCircuit:
             Raw KC activations before sparsity. Shape: (n_kc,).
         k : int
             Number of winners to keep active. Typically 0.05 * n_kc.
+        apply_to_connected_only : bool, optional
+            If True, apply k-WTA only to KCs with non-zero activation.
+            This maintains target sparsity when connectivity is sparse.
+            Default: True (recommended for biological realism).
 
         Returns
         -------
@@ -511,7 +524,7 @@ class OlfactoryCircuit:
         Notes
         -----
         Edge cases:
-        - If k >= n_kc: all activations retained (no sparsity)
+        - If k >= n_kc_connected: all connected KCs retained
         - If k <= 0: all activations zeroed (complete silence)
         - Ties at threshold: implementation-defined which KCs are kept
           (np.partition behavior); biological equivalent is stochastic
@@ -527,18 +540,38 @@ class OlfactoryCircuit:
             # No winners → complete silence
             return np.zeros_like(activations, dtype=np.float64)
 
+        # NEW: Apply k-WTA only to KCs with non-zero input (biologically realistic)
+        if apply_to_connected_only:
+            # Find KCs receiving input
+            connected_mask = activations > 0
+            n_connected = np.sum(connected_mask)
+
+            if n_connected == 0:
+                # No KCs activated at all
+                return np.zeros_like(activations, dtype=np.float64)
+
+            if k >= n_connected:
+                # Keep all connected KCs (fewer than target)
+                return activations.copy()
+
+            # Apply k-WTA to connected KCs only
+            connected_activations = activations[connected_mask]
+            threshold = np.partition(connected_activations, -k)[-k]
+
+            # Keep activations >= threshold, zero the rest
+            sparse_activations = np.where(activations >= threshold, activations, 0.0)
+
+            return sparse_activations
+
+        # ORIGINAL: Apply k-WTA globally (can result in sub-target sparsity)
         if k >= len(activations):
             # All winners → no sparsity
             return activations.copy()
 
         # Find the k-th largest value using partition (O(n) complexity)
-        # np.partition rearranges array so that element at index -k is in
-        # its sorted position, with all larger elements to its right
         threshold = np.partition(activations, -k)[-k]
 
         # Keep activations >= threshold, zero the rest
-        # Note: this keeps exactly k winners if no ties at threshold;
-        # may keep slightly more if multiple KCs have activation == threshold
         sparse_activations = np.where(activations >= threshold, activations, 0.0)
 
         return sparse_activations

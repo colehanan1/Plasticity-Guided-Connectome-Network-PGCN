@@ -536,8 +536,17 @@ class CircuitLoader:
                     else:
                         mbon_neuropils[root_id] = []
 
-        # Load DAN neuropils from dan_all.csv
-        dan_path = self.cache_dir / "dan_all.csv"
+        # Load DAN neuropils from dan_mb.csv (MB-only filter applied)
+        # Falls back to dan_all.csv if dan_mb.csv doesn't exist
+        dan_path = self.cache_dir / "dan_mb.csv"
+        if not dan_path.exists():
+            dan_path = self.cache_dir / "dan_all.csv"
+            if dan_path.exists():
+                print(
+                    "WARNING: Using dan_all.csv (includes non-MB DANs). "
+                    "Run circuit extraction with MB filter to generate dan_mb.csv"
+                )
+
         if dan_path.exists():
             dan = pd.read_csv(dan_path)
             if "root_id" in dan.columns and "output_neuropils" in dan.columns:
