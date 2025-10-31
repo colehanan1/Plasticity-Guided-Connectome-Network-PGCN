@@ -164,8 +164,21 @@ def inspect_datasets(
             cell_types_frame = loader.load_cell_types()
             classification_frame = loader.load_classification()
             processed_labels_frame = loader.load_processed_labels()
-            kc_df = get_kc_neurons(cell_types_frame, classification_frame)
-            pn_df = get_pn_neurons(cell_types_frame, classification_frame)
+            names_frame = loader.load_names()
+            neurons_frame = loader.load_neurotransmitters()
+            kc_df = get_kc_neurons(
+                cell_types_frame,
+                classification_frame,
+                names_df=names_frame,
+                processed_labels_df=processed_labels_frame,
+            )
+            pn_df = get_pn_neurons(
+                cell_types_frame,
+                classification_frame,
+                names_df=names_frame,
+                neurons_df=neurons_frame,
+                processed_labels_df=processed_labels_frame,
+            )
             pn_glomeruli = infer_pn_glomerulus_labels(
                 pn_df,
                 processed_labels_df=processed_labels_frame,

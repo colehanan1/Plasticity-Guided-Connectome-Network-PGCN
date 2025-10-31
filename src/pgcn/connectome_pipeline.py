@@ -546,15 +546,28 @@ class ConnectomePipeline:
         cell_types = loader.load_cell_types()
         classification = loader.load_classification()
         processed_labels = loader.load_processed_labels()
+        neurons = loader.load_neurotransmitters()
+        names = loader.load_names()
 
-        pn_frame = get_pn_neurons(cell_types, classification)
+        pn_frame = get_pn_neurons(
+            cell_types,
+            classification,
+            names_df=names,
+            neurons_df=neurons,
+            processed_labels_df=processed_labels,
+        )
         if not pn_frame.empty:
             pn_glomeruli = infer_pn_glomerulus_labels(
                 pn_frame,
                 processed_labels_df=processed_labels,
             )
             pn_frame = pn_frame.assign(glomerulus=pn_glomeruli)
-        kc_frame = get_kc_neurons(cell_types, classification)
+        kc_frame = get_kc_neurons(
+            cell_types,
+            classification,
+            names_df=names,
+            processed_labels_df=processed_labels,
+        )
         mbon_frame = get_mbon_neurons(cell_types, classification)
         dan_frame = get_dan_neurons(cell_types, classification)
 
@@ -569,9 +582,6 @@ class ConnectomePipeline:
                 raise PipelineError(
                     f"Local dataset does not contain any {label} annotations after keyword filtering."
                 )
-
-        neurons = loader.load_neurotransmitters()
-        names = loader.load_names()
 
         pn_nodes = self._prepare_local_nodes(pn_frame, "PN", neurons, names)
         kc_nodes = self._prepare_local_nodes(kc_frame, "KC", neurons, names)

@@ -1,0 +1,22 @@
+{
+  "cell_tables": [
+    "data/flywire/consolidated_cell_types.csv.gz",
+    "data/flywire/classification.csv.gz"
+  ],
+  "counts": {
+    "dan_edges": 4982,
+    "edges": 49442,
+    "kc_mbon_edges": 26633,
+    "nodes": 32281,
+    "pn_kc_edges": 22809
+  },
+  "dan_count": 331,
+  "datastack": "flywire_fafb_production",
+  "kc_count": 5378,
+  "local_data_dir": "/home/ramanlab/PycharmProjects/Plasticity-Guided-Connectome-Network-PGCN-/data/flywire",
+  "materialization_version": 783,
+  "mbon_count": 96,
+  "pn_count": 26632,
+  "source": "local_csv",
+  "synapse_table": "data/flywire/connections_princeton.csv.gz"
+}

@@ -1,0 +1,12 @@
+# Example trial→glomerulus mapping used by analysis/behavior_connectome_analysis.py
+# Replace the placeholder assignments with the glomeruli relevant to your dataset.
+testing_1: unknown_glomerulus
+testing_2: unknown_glomerulus
+testing_3: unknown_glomerulus
+testing_4: unknown_glomerulus
+testing_5: unknown_glomerulus
+testing_6: unknown_glomerulus
+testing_7: unknown_glomerulus
+testing_8: unknown_glomerulus
+testing_9: unknown_glomerulus
+testing_10: unknown_glomerulus

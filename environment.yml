@@ -11,6 +11,7 @@ dependencies:
   - tqdm
   - pydantic
   - rich
+  - pyyaml
   - pytest
   - pip
   - pip:
@@ -19,3 +20,5 @@ dependencies:
       - tenacity
       - streamlit
       - scikit-learn
+      - fastapi
+      - uvicorn

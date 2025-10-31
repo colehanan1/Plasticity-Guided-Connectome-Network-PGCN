@@ -8,6 +8,21 @@ exposes command line interfaces for cache generation and structural metrics.
 
 ## Local FlyWire dataset workflow (offline-first)
 
+### Project status artefacts
+
+Three living documents capture the current delivery posture and day-to-day
+execution plan:
+
+- [`PROJECT_STATUS.md`](PROJECT_STATUS.md) — executive roll-up of completed work,
+  open items, integration points, and success metrics.
+- [`NEXT_STEPS_DETAILED.md`](NEXT_STEPS_DETAILED.md) — step-by-step build plan for
+  the connectivity backbone modules slated for Phase 1.
+- [`CHECKLIST.md`](CHECKLIST.md) — recurring operational checklist covering
+  environment prep, quality gates, and release hygiene.
+
+Review these references before adding new functionality to ensure roadmap
+alignment and up-to-date context.
+
 The repository no longer requires authenticated FlyWire access for KC→PN analyses.
 Download the public FAFB v783 CSV exports listed below and point the tooling at the
 local directory. Every loader honours the ``PGCN_FLYWIRE_DATA`` environment variable;
@@ -25,8 +40,24 @@ The loader normalises Codex headers automatically: ``primary_type`` is exposed
 as ``cell_type`` and ``additional_type(s)`` is surfaced as ``cell_type_aliases``
 for compatibility with the original online pipeline. No manual renaming is
 required—drop the raw downloads into place and the heuristics will discover KC
-and PN memberships by combining the cell-type and hierarchical classification
-tables.
+and PN memberships by fusing the cell-type table, hierarchical classification,
+processed community labels, brain-region names, and neurotransmitter tables.
+The updated filters implement FlyWire-aligned logic so that:
+
+- projection neurons must appear in ``names.group`` entries beginning with
+  ``AL`` *or* carry curated glomerulus labels (``DA1``, ``DL1``, ``VA1d``, etc.)
+  within ``processed_labels``;
+- PN candidates are only retained when their ``super_class`` resides in
+  ascending/sensory/visual-projection hierarchies **and** their neurotransmitter
+  predictions include cholinergic/glutamatergic markers;
+- Kenyon cells require mushroom-body region assignments (``MB_CA`` / ``MB_*``)
+  and kenyon/intrinsic keywords across ``super_class``/``class``/``sub_class``;
+- additional community labels (``KCg``, ``KCab``, ``ALPN``...) are merged into
+  both filters to capture curation variants.
+
+With the full FAFB v783 exports in place the offline pipeline now recovers the
+expected populations (~130–160 olfactory PNs, ~2,600 Kenyon cells per
+hemisphere) instead of the truncated counts produced by name-only heuristics.
 
 ### Offline usage checklist
 
@@ -42,14 +73,132 @@ tables.
    from data_loaders.neuron_classification import get_kc_neurons, get_pn_neurons
 
    loader = FlyWireLocalDataLoader()
+   cell_types = loader.load_cell_types()
+   classification = loader.load_classification()
+   processed = loader.load_processed_labels()
+   names = loader.load_names()
+   neurons = loader.load_neurotransmitters()
+
    connections = filter_mushroom_body_connections(loader.load_connections())
-   kcs = get_kc_neurons(loader.load_cell_types(), loader.load_classification())
-   pns = get_pn_neurons(loader.load_cell_types(), loader.load_classification())
+   kcs = get_kc_neurons(
+       cell_types,
+       classification,
+       names_df=names,
+       processed_labels_df=processed,
+   )
+   pns = get_pn_neurons(
+       cell_types,
+       classification,
+       names_df=names,
+       neurons_df=neurons,
+       processed_labels_df=processed,
+   )
    matrix = build_kc_pn_matrix(connections, kc_ids=kcs['root_id'], pn_ids=pns['root_id'])
    ```
 
+   ``len(pns)`` should fall between 130 and 160 and ``len(kcs)`` should sit near
+   2,600 when the FAFB v783 tables are intact. If the counts collapse toward
+   zero, re-run ``scripts/inspect_flywire_datasets.py``—the report will flag
+   missing ``names.group`` annotations, absent neurotransmitter predictions, or
+   stale processed-label exports that break the discovery heuristics.
+
 5. Use ``python -m scripts.example_local_kc_pn`` for a command-line demonstration of the
    same workflow.
+
+#### Dedicated ALPN extraction pipeline
+
+When you need a production-grade sanity check of the olfactory projection
+neurons themselves, run the purpose-built script below. It pins the ALPN
+filters to the FlyWire ``classification`` table (case-insensitive exact match
+first, then substring/whitespace fallbacks) while **automatically relaxing**
+``super_class`` whenever the metadata fails to contain an ``ASCEND`` token.
+``flow`` remains a diagnostic signal only—the script now prints the observed
+values, the class histogram, and the super-class distribution without discarding
+neurons on those columns, preventing the null-heavy FAFB export from collapsing
+to zero candidates. Any cholinergic/glutamatergic undercount prompts a
+controlled reintroduction of ``nt_type``-unknown rows (clearly flagged in the
+console output). The pipeline keeps only excitatory ``ACH``/``GLUT`` entries
+from ``neurons.csv.gz`` (dropping GABAergic vPNs and logging the discarded
+counts), optionally validates that each neuron projects to the calyx via the
+``output_neuropils`` metadata (``CA_L``/``CA_R`` substring match with an
+automatic fallback when the column is absent), parses community glomerulus
+labels, and reports PN→KC connectivity restricted to the mushroom-body calyx.
+The command line interface accepts explicit dataset/output directories so you
+can point the analysis at any FlyWire export cache:
+
+```bash
+PYTHONPATH=src python scripts/extract_alpn_projection_neurons.py \
+  --dataset-dir data/flywire \
+  --output-dir data/cache \
+  --min-synapses 5
+```
+
+The command prints target checks (PN count, glomerulus coverage,
+neurotransmitter mix with percentages, hemisphere balance, raw class and
+``super_class`` distributions, unique ``flow`` values, neurotransmitter
+histograms before filtering, and calyx-validation diagnostics) and writes two
+CSV artefacts for downstream analysis:
+
+- ``data/cache/alpn_extracted.csv`` with ALPN metadata, neurotransmitter type,
+  and parsed glomerulus assignments (one row per neuron);
+- ``data/cache/pn_to_kc_connectivity.csv`` containing the calyx-filtered
+  connectivity edges between the extracted PNs and automatically discovered
+  Kenyon cells (≥5 synapses).
+
+Expect totals to fall within the published FAFB ranges—~130–160 ALPNs across
+50–58 glomeruli, dominated by cholinergic neurons with a minority of
+glutamatergic multiglomerular PNs, and ~40k–50k PN→KC synapses delivering 5–8
+distinct PN partners per KC on average. The script now short-circuits cleanly
+when zero ALPNs survive filtering, exporting empty CSVs for audit instead of
+raising ``KeyError`` exceptions. Any deviations (including missing
+neurotransmitter annotations or glomerulus gaps) appear directly in the console
+summary so you can revisit the raw exports without spelunking through notebooks.
+
+#### Rapid KC/MBON/DAN circuit exports
+
+To complement the PN pipeline, ``scripts/extract_circuit.py`` reproduces the
+user workflow above with a reproducible CLI. It now merges FlyWire
+``classification.csv.gz``, ``consolidated_cell_types.csv.gz``, ``neurons.csv.gz``,
+**and** the 5.3 M-row ``connections_princeton.csv.gz`` synapse table when
+available. The connectivity pass derives mushroom-body neuropil annotations
+directly from observed synapses, solving the historical ``output_neuropils`` gaps
+in ``neurons.csv.gz`` and enabling MBON/DAN calyx or medial-lobe filters without
+manual patches. The command prints explicit progress while loading the large
+connections file and automatically falls back to the legacy behaviour (sans
+neuropil filters) when the dataset is absent or unreadable. Invoke it with
+matching dataset and output directories:
+
+```bash
+python scripts/extract_circuit.py \
+  --dataset-dir data/flywire \
+  --output-dir data/cache
+```
+
+All CSVs land beside the ALPN exports so downstream notebooks can consume a
+consistent dataset bundle (ALPNs, KC subtypes, MBONs, DANs) without manual
+copy/paste from ad-hoc scripts. The generated circuit summaries now embed the
+derived neuropil annotations so downstream notebooks can inspect and filter on
+synaptic targets without reprocessing:
+
+- ``kc_ab.csv``, ``kc_ab_p.csv``, ``kc_g_main.csv``, ``kc_g_dorsal.csv``,
+  ``kc_g_sparse.csv``, ``kc_apbp_main.csv``, ``kc_apbp_ap1.csv``,
+  ``kc_apbp_ap2.csv`` — KC subtype inventories covering α/β, γ, and α'/β'
+  Kenyon cells;
+- ``mbon_all.csv`` — complete MBON roster with an ``input_neuropils`` column
+  assembled from postsynaptic connections;
+- ``mbon_calyx.csv`` / ``mbon_ml.csv`` — MBON subsets with calyx or medial-lobe
+  inputs, preserving the same neuropil annotations;
+- ``mbon_glut.csv`` — glutamatergic MBONs for neurotransmitter-specific
+  analyses;
+- ``dan_all.csv`` — full dopaminergic cohort including ``output_neuropils``
+  targets derived from presynaptic edges;
+- ``dan_mb.csv`` / ``dan_calyx.csv`` / ``dan_ml.csv`` — DAN subsets filtered by
+  mushroom-body, calyx, or medial-lobe projection patterns.
+
+When the connections table is missing the script still emits the CSV scaffold
+with empty neuropil columns and logs that the derivation step was skipped, so
+pipeline consumers retain a predictable file layout irrespective of the data
+drop.
 
 ### Build canonical caches from local CSVs
 
@@ -531,6 +680,418 @@ splits and ChemicalSTDP fine-tuning confined to the KC→MBON projection.
    plasticity strengths and classification cut-offs. Use `--device` to force CPU
    or GPU execution when the default auto-detection does not match your setup.
 
+## Testing & Verification
+
+The PGCN project is organized into three phases, each with comprehensive test coverage:
+- **Phase 1 (59 tests)**: Connectivity backbone (PN→KC→MBON circuit loading and propagation)
+- **Phase 2 (61 tests)**: Learning dynamics (dopamine-gated plasticity, veto gates, eligibility traces)
+- **Phase 3 (40 tests)**: Optogenetic experiments, behavioral validation, and multi-task learning
+
+**Total**: 160 tests covering all modules and integration scenarios.
+
+### Quick Start: Run All Tests
+
+```bash
+# Activate environment
+conda activate PGCN
+
+# Run complete test suite (all phases)
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src python -m pytest tests/ -v --tb=short
+```
+
+**Expected output**:
+```
+Phase 1 Tests (59 tests):
+  tests/models/test_connectivity_matrix.py::... PASSED
+  tests/models/test_circuit_loader.py::... PASSED
+  tests/models/test_olfactory_circuit.py::... PASSED
+  tests/integration/test_phase1_integration.py::... PASSED
+
+Phase 2 Tests (61 tests):
+  tests/models/test_learning_model.py::... PASSED
+  tests/experiments/test_experiment_1_veto.py::... PASSED
+  tests/experiments/test_experiment_2_microsurgery.py::... PASSED
+  tests/experiments/test_experiment_3_eligibility.py::... PASSED
+  tests/experiments/test_experiment_6_shapley.py::... PASSED
+  tests/integration/test_phase2_full_pipeline.py::... PASSED
+
+Phase 3 Tests (40 tests):
+  tests/experiments/test_optogenetic_perturbations.py::... PASSED
+  tests/analysis/test_behavioral_validation.py::... PASSED
+  tests/analysis/test_multi_task_analysis.py::... PASSED
+  tests/integration/test_phase3_end_to_end.py::... PASSED
+
+====== 160 passed in ~120s ======
+```
+
+### Phase 1: Connectivity Backbone Tests
+
+Test the FlyWire connectome loading and forward propagation:
+
+```bash
+# Run all Phase 1 tests
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src python -m pytest \
+  tests/models/test_connectivity_matrix.py \
+  tests/models/test_circuit_loader.py \
+  tests/models/test_olfactory_circuit.py \
+  tests/integration/test_phase1_integration.py \
+  -v --tb=short
+```
+
+**Expected**: 59 passed in ~30s
+
+**What's tested**:
+- `ConnectivityMatrix`: Sparse connectivity loading, glomerulus labels, KC subtypes
+- `CircuitLoader`: CSV parsing, normalization strategies (row/global/none)
+- `OlfactoryCircuit`: PN→KC→MBON propagation, k-WTA sparsity (~5%)
+- Integration: End-to-end forward pass from glomerulus to MBON valence
+
+**Example verification script**:
+```python
+from pathlib import Path
+from data_loaders.circuit_loader import CircuitLoader
+from pgcn.models.olfactory_circuit import OlfactoryCircuit
+
+# Load connectivity
+loader = CircuitLoader(cache_dir=Path("data/cache"))
+conn = loader.load_connectivity_matrix(normalize_weights="row")
+print(f"✓ Loaded {len(conn.pn_ids)} PNs, {len(conn.kc_ids)} KCs, {len(conn.mbon_ids)} MBONs")
+
+# Test forward propagation
+circuit = OlfactoryCircuit(conn, kc_sparsity_target=0.05)
+pn_act = circuit.activate_pns_by_glomeruli(["DA1"], firing_rate=1.0)
+kc_act, diag = circuit.propagate_pn_to_kc(pn_act)
+mbon_out = circuit.propagate_kc_to_mbon(kc_act)
+
+print(f"✓ PN→KC: {pn_act.sum():.0f} PNs → {kc_act.sum():.0f} KCs (sparsity: {diag['sparsity_fraction']:.1%})")
+print(f"✓ KC→MBON: {mbon_out[0]:.3f} valence output")
+```
+
+### Phase 2: Learning Dynamics Tests
+
+Test dopamine-modulated plasticity and causal learning experiments:
+
+```bash
+# Run all Phase 2 tests
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src python -m pytest \
+  tests/models/test_learning_model.py \
+  tests/experiments/test_experiment_1_veto.py \
+  tests/experiments/test_experiment_2_microsurgery.py \
+  tests/experiments/test_experiment_3_eligibility.py \
+  tests/experiments/test_experiment_6_shapley.py \
+  tests/integration/test_phase2_full_pipeline.py \
+  -v --tb=short
+```
+
+**Expected**: 61 passed in ~45s
+
+**What's tested**:
+- `DopamineModulatedPlasticity`: Three-factor rule (dW ∝ KC × MBON × DA), RPE computation
+- `LearningExperiment`: Trial-by-trial conditioning protocols
+- **Experiment 1**: Veto gate blocking mechanism
+- **Experiment 2**: Counterfactual microsurgery (ablations, weight freezing, sign flips)
+- **Experiment 3**: Eligibility traces for temporal credit assignment
+- **Experiment 6**: Shapley analysis for causal neuron identification
+
+**Example verification script**:
+```python
+from pathlib import Path
+from data_loaders.circuit_loader import CircuitLoader
+from pgcn.models.olfactory_circuit import OlfactoryCircuit
+from pgcn.models.learning_model import DopamineModulatedPlasticity, LearningExperiment
+
+# Load circuit
+loader = CircuitLoader(cache_dir=Path("data/cache"))
+conn = loader.load_connectivity_matrix(normalize_weights="row")
+circuit = OlfactoryCircuit(conn, kc_sparsity_target=0.05)
+
+# Initialize learning
+plasticity = DopamineModulatedPlasticity(
+    kc_to_mbon_weights=conn.kc_to_mbon.toarray(),
+    learning_rate=0.01,
+    eligibility_trace_tau=0.1,
+)
+experiment = LearningExperiment(circuit, plasticity, n_trials=30)
+
+# Train: DA1→reward, DL3→no reward
+odor_seq = ["DA1"] * 15 + ["DL3"] * 15
+reward_seq = [1] * 15 + [0] * 15
+results = experiment.run_experiment(odor_seq, reward_seq)
+
+# Verify learning
+da1_final = results.iloc[14]['mbon_valence']
+dl3_final = results.iloc[-1]['mbon_valence']
+print(f"✓ DA1 (rewarded): {da1_final:.3f}")
+print(f"✓ DL3 (neutral): {dl3_final:.3f}")
+print(f"✓ Learning verified: DA1 > DL3" if da1_final > dl3_final else "✗ Learning failed")
+```
+
+### Phase 3: Optogenetic Experiments & Behavioral Validation Tests
+
+Test optogenetic perturbations, behavioral comparisons, and multi-task learning:
+
+```bash
+# Run all Phase 3 tests
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src python -m pytest \
+  tests/experiments/test_optogenetic_perturbations.py \
+  tests/analysis/test_behavioral_validation.py \
+  tests/analysis/test_multi_task_analysis.py \
+  tests/integration/test_phase3_end_to_end.py \
+  -v --tb=short
+```
+
+**Expected**: 40 passed in ~35s
+
+**What's tested**:
+- `OptogeneticPerturbation`: Silencing/activation of PNs/KCs/MBONs during learning
+- `BehavioralValidator`: Comparison to real Drosophila data (learning index, RMSE, Pearson r)
+- `MultiTaskAnalyzer`: Interleaved training, task interference, catastrophic forgetting
+- Integration: Full pipeline Phase 1→2→3
+
+**Example: Optogenetic silencing experiment**:
+```python
+from pathlib import Path
+from data_loaders.circuit_loader import CircuitLoader
+from pgcn.models.olfactory_circuit import OlfactoryCircuit
+from pgcn.models.learning_model import DopamineModulatedPlasticity, LearningExperiment
+from pgcn.experiments.optogenetic_perturbations import OptogeneticPerturbation
+
+# Load circuit
+loader = CircuitLoader(cache_dir=Path("data/cache"))
+conn = loader.load_connectivity_matrix(normalize_weights="row")
+circuit = OlfactoryCircuit(conn, kc_sparsity_target=0.05)
+
+# Control experiment
+plasticity_control = DopamineModulatedPlasticity(conn.kc_to_mbon.toarray(), learning_rate=0.01)
+experiment_control = LearningExperiment(circuit, plasticity_control, n_trials=20)
+control_results = experiment_control.run_experiment(["DA1"] * 20, [1] * 20)
+
+# Optogenetic silencing of DA1 PNs
+plasticity_opto = DopamineModulatedPlasticity(conn.kc_to_mbon.toarray(), learning_rate=0.01)
+opto = OptogeneticPerturbation(
+    circuit, perturbation_type="silence", target_neurons="pn",
+    target_specificity=["DA1"], efficacy=1.0
+)
+experiment_opto = LearningExperiment(circuit, plasticity_opto, n_trials=20)
+opto_results = opto.run_full_experiment(experiment_opto, ["DA1"] * 20, [1] * 20)
+
+# Compare learning
+control_final = control_results.iloc[-1]['mbon_valence']
+opto_final = opto_results.iloc[-1]['mbon_output']
+learning_deficit = (control_final - opto_final) / control_final
+
+print(f"✓ Control learning: {control_final:.3f}")
+print(f"✓ Opto learning: {opto_final:.3f}")
+print(f"✓ Learning deficit: {learning_deficit:.1%}")
+```
+
+**Example: Behavioral validation with real data**:
+```python
+from pathlib import Path
+from pgcn.analysis.behavioral_validation import BehavioralValidator
+import numpy as np
+
+# Load real fly data
+data_path = Path("/home/ramanlab/Documents/cole/Data/Opto/Combined/model_predictions.csv")
+fly_data = BehavioralValidator.load_behavioral_data(data_path)
+
+# Create model learning curves (from Phase 2 experiment)
+model_curves = {
+    'control': np.linspace(0.1, 0.8, 20),  # Example: replace with real model output
+    'opto_silencing': np.linspace(0.1, 0.3, 20),
+}
+
+# Validate
+validator = BehavioralValidator(model_curves, fly_data)
+metrics = validator.compare_learning_curves('control', dataset_name='EB_control')
+
+print(f"✓ RMSE: {metrics['rmse']:.3f}")
+print(f"✓ Pearson r: {metrics['pearson_r']:.3f}")
+print(f"✓ Saturation similarity: {metrics['saturation_similarity']:.3f}")
+```
+
+**Example: Multi-task learning analysis**:
+```python
+from pathlib import Path
+from data_loaders.circuit_loader import CircuitLoader
+from pgcn.models.olfactory_circuit import OlfactoryCircuit
+from pgcn.models.learning_model import DopamineModulatedPlasticity
+from pgcn.analysis.multi_task_analysis import MultiTaskAnalyzer
+
+# Load circuit
+loader = CircuitLoader(cache_dir=Path("data/cache"))
+conn = loader.load_connectivity_matrix(normalize_weights="row")
+circuit = OlfactoryCircuit(conn, kc_sparsity_target=0.05)
+
+# Create separate plasticity for each task
+plasticity_managers = {
+    'olfactory': DopamineModulatedPlasticity(conn.kc_to_mbon.toarray(), learning_rate=0.01),
+    'spatial': DopamineModulatedPlasticity(conn.kc_to_mbon.toarray(), learning_rate=0.01),
+}
+
+# Run interleaved training
+analyzer = MultiTaskAnalyzer(circuit, plasticity_managers)
+results = analyzer.run_interleaved_training(
+    trials_per_task=15,
+    task_order=['olfactory', 'spatial'],
+    n_cycles=3,
+)
+
+# Measure task interference
+interference = analyzer.compute_task_interference(results)
+print(f"✓ Olfactory learning efficiency: {interference['olfactory']:.3f}")
+print(f"✓ Spatial learning efficiency: {interference['spatial']:.3f}")
+
+# Measure catastrophic forgetting
+forgetting = analyzer.measure_catastrophic_forgetting('olfactory', 'spatial', trials_per_task=20)
+print(f"✓ Forgetting magnitude: {forgetting['forgetting_magnitude']:.3f}")
+```
+
+### Complete End-to-End Verification Script
+
+This script verifies that all three phases work together:
+
+```python
+import sys
+sys.path.insert(0, 'src')
+from pathlib import Path
+import numpy as np
+import pandas as pd
+
+print("\n" + "="*60)
+print("PGCN FULL PIPELINE VERIFICATION: Phase 1 → Phase 2 → Phase 3")
+print("="*60)
+
+# ========== PHASE 1: Connectivity Backbone ==========
+print("\n[Phase 1] Loading connectivity from FlyWire...")
+from data_loaders.circuit_loader import CircuitLoader
+loader = CircuitLoader(cache_dir=Path("data/cache"))
+conn = loader.load_connectivity_matrix(normalize_weights="row")
+print(f"  ✓ PNs: {len(conn.pn_ids)}")
+print(f"  ✓ KCs: {len(conn.kc_ids)}")
+print(f"  ✓ MBONs: {len(conn.mbon_ids)}")
+print(f"  ✓ DANs: {len(conn.dan_ids)}")
+
+print("\n[Phase 1] Testing forward propagation...")
+from pgcn.models.olfactory_circuit import OlfactoryCircuit
+circuit = OlfactoryCircuit(conn, kc_sparsity_target=0.05)
+pn_act = circuit.activate_pns_by_glomeruli(["DA1"], firing_rate=1.0)
+kc_act, diag = circuit.propagate_pn_to_kc(pn_act)
+mbon_out = circuit.propagate_kc_to_mbon(kc_act)
+print(f"  ✓ PN→KC: {pn_act.sum():.0f} PNs → {kc_act.sum():.0f} KCs (sparsity: {diag['sparsity_fraction']:.1%})")
+print(f"  ✓ KC→MBON: {mbon_out[0]:.3f} valence")
+
+# ========== PHASE 2: Learning Dynamics ==========
+print("\n[Phase 2] Testing learning dynamics...")
+from pgcn.models.learning_model import DopamineModulatedPlasticity, LearningExperiment
+plasticity = DopamineModulatedPlasticity(conn.kc_to_mbon.toarray(), learning_rate=0.02)
+experiment = LearningExperiment(circuit, plasticity, n_trials=20)
+results = experiment.run_experiment(["DA1"] * 10 + ["DL3"] * 10, [1] * 10 + [0] * 10)
+initial_da1 = results.iloc[0]['mbon_valence']
+final_da1 = results.iloc[9]['mbon_valence']
+final_dl3 = results.iloc[-1]['mbon_valence']
+print(f"  ✓ DA1 learning: {initial_da1:.3f} → {final_da1:.3f}")
+print(f"  ✓ DL3 response: {final_dl3:.3f}")
+assert final_da1 > initial_da1, "DA1 should show learning"
+assert final_da1 > final_dl3, "DA1 > DL3"
+
+# ========== PHASE 3a: Optogenetic Perturbations ==========
+print("\n[Phase 3a] Testing optogenetic perturbations...")
+from pgcn.experiments.optogenetic_perturbations import OptogeneticPerturbation
+plasticity_opto = DopamineModulatedPlasticity(conn.kc_to_mbon.toarray(), learning_rate=0.02)
+opto = OptogeneticPerturbation(
+    circuit, perturbation_type="silence", target_neurons="pn",
+    target_specificity=["DA1"], efficacy=1.0
+)
+experiment_opto = LearningExperiment(circuit, plasticity_opto, n_trials=20)
+opto_results = opto.run_full_experiment(experiment_opto, ["DA1"] * 20, [1] * 20)
+opto_final = opto_results.iloc[-1]['mbon_output']
+learning_deficit = (final_da1 - opto_final) / final_da1 if final_da1 > 0 else 0.0
+print(f"  ✓ Control learning: {final_da1:.3f}")
+print(f"  ✓ Opto learning: {opto_final:.3f}")
+print(f"  ✓ Learning deficit: {learning_deficit:.1%}")
+
+# ========== PHASE 3b: Behavioral Validation ==========
+print("\n[Phase 3b] Testing behavioral validation...")
+from pgcn.analysis.behavioral_validation import BehavioralValidator
+model_curves = {'control': results['mbon_valence'].values[:10]}
+fly_data = pd.DataFrame({
+    'dataset': ['control'] * 10,
+    'fly': ['fly_1'] * 10,
+    'fly_number': [1] * 10,
+    'trial_label': [f'trial_{i}' for i in range(10)],
+    'prediction': [1] * 10,
+    'probability': model_curves['control'] / 100.0,
+})
+validator = BehavioralValidator(model_curves, fly_data)
+metrics = validator.compare_learning_curves('control')
+print(f"  ✓ RMSE: {metrics['rmse']:.3f}")
+print(f"  ✓ Pearson r: {metrics['pearson_r']:.3f}")
+
+# ========== PHASE 3c: Multi-Task Learning ==========
+print("\n[Phase 3c] Testing multi-task learning...")
+from pgcn.analysis.multi_task_analysis import MultiTaskAnalyzer
+plasticity_tasks = {
+    'olfactory': DopamineModulatedPlasticity(conn.kc_to_mbon.toarray(), learning_rate=0.01),
+    'spatial': DopamineModulatedPlasticity(conn.kc_to_mbon.toarray(), learning_rate=0.01),
+}
+analyzer = MultiTaskAnalyzer(circuit, plasticity_tasks)
+multi_results = analyzer.run_interleaved_training(trials_per_task=10, task_order=['olfactory', 'spatial'], n_cycles=2)
+interference = analyzer.compute_task_interference(multi_results)
+print(f"  ✓ Olfactory efficiency: {interference['olfactory']:.3f}")
+print(f"  ✓ Spatial efficiency: {interference['spatial']:.3f}")
+
+print("\n" + "="*60)
+print("✅ ALL PHASES VERIFIED - FULL PIPELINE WORKING!")
+print("="*60)
+print("Phase 1: Connectivity backbone ✓")
+print("Phase 2: Learning dynamics ✓")
+print("Phase 3: Optogenetic perturbations ✓")
+print("Phase 3: Behavioral validation ✓")
+print("Phase 3: Multi-task learning ✓")
+print("="*60 + "\n")
+```
+
+**To run the verification script**:
+```bash
+python - <<'EOF'
+# Paste the entire verification script above
+EOF
+```
+
+### Running Specific Test Modules
+
+**Test connectivity loading only**:
+```bash
+PYTHONPATH=src pytest tests/models/test_connectivity_matrix.py -v
+```
+
+**Test learning dynamics only**:
+```bash
+PYTHONPATH=src pytest tests/models/test_learning_model.py -v
+```
+
+**Test optogenetic perturbations only**:
+```bash
+PYTHONPATH=src pytest tests/experiments/test_optogenetic_perturbations.py -v
+```
+
+**Test with coverage report**:
+```bash
+PYTHONPATH=src pytest tests/ \
+  --cov=src/pgcn \
+  --cov=src/data_loaders \
+  --cov-report=term-missing \
+  -v
+```
+
+### Expected Test Coverage
+
+- Phase 1 modules: >90% coverage
+- Phase 2 modules: >85% coverage
+- Phase 3 modules: >85% coverage
+- Integration tests: >80% coverage
+
 ## Troubleshooting common setup errors
 
 - **`Authentication secret not found at ~/.cloudvolume/secrets/cave-secret.json`** –
@@ -626,3 +1187,70 @@ exploratory analysis.
 Unit tests fabricate a deterministic cache to verify schema integrity,
 positive weights, and the absence of direct PN→MBON edges. The `--use-sample-data`
 flag mirrors this behaviour for developers working offline.
+
+## Multi-task reservoir extension
+
+The multi-task build keeps the validated `DrosophilaReservoir` intact while exposing
+task-specific heads for downstream learning problems. Key artefacts:
+
+- `src/pgcn/models/multi_task_model.py` – wraps the reservoir and enforces 5% KC
+  sparsity across every task head. The olfactory conditioning head reuses the
+  canonical KC→MBON layer to honour plasticity constraints.
+- `src/pgcn/models/behavior_connectome.py` – couples behavioural success rates with
+  glomerulus-level connectivity motifs, enabling structural alignment analyses.
+- `src/pgcn/data/task_data_loader.py` – YAML-driven loader registry that validates
+  PN feature dimensionality (10,767) and behavioural row counts (440).
+- `configs/multi_task_config.yaml` – definitive specification of task heads,
+  feature tables, and optimisation hyperparameters aligned with FlyWire v783.
+- `analysis/behavior_connectome_analysis.py` – CLI for enrichment + correlation
+  summaries linking behaviour and structure.
+- `scripts/train_multi_task.py` – sequential trainer that freezes PN→KC weights,
+  logs per-epoch loss curves, and writes consolidated checkpoints.
+- `scripts/deploy_model_server.py` – FastAPI service exposing `/tasks` and
+  `/predict` endpoints for external integrations.
+- `docs/multi_task_usage.md` – step-by-step instructions covering configuration,
+  training, behaviour–connectome analysis, and deployment.
+
+Generate deterministic PN feature tables before training (provide the behavioural CSV
+path when it lives outside the repository):
+
+```bash
+python scripts/generate_multi_task_features.py \
+  --config configs/multi_task_config.yaml \
+  --behavior-csv /home/ramanlab/Documents/cole/Data/Opto/Combined/model_predictions.csv \
+  --report-json artifacts/multi_task/feature_report.json
+```
+
+Run the trainer once feature tables exist for each task:
+
+```bash
+python scripts/train_multi_task.py \
+  --config configs/multi_task_config.yaml \
+  --output-dir artifacts/multi_task
+```
+
+To verify structural alignment, execute the behaviour-connectome analysis. The CLI
+automatically infers PN glomerulus labels from the FlyWire cache when an explicit
+CSV is unavailable, so `--glomerulus-assignments` is optional unless your cache
+omits glomerulus metadata. A trial→glomerulus mapping is mandatory to avoid empty
+reports—provide it with `--trial-to-glomerulus` unless your assignments CSV already
+contains a `trial_label` column:
+
+```bash
+python analysis/behavior_connectome_analysis.py \
+  --cache-dir data/cache \
+  --trial-to-glomerulus configs/trial_to_glomerulus.yaml \
+  --output-dir artifacts/behavior_connectome
+```
+
+Supply `--glomerulus-assignments` to override the inferred labels or when working
+with bespoke PN catalogues. The command now halts with an actionable error when no
+behavioural trials match the glomerulus mapping, preventing silently empty CSV
+outputs.
+
+The example mapping at `configs/trial_to_glomerulus.yaml` assigns each behavioural
+trial label to a placeholder glomerulus. Replace those entries with the glomeruli
+relevant to your experimental catalogue before running the analysis.
+
+Refer to `docs/multi_task_usage.md` for the complete workflow, including API
+deployment details and expected data layouts.

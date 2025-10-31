@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ast
 import re
-from typing import Dict, Iterable, List, Sequence
+from typing import Callable, Dict, Iterable, List, Sequence
 
 import pandas as pd
 
@@ -216,31 +216,178 @@ def _build_processed_label_lookup(processed_labels_df: pd.DataFrame | None) -> D
     return lookup
 
 
-def get_kc_neurons(cell_types_df: pd.DataFrame, classification_df: pd.DataFrame) -> pd.DataFrame:
+def _labels_to_mask(
+    root_ids: pd.Series,
+    lookup: Dict[int, List[str]],
+    predicate: Callable[[Iterable[str]], bool],
+) -> pd.Series:
+    mask: List[bool] = []
+    for value in root_ids:
+        try:
+            root_id = int(value)
+        except (TypeError, ValueError):
+            mask.append(False)
+            continue
+        labels = lookup.get(root_id, [])
+        mask.append(predicate(labels))
+    return pd.Series(mask, index=root_ids.index, dtype=bool)
+
+
+def get_kc_neurons(
+    cell_types_df: pd.DataFrame,
+    classification_df: pd.DataFrame,
+    *,
+    names_df: pd.DataFrame | None = None,
+    processed_labels_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
     """Return Kenyon cell annotations with merged classification metadata."""
 
     merged = _merge_classification(cell_types_df, classification_df)
-    mask = (
+
+    if names_df is not None and not names_df.empty:
+        validate_dataframe_columns(names_df, ["root_id"], frame_name="names")
+        name_subset = names_df.loc[:, [column for column in ("root_id", "group") if column in names_df.columns]]
+        name_subset = name_subset.drop_duplicates(subset=["root_id"])
+        merged = merged.merge(name_subset, on="root_id", how="left")
+
+    keyword_mask = (
         _keyword_mask(merged.get("cell_type"), _KC_KEYWORDS)
         | _keyword_mask(merged.get("cell_type_aliases"), _KC_KEYWORDS)
         | _keyword_mask(merged.get("super_class"), _KC_KEYWORDS)
         | _keyword_mask(merged.get("class"), _KC_KEYWORDS)
         | _keyword_mask(merged.get("sub_class"), _KC_KEYWORDS)
     )
+
+    group_series = merged.get("group")
+    if group_series is not None:
+        group_mask = group_series.astype(str).str.upper().str.startswith("MB")
+    else:
+        group_mask = pd.Series(False, index=merged.index, dtype=bool)
+
+    super_series = merged.get("super_class")
+    if super_series is None:
+        super_series = pd.Series(index=merged.index, dtype="string")
+    class_series = merged.get("class")
+    if class_series is None:
+        class_series = pd.Series(index=merged.index, dtype="string")
+    sub_series = merged.get("sub_class")
+    if sub_series is None:
+        sub_series = pd.Series(index=merged.index, dtype="string")
+
+    intrinsic_mask = (
+        super_series.astype(str).str.contains("central", case=False, na=False)
+        & (
+            class_series.astype(str).str.contains("kenyon|intrinsic|mushroom", case=False, na=False)
+            | sub_series.astype(str).str.contains("kenyon|kc", case=False, na=False)
+        )
+    )
+
+    label_lookup = _build_processed_label_lookup(processed_labels_df)
+
+    def _labels_kc(labels: Iterable[str]) -> bool:
+        return any(re.search(r"\bKC\b|kenyon", label, flags=re.IGNORECASE) for label in labels)
+
+    if label_lookup:
+        processed_mask = _labels_to_mask(merged["root_id"], label_lookup, _labels_kc)
+    else:
+        processed_mask = pd.Series(False, index=merged.index, dtype=bool)
+
+    # Exclude neurons that are explicitly MBONs or DANs (even if they have MB group)
+    mbon_exclude_mask = (
+        _keyword_mask(merged.get("cell_type"), _MBON_KEYWORDS)
+        | _keyword_mask(merged.get("cell_type_aliases"), _MBON_KEYWORDS)
+        | _keyword_mask(merged.get("super_class"), _MBON_KEYWORDS)
+        | _keyword_mask(merged.get("class"), _MBON_KEYWORDS)
+        | _keyword_mask(merged.get("sub_class"), _MBON_KEYWORDS)
+    )
+    dan_exclude_mask = (
+        _keyword_mask(merged.get("cell_type"), _DAN_KEYWORDS)
+        | _keyword_mask(merged.get("cell_type_aliases"), _DAN_KEYWORDS)
+        | _keyword_mask(merged.get("super_class"), _DAN_KEYWORDS)
+        | _keyword_mask(merged.get("class"), _DAN_KEYWORDS)
+        | _keyword_mask(merged.get("sub_class"), _DAN_KEYWORDS)
+    )
+
+    mask = (keyword_mask | group_mask | intrinsic_mask | processed_mask) & ~mbon_exclude_mask & ~dan_exclude_mask
     return merged.loc[mask].drop_duplicates(subset=["root_id"]).reset_index(drop=True)
 
 
-def get_pn_neurons(cell_types_df: pd.DataFrame, classification_df: pd.DataFrame) -> pd.DataFrame:
+def get_pn_neurons(
+    cell_types_df: pd.DataFrame,
+    classification_df: pd.DataFrame,
+    *,
+    names_df: pd.DataFrame | None = None,
+    neurons_df: pd.DataFrame | None = None,
+    processed_labels_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
     """Return projection neuron annotations with merged classification metadata."""
 
     merged = _merge_classification(cell_types_df, classification_df)
-    mask = (
+
+    if names_df is not None and not names_df.empty:
+        validate_dataframe_columns(names_df, ["root_id"], frame_name="names")
+        name_subset = names_df.loc[:, [column for column in ("root_id", "group") if column in names_df.columns]]
+        name_subset = name_subset.drop_duplicates(subset=["root_id"])
+        merged = merged.merge(name_subset, on="root_id", how="left")
+
+    if neurons_df is not None and not neurons_df.empty:
+        validate_dataframe_columns(neurons_df, ["root_id"], frame_name="neurons")
+        nt_columns = [
+            column
+            for column in ("nt_type", "predicted_nt", "primary_nt", "neurotransmitter")
+            if column in neurons_df.columns
+        ]
+        if nt_columns:
+            neuron_subset = neurons_df.loc[:, ["root_id", *nt_columns]].drop_duplicates(subset=["root_id"])
+            merged = merged.merge(neuron_subset, on="root_id", how="left")
+
+    keyword_mask = (
         _keyword_mask(merged.get("cell_type"), _PN_KEYWORDS)
         | _keyword_mask(merged.get("cell_type_aliases"), _PN_KEYWORDS)
         | _keyword_mask(merged.get("super_class"), _PN_KEYWORDS)
         | _keyword_mask(merged.get("class"), _PN_KEYWORDS)
         | _keyword_mask(merged.get("sub_class"), _PN_KEYWORDS)
     )
+
+    group_series = merged.get("group")
+    if group_series is not None:
+        group_mask = group_series.astype(str).str.upper().str.startswith("AL")
+    else:
+        group_mask = pd.Series(False, index=merged.index, dtype=bool)
+
+    label_lookup = _build_processed_label_lookup(processed_labels_df)
+
+    def _labels_glomerulus(labels: Iterable[str]) -> bool:
+        result = _extract_glomerulus_from_candidates(labels)
+        return not pd.isna(result)
+
+    if label_lookup:
+        label_mask = _labels_to_mask(merged["root_id"], label_lookup, _labels_glomerulus)
+    else:
+        label_mask = pd.Series(False, index=merged.index, dtype=bool)
+
+    super_class_series = merged.get("super_class")
+    if super_class_series is None:
+        super_class_series = pd.Series(index=merged.index, dtype="string")
+    ascending_mask = super_class_series.astype(str).str.contains(
+        "ascending|sensory|visual_projection", case=False, na=False
+    )
+
+    neurotransmitter_columns = [
+        column
+        for column in ("nt_type", "predicted_nt", "primary_nt", "neurotransmitter")
+        if column in merged.columns
+    ]
+    if neurotransmitter_columns:
+        nt_mask = pd.Series(False, index=merged.index, dtype=bool)
+        for column in neurotransmitter_columns:
+            nt_mask = nt_mask | merged[column].astype(str).str.contains("ACH|CHOL|CHOLIN|GLUT", case=False, na=False)
+    else:
+        nt_mask = pd.Series(False, index=merged.index, dtype=bool)
+
+    structural_mask = ascending_mask & nt_mask
+
+    mask = keyword_mask | group_mask | label_mask | structural_mask
     return merged.loc[mask].drop_duplicates(subset=["root_id"]).reset_index(drop=True)
 
 

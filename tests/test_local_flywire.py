@@ -142,8 +142,19 @@ def test_loader_integrates_all_tables(tmp_path: Path) -> None:
     processed = loader.load_processed_labels()
     assert len(processed) == 6
 
-    kc_frame = get_kc_neurons(loader.load_cell_types(), loader.load_classification())
-    pn_frame = get_pn_neurons(loader.load_cell_types(), loader.load_classification())
+    kc_frame = get_kc_neurons(
+        loader.load_cell_types(),
+        loader.load_classification(),
+        names_df=loader.load_names(),
+        processed_labels_df=loader.load_processed_labels(),
+    )
+    pn_frame = get_pn_neurons(
+        loader.load_cell_types(),
+        loader.load_classification(),
+        names_df=loader.load_names(),
+        neurons_df=loader.load_neurotransmitters(),
+        processed_labels_df=loader.load_processed_labels(),
+    )
     pn_glomeruli = infer_pn_glomerulus_labels(
         pn_frame,
         processed_labels_df=loader.load_processed_labels(),
