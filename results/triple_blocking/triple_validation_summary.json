@@ -1,0 +1,75 @@
+{
+  "statistics": {
+    "experiment_a": {
+      "mean": 0.9936097617874783,
+      "sem": 0.0,
+      "std": 0.0,
+      "n": 3
+    },
+    "experiment_b": {
+      "mean": -0.9900130630365368,
+      "sem": 7.850462293418875e-17,
+      "std": 1.1102230246251565e-16,
+      "n": 3
+    },
+    "experiment_c": {
+      "mean": 0.9926375419967188,
+      "sem": 0.0,
+      "std": 0.0,
+      "n": 3
+    },
+    "anova": {
+      "f_statistic": Infinity,
+      "p_value": 0.0
+    },
+    "pairwise": {
+      "a_vs_c": {
+        "t_statistic": Infinity,
+        "p_value": 0.0,
+        "p_bonferroni": 0.0,
+        "cohens_d": Infinity,
+        "significant": true
+      },
+      "b_vs_c": {
+        "t_statistic": -2.525520830404258e+16,
+        "p_value": 1.47484856765867e-65,
+        "p_bonferroni": 4.42454570297601e-65,
+        "cohens_d": -2.525520830404258e+16,
+        "significant": true
+      },
+      "a_vs_b_magnitude": {
+        "t_statistic": 45815120390510.44,
+        "p_value": 1.361808127870516e-54,
+        "p_bonferroni": 4.0854243836115474e-54,
+        "significant": true
+      }
+    }
+  },
+  "experiment_a_summary": {
+    "condition": "Block DL3 (Classical Blocking)",
+    "n_replicates": 3,
+    "blocking_indices": [
+      0.9936097617874783,
+      0.9936097617874783,
+      0.9936097617874783
+    ]
+  },
+  "experiment_b_summary": {
+    "condition": "Block DA1 (Reversed Blocking)",
+    "n_replicates": 3,
+    "blocking_indices": [
+      -0.9900130630365369,
+      -0.9900130630365369,
+      -0.9900130630365369
+    ]
+  },
+  "experiment_c_summary": {
+    "condition": "No Veto Control (Baseline)",
+    "n_replicates": 3,
+    "blocking_indices": [
+      0.9926375419967188,
+      0.9926375419967188,
+      0.9926375419967188
+    ]
+  }
+}

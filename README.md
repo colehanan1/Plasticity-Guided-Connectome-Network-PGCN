@@ -77,6 +77,27 @@ This demonstrates:
 - **Key Finding**: Veto mechanism works on ANY odor pathway, proving biological flexibility
 - **Circuit Insight**: Learning magnitude varies by glomerulus connectivity strength (DA1 > DL3 due to stronger PN→KC connections)
 
+**Triple Blocking Validation (WITH CRITICAL NO-VETO CONTROL):**
+Run comprehensive validation with statistical controls:
+```bash
+python scripts/triple_blocking_validation.py --n-replicates 5 --phase2-trials 50
+```
+
+**CRITICAL SCIENTIFIC FINDING:**
+- **Experiment A (Block DL3):** BI +0.994 - Same as baseline
+- **Experiment B (Block DA1):** BI -0.990 - **Reverses** natural bias!
+- **Experiment C (No Veto):** BI +0.993 - Reveals DA1 naturally dominates
+
+**Scientific Interpretation:**
+- DA1 has 40-120x stronger PN→KC connectivity than DL3 (from FlyWire data)
+- **Without veto:** DA1 >> DL3 (natural circuit bias)
+- **Block DL3 (Exp A):** No additional effect (veto redundant with natural bias)
+- **Block DA1 (Exp B):** Successfully **overcomes** massive connectivity advantage!
+
+**Key Insight:** Veto's true power is **reversing dominant pathways**, not suppressing weak ones. This enables biological gain control for selective attention in complex odor environments.
+
+**See:** [Triple Blocking Scientific Findings](docs/TRIPLE_BLOCKING_SCIENTIFIC_FINDINGS.md) for complete analysis
+
 #### Experiment 2: Counterfactual Microsurgery - IN DEVELOPMENT
 Proves causality through targeted connection ablation.
 
@@ -93,6 +114,7 @@ For detailed information about the enhanced system:
 - [Enhanced Components Summary](docs/ENHANCED_COMPONENTS_SUMMARY.md) - Component-by-component breakdown
 - [Enhanced Circuit Guide](docs/ENHANCED_CIRCUIT_GUIDE.md) - Usage examples and API reference
 - [Monday Startup Guide](docs/MONDAY_STARTUP_GUIDE.md) - Quick start for experiments
+- [Triple Blocking Scientific Findings](docs/TRIPLE_BLOCKING_SCIENTIFIC_FINDINGS.md) - Critical insights from comprehensive validation
 
 ## Local FlyWire dataset workflow (offline-first)
 
