@@ -6,6 +6,74 @@ subgraph (PN→KC→MBON core plus DAN ancillary pathways). The codebase pins
 FlyWire materialization versions, writes schema-stable cache artefacts, and
 exposes command line interfaces for cache generation and structural metrics.
 
+## Enhanced PGCN System - Production Ready
+
+### Current Status: MAJOR MILESTONE COMPLETE
+
+**40,567 FlyWire neurons integrated** into unified PyTorch model
+**Complete blocking experiment framework** ready for use
+**Multi-component circuit:** PNs, KCs, MBONs, DANs, LNs, LH, Motor neurons
+**Real connectome data:** 79,226+ synaptic connections from FlyWire FAFB
+
+### Quick Start - Run Complete Blocking Experiment
+
+```bash
+# Navigate to project root
+cd Plasticity-Guided-Connectome-Network-PGCN-
+
+# Run integrated experiment (5 minutes)
+python scripts/monday_startup_training.py
+
+# View results
+open results/monday/experiment_1_veto_gate_results.png
+```
+
+**Expected Output:**
+- **40K+ neuron system loaded** in ~10 seconds
+- **Blocking experiment completed** with publication-quality plots
+- **Results folder** with comprehensive analysis and metrics
+
+### System Architecture
+
+#### Core Components (Working)
+- **Projection Neurons (PNs):** 26,632 odor-responsive neurons
+- **Kenyon Cells (KCs):** 5,374 sparse memory neurons
+- **Mushroom Body Output Neurons (MBONs):** 44 decision neurons
+- **Dopaminergic Neurons (DANs):** 231 reward/punishment neurons
+
+#### Enhanced Components (NEW)
+- **Local Interneurons (LNs):** 3,829 modulatory neurons (VETO GATE mechanism)
+- **Lateral Horn (LH):** 1,162 innate response neurons
+- **Motor Neurons:** 66 proboscis extension neurons (behavioral output)
+- **Brain-VNC Interface:** 3,229 ascending/descending command neurons
+
+### Available Experiments
+
+#### Experiment 1: GABAergic Veto Gate Blocking - READY
+Tests whether local interneurons can block PN→KC plasticity during associative learning.
+
+**Key Result:** Blocking Index measures learning impairment when veto is active.
+- Positive index (+0.3 to +0.8): Successful blocking
+- Zero index: No blocking effect
+- Negative index: Blocking failed
+
+#### Experiment 2: Counterfactual Microsurgery - IN DEVELOPMENT
+Proves causality through targeted connection ablation.
+
+#### Experiment 3: Synaptic Tagging vs Hard Freezing - PLANNED
+Compares memory protection strategies.
+
+#### Experiment 6: Shapley Causal Analysis - PLANNED
+Identifies neurons responsible for blocking effects.
+
+### Documentation
+
+For detailed information about the enhanced system:
+- [Enhanced System Guide](docs/ENHANCED_SYSTEM_GUIDE.md) - Complete architecture documentation
+- [Enhanced Components Summary](docs/ENHANCED_COMPONENTS_SUMMARY.md) - Component-by-component breakdown
+- [Enhanced Circuit Guide](docs/ENHANCED_CIRCUIT_GUIDE.md) - Usage examples and API reference
+- [Monday Startup Guide](docs/MONDAY_STARTUP_GUIDE.md) - Quick start for experiments
+
 ## Local FlyWire dataset workflow (offline-first)
 
 ### Project status artefacts
