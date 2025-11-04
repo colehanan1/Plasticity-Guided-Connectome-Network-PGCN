@@ -150,5 +150,8 @@ Thumbs.db
 data/*
 !data/cache/
 !data/cache/.gitkeep
+artifacts/
+
 reports/
+data/
 artifacts/

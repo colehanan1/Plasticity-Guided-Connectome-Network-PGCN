@@ -1,0 +1,81 @@
+
+=== CONNECTION DATA OVERVIEW ===
+Total connections: 5,342,446
+Connection columns: ['pre_root_id', 'post_root_id', 'neuropil', 'syn_count', 'nt_type']
+
+=== ALL NEUROPILS (79 unique) ===
+Top 30 neuropils by connection count:
+  ME_R: 660,198 connections
+  ME_L: 616,856 connections
+  LO_R: 316,692 connections
+  LO_L: 306,759 connections
+  GNG: 226,326 connections
+  AVLP_R: 164,156 connections
+  LOP_R: 164,071 connections
+  AVLP_L: 128,730 connections
+  LOP_L: 115,527 connections
+  PVLP_L: 109,322 connections
+  SAD: 105,939 connections
+  PLP_L: 96,461 connections
+  PVLP_R: 91,125 connections
+  SPS_R: 89,453 connections
+  SMP_R: 89,124 connections
+  PLP_R: 84,458 connections
+  SMP_L: 82,679 connections
+  SPS_L: 75,682 connections
+  SLP_R: 73,253 connections
+  FB: 64,598 connections
+  IPS_L: 59,219 connections
+  SLP_L: 58,942 connections
+  LH_R: 58,251 connections
+  IPS_R: 56,561 connections
+  ICL_R: 56,555 connections
+  SCL_R: 56,463 connections
+  AL_R: 54,922 connections
+  LH_L: 53,701 connections
+  AL_L: 53,285 connections
+  ICL_L: 52,607 connections
+
+=== KEY REGION SEARCH ===
+
+CALYX:
+  Search 'CA': 56,892 connections
+  Found regions:
+    CAN_L: 3,847
+    CAN_R: 4,985
+    MB_CA_L: 24,552
+    MB_CA_R: 23,508
+
+MUSHROOM_BODY:
+  Search 'MB': 222,173 connections
+  Found regions:
+    MB_CA_L: 24,552
+    MB_CA_R: 23,508
+    MB_ML_L: 39,416
+    MB_ML_R: 33,559
+    MB_PED_L: 29,457
+    MB_PED_R: 29,226
+    MB_VL_L: 22,023
+    MB_VL_R: 20,432
+
+ANTENNAL_LOBE:
+  Search 'AL': 190,632 connections
+  Found regions:
+    AL_L: 53,285
+    AL_R: 54,922
+    LAL_L: 43,575
+    LAL_R: 38,850
+
+LATERAL_HORN:
+  Search 'LH': 111,952 connections
+  Found regions:
+    LH_L: 53,701
+    LH_R: 58,251
+
+VNC:
+  No regions found
+
+GNATHAL:
+  Search 'GNG': 226,326 connections
+  Found regions:
+    GNG: 226,326

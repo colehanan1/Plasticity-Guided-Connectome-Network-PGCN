@@ -64,10 +64,16 @@ class PGCNCircuitVisualizer:
         # Color schemes
         self.colors = {
             'pn_glomeruli': px.colors.qualitative.Set3,
-            'kc_subtypes': ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', 
+            'kc_subtypes': ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
                            '#9467bd', '#8c564b', '#e377c2', '#7f7f7f'],
             'mbon_types': {'calyx': '#2E8B57', 'medial_lobe': '#B8860B', 'other': '#CD5C5C'},
-            'dan_valence': {'PAM': '#32CD32', 'PPL1': '#FF6347', 'other': '#708090'}
+            'dan_valence': {'PAM': '#32CD32', 'PPL1': '#FF6347', 'other': '#708090'},
+            # Extended components (NEW)
+            'ln_types': {'GABA': '#DC143C', 'CHOL': '#4169E1', 'other': '#A9A9A9'},
+            'lh_types': {'LHLN': '#FFD700', 'LHCENT': '#FFA500', 'other': '#DAA520'},
+            'motor_types': {'proboscis': '#FF1493', 'general': '#FF69B4'},
+            'an_types': '#778899',  # Gray
+            'dn_types': '#2F4F4F'   # Dark gray
         }
     
     def _get_id_column(self, df: pd.DataFrame, possible_names: List[str] = None) -> Optional[str]:
@@ -128,7 +134,12 @@ class PGCNCircuitVisualizer:
             'mbon_all': 'mbon_all.csv', 'mbon_calyx': 'mbon_calyx.csv',
             'mbon_ml': 'mbon_ml.csv', 'mbon_glut': 'mbon_glut.csv',
             'dan_all': 'dan_all.csv', 'dan_mb': 'dan_mb.csv',
-            'dan_calyx': 'dan_calyx.csv', 'dan_ml': 'dan_ml.csv'
+            'dan_calyx': 'dan_calyx.csv', 'dan_ml': 'dan_ml.csv',
+            # Extended components (NEW)
+            'ln_all': 'ln_all.csv', 'ln_gaba': 'ln_gaba.csv', 'ln_chol': 'ln_chol.csv',
+            'lh_all': 'lh_all.csv', 'lh_local': 'lh_local.csv', 'lh_output': 'lh_output.csv',
+            'motor_all': 'motor_all.csv', 'motor_proboscis': 'motor_proboscis.csv',
+            'an_all': 'an_all.csv', 'dn_all': 'dn_all.csv'
         }
         
         for name, filename in neuron_files.items():
@@ -192,12 +203,22 @@ class PGCNCircuitVisualizer:
                     print(f"  ✗ {name}: failed to load ({e})")
     
     def create_2d_hierarchical_network(self, top_edges: int = 500) -> go.Figure:
-        """Create 2D hierarchical network with 4 layers: PN | KC | MBON | DAN"""
+        """Create 2D hierarchical network with 9 layers: AN | LN | PN | LH | KC | MBON | DAN | DN | Motor"""
         print("Creating 2D hierarchical network...")
-        
+
         # Build combined neuron dataframe with positions
         all_neurons = []
-        layer_positions = {'PN': -3, 'KC': -1, 'MBON': 1, 'DAN': 3}
+        layer_positions = {
+            'AN': -8,    # Ascending neurons (bottom)
+            'LN': -6,    # Local interneurons
+            'PN': -4,    # Projection neurons
+            'LH': -2,    # Lateral horn (parallel to KC)
+            'KC': -2,    # Kenyon cells (parallel to LH)
+            'MBON': 0,   # Mushroom body output
+            'DAN': 2,    # Dopaminergic neurons
+            'DN': 4,     # Descending neurons
+            'Motor': 6   # Motor output (top)
+        }
         
         # Process PNs
         if 'alpn' in self.neurons:
@@ -269,7 +290,69 @@ class PGCNCircuitVisualizer:
             else:
                 dans['subtype'] = 'other'
             all_neurons.append(dans)
-        
+
+        # Process LNs (Local Interneurons) - NEW
+        if 'ln_all' in self.neurons:
+            lns = self.neurons['ln_all'].copy()
+            lns['layer'] = 'LN'
+            lns['y_pos'] = layer_positions['LN']
+            lns['neuron_type'] = 'LN'
+            # Determine neurotransmitter type
+            nt_col = self._safe_get_column(lns, ['nt_type', 'neurotransmitter', 'type'], 'other')
+            if nt_col is not None:
+                lns['subtype'] = nt_col.astype(str).str.upper()
+            else:
+                lns['subtype'] = 'other'
+            all_neurons.append(lns)
+
+        # Process LH (Lateral Horn) - NEW
+        if 'lh_all' in self.neurons:
+            lh = self.neurons['lh_all'].copy()
+            lh['layer'] = 'LH'
+            lh['y_pos'] = layer_positions['LH']
+            lh['neuron_type'] = 'LH'
+            # Determine cell class
+            class_col = self._safe_get_column(lh, ['class', 'cell_type', 'type'], 'other')
+            if class_col is not None:
+                lh['subtype'] = class_col.astype(str)
+            else:
+                lh['subtype'] = 'other'
+            all_neurons.append(lh)
+
+        # Process Motor neurons - NEW
+        if 'motor_all' in self.neurons:
+            motor = self.neurons['motor_all'].copy()
+            motor['layer'] = 'Motor'
+            motor['y_pos'] = layer_positions['Motor']
+            motor['neuron_type'] = 'Motor'
+            # Determine motor target
+            target_col = self._safe_get_column(motor, ['cell_type', 'target', 'type'], 'general')
+            if target_col is not None:
+                motor['subtype'] = target_col.astype(str).apply(
+                    lambda x: 'proboscis' if 'prob' in str(x).lower() else 'general'
+                )
+            else:
+                motor['subtype'] = 'general'
+            all_neurons.append(motor)
+
+        # Process ANs (Ascending Neurons) - NEW
+        if 'an_all' in self.neurons:
+            ans = self.neurons['an_all'].copy()
+            ans['layer'] = 'AN'
+            ans['y_pos'] = layer_positions['AN']
+            ans['neuron_type'] = 'AN'
+            ans['subtype'] = 'ascending'
+            all_neurons.append(ans)
+
+        # Process DNs (Descending Neurons) - NEW
+        if 'dn_all' in self.neurons:
+            dns = self.neurons['dn_all'].copy()
+            dns['layer'] = 'DN'
+            dns['y_pos'] = layer_positions['DN']
+            dns['neuron_type'] = 'DN'
+            dns['subtype'] = 'descending'
+            all_neurons.append(dns)
+
         if not all_neurons:
             print("No neuron data available for visualization")
             return go.Figure()
@@ -319,8 +402,8 @@ class PGCNCircuitVisualizer:
         # Add edges first (so they appear behind nodes)
         self._add_network_edges(fig, neurons_df, top_edges)
         
-        # Add nodes by layer and subtype
-        for layer in ['PN', 'KC', 'MBON', 'DAN']:
+        # Add nodes by layer and subtype (ALL LAYERS)
+        for layer in ['AN', 'LN', 'PN', 'LH', 'KC', 'MBON', 'DAN', 'DN', 'Motor']:
             layer_data = neurons_df[neurons_df['layer'] == layer]
             if len(layer_data) == 0:
                 continue
@@ -425,21 +508,128 @@ class PGCNCircuitVisualizer:
                         name=f'DAN-{subtype}',
                         legendgroup='DAN'
                     ))
-        
+
+            # NEW LAYERS - Local Interneurons
+            elif layer == 'LN':
+                for subtype in layer_data['subtype'].unique():
+                    subtype_data = layer_data[layer_data['subtype'] == subtype]
+                    color = self.colors['ln_types'].get(str(subtype), '#A9A9A9')
+
+                    fig.add_trace(go.Scatter(
+                        x=subtype_data['x_pos'],
+                        y=subtype_data['y_pos'],
+                        mode='markers',
+                        marker=dict(
+                            size=subtype_data['node_size'],
+                            color=color,
+                            line=dict(width=1, color='white'),
+                            opacity=0.8
+                        ),
+                        text=[f"LN {subtype}<br>ID: {idx}<br>Centrality: {cent:.3f}"
+                              for idx, cent in zip(subtype_data.index, subtype_data['centrality'])],
+                        hoverinfo='text',
+                        name=f'LN-{subtype}',
+                        legendgroup='LN'
+                    ))
+
+            # NEW LAYERS - Lateral Horn
+            elif layer == 'LH':
+                for subtype in layer_data['subtype'].unique():
+                    subtype_data = layer_data[layer_data['subtype'] == subtype]
+                    color = self.colors['lh_types'].get(str(subtype), '#DAA520')
+
+                    fig.add_trace(go.Scatter(
+                        x=subtype_data['x_pos'],
+                        y=subtype_data['y_pos'],
+                        mode='markers',
+                        marker=dict(
+                            size=subtype_data['node_size'],
+                            color=color,
+                            line=dict(width=1, color='white'),
+                            opacity=0.8
+                        ),
+                        text=[f"LH {subtype}<br>ID: {idx}<br>Centrality: {cent:.3f}"
+                              for idx, cent in zip(subtype_data.index, subtype_data['centrality'])],
+                        hoverinfo='text',
+                        name=f'LH-{subtype}',
+                        legendgroup='LH'
+                    ))
+
+            # NEW LAYERS - Motor Neurons
+            elif layer == 'Motor':
+                for subtype in layer_data['subtype'].unique():
+                    subtype_data = layer_data[layer_data['subtype'] == subtype]
+                    color = self.colors['motor_types'].get(str(subtype), '#FF69B4')
+
+                    fig.add_trace(go.Scatter(
+                        x=subtype_data['x_pos'],
+                        y=subtype_data['y_pos'],
+                        mode='markers',
+                        marker=dict(
+                            size=subtype_data['node_size'],
+                            color=color,
+                            line=dict(width=1, color='white'),
+                            opacity=0.8
+                        ),
+                        text=[f"Motor {subtype}<br>ID: {idx}<br>Centrality: {cent:.3f}"
+                              for idx, cent in zip(subtype_data.index, subtype_data['centrality'])],
+                        hoverinfo='text',
+                        name=f'Motor-{subtype}',
+                        legendgroup='Motor'
+                    ))
+
+            # NEW LAYERS - Ascending Neurons
+            elif layer == 'AN':
+                fig.add_trace(go.Scatter(
+                    x=layer_data['x_pos'],
+                    y=layer_data['y_pos'],
+                    mode='markers',
+                    marker=dict(
+                        size=layer_data['node_size'],
+                        color=self.colors['an_types'],
+                        line=dict(width=1, color='white'),
+                        opacity=0.8
+                    ),
+                    text=[f"AN<br>ID: {idx}<br>Centrality: {cent:.3f}"
+                          for idx, cent in zip(layer_data.index, layer_data['centrality'])],
+                    hoverinfo='text',
+                    name='AN',
+                    legendgroup='AN'
+                ))
+
+            # NEW LAYERS - Descending Neurons
+            elif layer == 'DN':
+                fig.add_trace(go.Scatter(
+                    x=layer_data['x_pos'],
+                    y=layer_data['y_pos'],
+                    mode='markers',
+                    marker=dict(
+                        size=layer_data['node_size'],
+                        color=self.colors['dn_types'],
+                        line=dict(width=1, color='white'),
+                        opacity=0.8
+                    ),
+                    text=[f"DN<br>ID: {idx}<br>Centrality: {cent:.3f}"
+                          for idx, cent in zip(layer_data.index, layer_data['centrality'])],
+                    hoverinfo='text',
+                    name='DN',
+                    legendgroup='DN'
+                ))
+
         # Update layout
         fig.update_layout(
             title=dict(
-                text="PGCN Circuit: 2D Hierarchical Network<br><sub>PN → KC → MBON ← DAN</sub>",
+                text="PGCN Circuit: Complete Enhanced Network (13K+ Neurons)<br><sub>AN → LN ↔ PN → {LH, KC} → MBON ← DAN → DN → Motor</sub>",
                 x=0.5, font=dict(size=20)
             ),
             xaxis=dict(title="Spatial Distribution", showgrid=False, zeroline=False),
             yaxis=dict(
-                title="Circuit Layers", 
-                showgrid=True, 
+                title="Circuit Layers",
+                showgrid=True,
                 gridcolor='lightgray',
                 tickmode='array',
-                tickvals=[-3, -1, 1, 3],
-                ticktext=['PNs', 'KCs', 'MBONs', 'DANs']
+                tickvals=[-8, -6, -4, -2, 0, 2, 4, 6],
+                ticktext=['ANs', 'LNs', 'PNs', 'LH/KCs', 'MBONs', 'DANs', 'DNs', 'Motors']
             ),
             width=1200,
             height=800,

@@ -1,0 +1,107 @@
+# GRN Downstream Connectivity Visualization Configuration
+# All paths relative to project root unless absolute
+
+data:
+  processed_labels_path: 'data/processed_labels.csv.gz'
+  cache_dir: 'data/cache'
+  output_dir: 'reports'
+
+# FlyWire API settings
+flywire:
+  dataset: 'fafb'  # Fixed for this project
+  api_timeout_seconds: 30
+  max_retries: 3
+  retry_backoff_multiplier: 2
+  use_fafbseg: true  # Use fafbseg library if available
+
+# GRN identification filters
+filters:
+  sugar_grn_keywords:
+    - 'sugar'
+    - 'sweet'
+    - 'gr5a'
+    - 'gr64'
+  gustatory_keywords:
+    - 'gustatory'
+    - 'grn'
+    - 'taste'
+    - 'chemosensory'
+  case_insensitive: true
+
+# Connectivity query thresholds
+connectivity:
+  min_synapses_to_include: 1  # Include all non-zero synaptic connections
+  exclude_self_loops: true
+  fetch_partner_labels: true  # Try to get labels for downstream partners
+
+# Analysis settings
+analysis:
+  min_synapses: 1
+  min_partner_count_for_heatmap: 3
+  top_n_partners_display: 30
+  convergence_threshold: 2  # Min GRNs targeting same neuron to call it "convergent"
+
+# Statistical testing
+statistics:
+  alpha: 0.05
+  confidence_level: 0.95
+  bootstrap_iterations: 1000
+  statistical_test: 'mann_whitney'  # For comparing sugar vs all GRNs
+
+# Visualization settings
+visualization:
+  figure_dpi: 300
+  figure_style: 'seaborn-v0_8-darkgrid'
+  color_palette: 'Set2'
+  synapse_log_scale: true
+  heatmap_cmap: 'YlOrRd'
+  network_layout: 'spring'  # spring, kamada_kawai, circular
+
+  # Figure-specific sizes (width, height in inches)
+  figure_sizes:
+    overview: [14, 8]
+    comparison: [12, 8]
+    network: [16, 12]
+    heatmap: [14, 10]
+    dashboard: [16, 12]
+
+  # Font settings
+  font_family: 'sans-serif'
+  font_size_labels: 11
+  font_size_title: 14
+  font_size_legend: 10
+
+  # Network graph settings
+  network:
+    max_nodes: 300
+    edge_width_scale: 0.5
+    node_size_scale: 100
+    min_edge_weight: 1
+    layout_iterations: 50
+
+  # Heatmap settings
+  heatmap:
+    cluster_rows: true
+    cluster_cols: true
+    show_dendrograms: true
+    color_bar_label: 'Synapse Count (log scale)'
+
+# Caching settings
+cache:
+  use_cache: true
+  cache_expiry_days: 30
+  save_intermediate: true
+
+# Logging settings
+logging:
+  level: 'INFO'  # DEBUG, INFO, WARNING, ERROR
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  save_to_file: true
+  log_file: 'grn_analysis_log.txt'
+
+# Demo mode (for testing with small subset)
+demo:
+  enabled: false
+  n_sugar_grns: 3
+  n_all_grns: 5
+  use_synthetic_data: false  # Generate fake connectivity if API unavailable

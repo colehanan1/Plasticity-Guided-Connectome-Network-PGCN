@@ -113,7 +113,8 @@ class VetoGateExperiment:
     plasticity : DopamineModulatedPlasticity
         Plasticity manager for weight updates.
     veto_glomerulus : str
-        Glomerulus whose PN pathway implements the veto signal (e.g., "DA1").
+        Glomerulus whose learning will be BLOCKED by the veto signal (e.g., "DL3").
+        This is the distractor odor whose plasticity we want to suppress.
     block_learning_rate : float, optional
         Learning rate for training the veto weight vector. If 0, veto is
         hand-crafted (initialized to PNs of veto glomerulus). Default: 0.0
@@ -380,15 +381,16 @@ class VetoGateExperiment:
         - Establishes equal baseline (both odors acquire similar associations)
         - Veto weight vector is active but gating is OFF for both
 
-        **Phase 2: Veto blocking test (veto on for OdorA only)**
-        - Train OdorA→reward with veto gate active (plasticity blocked)
-        - Train OdorB→reward without veto (normal plasticity continues)
-        - Prediction: OdorA cannot learn more (blocked), OdorB continues learning
+        **Phase 2: Veto blocking test (veto on for OdorB only)**
+        - Train OdorA→reward without veto (normal plasticity continues)
+        - Train OdorB→reward with veto gate active (plasticity blocked)
+        - Prediction: OdorA continues learning, OdorB cannot learn more (blocked)
+        - Biological rationale: Block distractor learning, preserve reward learning
 
         **Phase 3: Test (no learning)**
         - Present OdorA and OdorB without reward
         - Measure MBON responses to assess learned valence
-        - Expected: OdorB valence > OdorA valence (blocking effect demonstrated)
+        - Expected: OdorA valence > OdorB valence (blocking effect demonstrated)
 
         Parameters
         ----------
@@ -397,9 +399,9 @@ class VetoGateExperiment:
         n_phase2_trials : int, optional
             Number of trials in Phase 2 (blocking test). Default: 20
         odor_a : str, optional
-            First odor (veto pathway). Default: "DA1"
+            Target odor (learns normally, NOT blocked). Default: "DA1"
         odor_b : str, optional
-            Second odor (control pathway). Default: "DL3"
+            Distractor odor (blocked by veto). Default: "DL3"
 
         Returns
         -------
@@ -413,9 +415,9 @@ class VetoGateExperiment:
         Notes
         -----
         **Interpretation of results**:
-        - blocking_index > 0: OdorB learned more than OdorA (blocking successful)
+        - blocking_index > 0: OdorA learned more than OdorB (blocking successful)
         - blocking_index ≈ 0: Both odors learned equally (no blocking)
-        - blocking_index < 0: OdorA learned more (blocking failed)
+        - blocking_index < 0: OdorB learned more (blocking failed)
 
         **Biological mapping**:
         This protocol mimics Drosophila compound conditioning experiments where
@@ -464,24 +466,25 @@ class VetoGateExperiment:
                 )
                 results["phase1_trials"].append(trial_data)
 
-        # Phase 2: Blocking test (veto on for OdorA)
-        # Interleave OdorA→reward (veto ON) and OdorB→reward (veto OFF)
-        # Both odors get reward, but only OdorA's plasticity is blocked by veto
+        # Phase 2: Blocking test (veto on for OdorB - the distractor)
+        # Interleave OdorA→reward (veto OFF) and OdorB→reward (veto ON)
+        # Both odors get reward, but only OdorB's plasticity is blocked by veto
+        # Biological rationale: Block distractor learning, allow target learning
         for trial_idx in range(n_phase2_trials):
             if trial_idx % 2 == 0:
-                # OdorA → reward with veto active (blocking)
+                # OdorA → reward without veto (normal learning of target)
                 trial_data = self.run_trial_with_veto(
                     odor=odor_a,
                     reward=1.0,
-                    veto_active=True,  # Veto gates learning
+                    veto_active=False,  # Normal learning of rewarded target
                 )
                 results["phase2_trials"].append(trial_data)
             else:
-                # OdorB → reward without veto (control, normal learning)
+                # OdorB → reward with veto active (block distractor learning)
                 trial_data = self.run_trial_with_veto(
                     odor=odor_b,
                     reward=1.0,  # Same reward as OdorA
-                    veto_active=False,  # Normal learning allowed
+                    veto_active=True,  # Veto blocks distractor learning
                 )
                 results["phase2_trials"].append(trial_data)
 
@@ -494,16 +497,17 @@ class VetoGateExperiment:
             mbon_output = float(mbon_output_vec[0])
             results["test_responses"][odor] = mbon_output
 
-        # Compute blocking index: (OdorB - OdorA) / (OdorB + OdorA + epsilon)
+        # Compute blocking index: (OdorA - OdorB) / (OdorA + OdorB + epsilon)
+        # Positive = OdorA (target) > OdorB (distractor) → blocking successful
         odor_a_response = results["test_responses"][odor_a]
         odor_b_response = results["test_responses"][odor_b]
         denom = abs(odor_a_response) + abs(odor_b_response) + 1e-6
-        blocking_index = (odor_b_response - odor_a_response) / denom
+        blocking_index = (odor_a_response - odor_b_response) / denom
 
         results["blocking_index"] = blocking_index
 
         # Compute Phase 2 learning effectiveness
-        # This measures how much each odor learned during Phase 2 (when veto was active)
+        # This measures how much each odor learned during Phase 2 (when veto was active on OdorB)
         phase2_df = pd.DataFrame(results["phase2_trials"])
         odor_a_trials = phase2_df[phase2_df["odor"] == odor_a]
         odor_b_trials = phase2_df[phase2_df["odor"] == odor_b]
@@ -512,8 +516,9 @@ class VetoGateExperiment:
             odor_a_change = abs(odor_a_trials.iloc[-1]["mbon_output"] - odor_a_trials.iloc[0]["mbon_output"])
             odor_b_change = abs(odor_b_trials.iloc[-1]["mbon_output"] - odor_b_trials.iloc[0]["mbon_output"])
 
-            # Blocking effectiveness: positive means OdorB learned more than OdorA (veto worked)
-            blocking_effectiveness = (odor_b_change - odor_a_change) / (odor_b_change + odor_a_change + 1e-9)
+            # Blocking effectiveness: positive means OdorA learned more than OdorB (veto worked)
+            # OdorA (target, not blocked) should learn more than OdorB (distractor, blocked)
+            blocking_effectiveness = (odor_a_change - odor_b_change) / (odor_a_change + odor_b_change + 1e-9)
             results["blocking_effectiveness"] = blocking_effectiveness
             results["odor_a_phase2_change"] = float(odor_a_change)
             results["odor_b_phase2_change"] = float(odor_b_change)
@@ -529,11 +534,11 @@ class VetoGateExperiment:
 
         Metrics
         -------
-        - blocking_index: (OdorB - OdorA) / (OdorB + OdorA)
-        - phase1_learning: Mean |RPE| decrease in Phase 1 (learning happened)
-        - phase2_odor_a_learning: Mean |RPE| in Phase 2 for OdorA (should be small)
-        - phase2_odor_b_learning: Mean |RPE| in Phase 2 for OdorB (control)
-        - veto_efficacy: Mean gating suppression for OdorA in Phase 2
+        - blocking_index: (OdorA - OdorB) / (OdorA + OdorB)
+        - phase2_odor_a_learning: Mean |RPE| in Phase 2 for OdorA (target, not blocked)
+        - phase2_odor_b_learning: Mean |RPE| in Phase 2 for OdorB (distractor, blocked)
+        - veto_efficacy: Mean veto signal for OdorB in Phase 2
+        - mean_gating_suppression: Mean plasticity suppression for OdorB in Phase 2
 
         Parameters
         ----------
@@ -562,12 +567,13 @@ class VetoGateExperiment:
             phase2_trials["odor"] == list(results["test_responses"].keys())[1]
         ]
 
+        # Veto metrics come from OdorB (the distractor being blocked)
         metrics = {
             "blocking_index": results["blocking_index"],
             "phase2_odor_a_mean_rpe": float(phase2_odor_a["rpe"].abs().mean()) if len(phase2_odor_a) > 0 else 0.0,
             "phase2_odor_b_mean_rpe": float(phase2_odor_b["rpe"].abs().mean()) if len(phase2_odor_b) > 0 else 0.0,
-            "veto_efficacy": float(phase2_odor_a["veto_value"].mean()) if len(phase2_odor_a) > 0 else 0.0,
-            "mean_gating_suppression": float(1.0 - phase2_odor_a["gating_factor"].mean()) if len(phase2_odor_a) > 0 else 0.0,
+            "veto_efficacy": float(phase2_odor_b["veto_value"].mean()) if len(phase2_odor_b) > 0 else 0.0,
+            "mean_gating_suppression": float(1.0 - phase2_odor_b["gating_factor"].mean()) if len(phase2_odor_b) > 0 else 0.0,
         }
 
         return metrics

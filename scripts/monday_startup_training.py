@@ -129,8 +129,8 @@ class MondayExperimentRunner:
         circuit: EnhancedOlfactoryCircuit,
         n_phase1_trials: int = 10,
         n_phase2_trials: int = 30,
-        veto_glomerulus: str = "DA1",
-        control_glomerulus: str = "DL3",
+        target_glomerulus: str = "DA1",
+        distractor_glomerulus: str = "DL3",
     ) -> Dict[str, Any]:
         """Run Experiment 1: GABAergic veto gate blocking.
 
@@ -142,10 +142,10 @@ class MondayExperimentRunner:
             Phase 1 trials (baseline learning).
         n_phase2_trials : int
             Phase 2 trials (blocking test).
-        veto_glomerulus : str
-            Glomerulus for veto pathway.
-        control_glomerulus : str
-            Control glomerulus (no veto).
+        target_glomerulus : str
+            Target odor that learns normally (NOT blocked).
+        distractor_glomerulus : str
+            Distractor odor that will be blocked by veto.
 
         Returns
         -------
@@ -153,8 +153,8 @@ class MondayExperimentRunner:
             Experiment results.
         """
         print(f"[2/4] Running Experiment 1: Veto Gate Blocking...")
-        print(f"  Veto glomerulus: {veto_glomerulus}")
-        print(f"  Control glomerulus: {control_glomerulus}")
+        print(f"  Target glomerulus (learns): {target_glomerulus}")
+        print(f"  Distractor glomerulus (blocked): {distractor_glomerulus}")
         print(f"  Phase 1 trials: {n_phase1_trials}")
         print(f"  Phase 2 trials: {n_phase2_trials}")
 
@@ -166,21 +166,23 @@ class MondayExperimentRunner:
             eligibility_trace_tau=None,
         )
 
-        # Create veto experiment
+        # Create veto experiment (veto_glomerulus is the one being BLOCKED)
         veto_exp = VetoGateExperiment(
             circuit=circuit.core_circuit,  # Use core circuit for veto experiment
             plasticity=plasticity,
-            veto_glomerulus=veto_glomerulus,
+            veto_glomerulus=distractor_glomerulus,  # DL3 will be blocked
             veto_strength=1.0,  # Maximum veto strength
         )
 
         # Run full experiment
+        # odor_a = target (DA1, learns normally)
+        # odor_b = distractor (DL3, blocked by veto)
         print("  Running training phases...")
         results = veto_exp.run_full_experiment(
             n_phase1_trials=n_phase1_trials,
             n_phase2_trials=n_phase2_trials,
-            odor_a=veto_glomerulus,
-            odor_b=control_glomerulus,
+            odor_a=target_glomerulus,
+            odor_b=distractor_glomerulus,
         )
 
         # Analyze blocking effect
@@ -191,10 +193,10 @@ class MondayExperimentRunner:
         print(f"    Blocking Effectiveness (Phase 2 learning): {results.get('blocking_effectiveness', 0.0):.3f}")
         print(f"    Veto Efficacy: {metrics['veto_efficacy']:.3f}")
         print(f"    Mean Gating Suppression: {metrics['mean_gating_suppression']:.3f}")
-        print(f"    OdorA ({veto_glomerulus}) Phase 2 Change: {results.get('odor_a_phase2_change', 0.0):.6f}")
-        print(f"    OdorB ({control_glomerulus}) Phase 2 Change: {results.get('odor_b_phase2_change', 0.0):.6f}")
-        print(f"    OdorA ({veto_glomerulus}) Final Response: {results['test_responses'][veto_glomerulus]:.3f}")
-        print(f"    OdorB ({control_glomerulus}) Final Response: {results['test_responses'][control_glomerulus]:.3f}")
+        print(f"    Target ({target_glomerulus}) Phase 2 Change: {results.get('odor_a_phase2_change', 0.0):.6f}")
+        print(f"    Distractor ({distractor_glomerulus}) Phase 2 Change: {results.get('odor_b_phase2_change', 0.0):.6f}")
+        print(f"    Target ({target_glomerulus}) Final Response: {results['test_responses'][target_glomerulus]:.3f}")
+        print(f"    Distractor ({distractor_glomerulus}) Final Response: {results['test_responses'][distractor_glomerulus]:.3f}")
         print()
 
         return {"results": results, "metrics": metrics, "experiment": "veto_gate"}

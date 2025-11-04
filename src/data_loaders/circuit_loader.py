@@ -112,6 +112,7 @@ class CircuitLoader:
         normalize_weights: str = "row",
         include_dan: bool = True,
         kc_subtypes_filter: Optional[List[str]] = None,
+        include_extended: bool = False,
     ) -> ConnectivityMatrix:
         """Load full connectivity matrix from cache files.
 
@@ -155,6 +156,9 @@ class CircuitLoader:
         kc_subtypes_filter : Optional[List[str]], optional
             If provided, retain only KCs of specified subtypes (e.g.,
             ["ab", "g_main"]). None retains all KCs. Default: None
+        include_extended : bool, optional
+            If True, load extended components (LN, LH, Motor, AN, DN) and their
+            connectivity matrices. Default: False
 
         Returns
         -------
@@ -285,20 +289,86 @@ class CircuitLoader:
         mbon_neuropils = {k: v for k, v in mbon_neuropils.items() if k in mbon_ids}
         dan_neuropils = {k: v for k, v in dan_neuropils.items() if k in dan_ids}
 
+        # Load extended components if requested
+        if include_extended:
+            (
+                ln_ids,
+                lh_ids,
+                motor_ids,
+                an_ids,
+                dn_ids,
+                pn_to_ln,
+                ln_to_pn,
+                ln_to_kc,
+                pn_to_lh,
+                lh_to_motor,
+                mbon_to_dn,
+                dn_to_motor,
+                an_to_mbon,
+                an_to_dan,
+                ln_neurotransmitters,
+                lh_cell_types,
+                motor_targets,
+                an_modalities,
+                dn_behaviors,
+            ) = self._load_extended_components(
+                edges, dan_edges, pn_id_to_idx, kc_id_to_idx, mbon_id_to_idx, dan_id_to_idx, normalize_weights
+            )
+        else:
+            # Empty arrays for extended components
+            ln_ids = np.array([], dtype=np.int64)
+            lh_ids = np.array([], dtype=np.int64)
+            motor_ids = np.array([], dtype=np.int64)
+            an_ids = np.array([], dtype=np.int64)
+            dn_ids = np.array([], dtype=np.int64)
+            pn_to_ln = None
+            ln_to_pn = None
+            ln_to_kc = None
+            pn_to_lh = None
+            lh_to_motor = None
+            mbon_to_dn = None
+            dn_to_motor = None
+            an_to_mbon = None
+            an_to_dan = None
+            ln_neurotransmitters = {}
+            lh_cell_types = {}
+            motor_targets = {}
+            an_modalities = {}
+            dn_behaviors = {}
+
         # Construct ConnectivityMatrix
         conn_matrix = ConnectivityMatrix(
             pn_ids=pn_ids,
             kc_ids=kc_ids,
             mbon_ids=mbon_ids,
             dan_ids=dan_ids,
+            ln_ids=ln_ids,
+            lh_ids=lh_ids,
+            motor_ids=motor_ids,
+            an_ids=an_ids,
+            dn_ids=dn_ids,
             pn_to_kc=pn_to_kc,
             kc_to_mbon=kc_to_mbon,
             dan_to_kc=dan_to_kc,
             dan_to_mbon=dan_to_mbon,
+            pn_to_ln=pn_to_ln,
+            ln_to_pn=ln_to_pn,
+            ln_to_kc=ln_to_kc,
+            pn_to_lh=pn_to_lh,
+            lh_to_motor=lh_to_motor,
+            mbon_to_dn=mbon_to_dn,
+            dn_to_motor=dn_to_motor,
+            an_to_mbon=an_to_mbon,
+            an_to_dan=an_to_dan,
             pn_glomeruli=pn_glomeruli,
             kc_subtypes=kc_subtypes,
             mbon_neuropils=mbon_neuropils,
             dan_neuropils=dan_neuropils,
+            ln_neurotransmitters=ln_neurotransmitters,
+            lh_cell_types=lh_cell_types,
+            motor_targets=motor_targets,
+            an_modalities=an_modalities,
+            dn_behaviors=dn_behaviors,
         )
 
         # Validate before returning
@@ -686,6 +756,232 @@ class CircuitLoader:
 
         elif normalize == "none":
             # Keep raw synapse counts
+            pass
+
+        return matrix_csr
+
+    def _load_extended_components(
+        self,
+        edges: pd.DataFrame,
+        dan_edges: pd.DataFrame,
+        pn_id_to_idx: Dict[int, int],
+        kc_id_to_idx: Dict[int, int],
+        mbon_id_to_idx: Dict[int, int],
+        dan_id_to_idx: Dict[int, int],
+        normalize: str,
+    ) -> Tuple:
+        """Load extended neural components (LN, LH, Motor, AN, DN) and their connectivity.
+
+        Returns
+        -------
+        Tuple
+            (ln_ids, lh_ids, motor_ids, an_ids, dn_ids,
+             pn_to_ln, ln_to_pn, ln_to_kc, pn_to_lh, lh_to_motor,
+             mbon_to_dn, dn_to_motor, an_to_mbon, an_to_dan,
+             ln_neurotransmitters, lh_cell_types, motor_targets, an_modalities, dn_behaviors)
+        """
+        # Load LN neurons
+        ln_path = self.cache_dir / "ln_all.csv"
+        if ln_path.exists():
+            ln_df = pd.read_csv(ln_path)
+            ln_ids = ln_df["root_id"].values
+            ln_neurotransmitters = dict(zip(ln_df["root_id"], ln_df.get("nt_type", pd.Series(dtype=str))))
+        else:
+            ln_ids = np.array([], dtype=np.int64)
+            ln_neurotransmitters = {}
+
+        # Load LH neurons
+        lh_path = self.cache_dir / "lh_all.csv"
+        if lh_path.exists():
+            lh_df = pd.read_csv(lh_path)
+            lh_ids = lh_df["root_id"].values
+            lh_cell_types = dict(zip(lh_df["root_id"], lh_df.get("class", pd.Series(dtype=str))))
+        else:
+            lh_ids = np.array([], dtype=np.int64)
+            lh_cell_types = {}
+
+        # Load Motor neurons
+        motor_path = self.cache_dir / "motor_proboscis.csv"
+        if not motor_path.exists():
+            motor_path = self.cache_dir / "motor_all.csv"
+        if motor_path.exists():
+            motor_df = pd.read_csv(motor_path)
+            motor_ids = motor_df["root_id"].values
+            motor_targets = dict(zip(motor_df["root_id"], motor_df.get("cell_type", pd.Series(dtype=str))))
+        else:
+            motor_ids = np.array([], dtype=np.int64)
+            motor_targets = {}
+
+        # Load AN neurons
+        an_path = self.cache_dir / "an_all.csv"
+        if an_path.exists():
+            an_df = pd.read_csv(an_path)
+            an_ids = an_df["root_id"].values
+            an_modalities = dict(zip(an_df["root_id"], an_df.get("super_class", pd.Series(dtype=str))))
+        else:
+            an_ids = np.array([], dtype=np.int64)
+            an_modalities = {}
+
+        # Load DN neurons
+        dn_path = self.cache_dir / "dn_all.csv"
+        if dn_path.exists():
+            dn_df = pd.read_csv(dn_path)
+            dn_ids = dn_df["root_id"].values
+            dn_behaviors = dict(zip(dn_df["root_id"], dn_df.get("cell_type", pd.Series(dtype=str))))
+        else:
+            dn_ids = np.array([], dtype=np.int64)
+            dn_behaviors = {}
+
+        # Build ID→index mappings for extended components
+        ln_id_to_idx = {nid: idx for idx, nid in enumerate(ln_ids)}
+        lh_id_to_idx = {nid: idx for idx, nid in enumerate(lh_ids)}
+        motor_id_to_idx = {nid: idx for idx, nid in enumerate(motor_ids)}
+        an_id_to_idx = {nid: idx for idx, nid in enumerate(an_ids)}
+        dn_id_to_idx = {nid: idx for idx, nid in enumerate(dn_ids)}
+
+        # Build connectivity matrices for extended components
+        # PN → LN (antennal lobe lateral connections)
+        pn_to_ln = self._build_sparse_matrix_extended(
+            edges, "PN", "LN", pn_id_to_idx, ln_id_to_idx, len(ln_ids), len(pn_id_to_idx), normalize
+        ) if len(ln_ids) > 0 else None
+
+        # LN → PN (feedback inhibition)
+        ln_to_pn = self._build_sparse_matrix_extended(
+            edges, "LN", "PN", ln_id_to_idx, pn_id_to_idx, len(pn_id_to_idx), len(ln_ids), normalize
+        ) if len(ln_ids) > 0 else None
+
+        # LN → KC (direct veto pathway)
+        ln_to_kc = self._build_sparse_matrix_extended(
+            edges, "LN", "KC", ln_id_to_idx, kc_id_to_idx, len(kc_id_to_idx), len(ln_ids), normalize
+        ) if len(ln_ids) > 0 else None
+
+        # PN → LH (innate valence pathway)
+        pn_to_lh = self._build_sparse_matrix_extended(
+            edges, "PN", "LH", pn_id_to_idx, lh_id_to_idx, len(lh_ids), len(pn_id_to_idx), normalize
+        ) if len(lh_ids) > 0 else None
+
+        # LH → Motor (innate behavioral output)
+        lh_to_motor = self._build_sparse_matrix_extended(
+            edges, "LH", "Motor", lh_id_to_idx, motor_id_to_idx, len(motor_ids), len(lh_ids), normalize
+        ) if len(lh_ids) > 0 and len(motor_ids) > 0 else None
+
+        # MBON → DN (learned valence to motor command)
+        mbon_to_dn = self._build_sparse_matrix_extended(
+            edges, "MBON", "DN", mbon_id_to_idx, dn_id_to_idx, len(dn_ids), len(mbon_id_to_idx), normalize
+        ) if len(dn_ids) > 0 else None
+
+        # DN → Motor (motor command execution)
+        dn_to_motor = self._build_sparse_matrix_extended(
+            edges, "DN", "Motor", dn_id_to_idx, motor_id_to_idx, len(motor_ids), len(dn_ids), normalize
+        ) if len(dn_ids) > 0 and len(motor_ids) > 0 else None
+
+        # AN → MBON (behavioral state modulation)
+        an_to_mbon = self._build_sparse_matrix_extended(
+            edges, "AN", "MBON", an_id_to_idx, mbon_id_to_idx, len(mbon_id_to_idx), len(an_ids), normalize
+        ) if len(an_ids) > 0 else None
+
+        # AN → DAN (state-dependent reinforcement)
+        an_to_dan = self._build_sparse_matrix_extended(
+            dan_edges, "AN", "DAN", an_id_to_idx, dan_id_to_idx, len(dan_id_to_idx), len(an_ids), normalize
+        ) if len(an_ids) > 0 else None
+
+        return (
+            ln_ids,
+            lh_ids,
+            motor_ids,
+            an_ids,
+            dn_ids,
+            pn_to_ln,
+            ln_to_pn,
+            ln_to_kc,
+            pn_to_lh,
+            lh_to_motor,
+            mbon_to_dn,
+            dn_to_motor,
+            an_to_mbon,
+            an_to_dan,
+            ln_neurotransmitters,
+            lh_cell_types,
+            motor_targets,
+            an_modalities,
+            dn_behaviors,
+        )
+
+    def _build_sparse_matrix_extended(
+        self,
+        edges: pd.DataFrame,
+        source_type_label: str,
+        target_type_label: str,
+        source_id_to_idx: Dict[int, int],
+        target_id_to_idx: Dict[int, int],
+        n_target: int,
+        n_source: int,
+        normalize: str,
+    ) -> sp.csr_matrix:
+        """Build sparse matrix for extended components with type label matching.
+
+        This is a simplified version that uses direct type labels rather than
+        loading from nodes.parquet. Extended components are marked with their
+        type labels in the extraction phase.
+        """
+        if len(source_id_to_idx) == 0 or len(target_id_to_idx) == 0:
+            return sp.csr_matrix((n_target, n_source), dtype=np.float64)
+
+        # Filter edges to include only those with matching source/target IDs
+        source_ids_set = set(source_id_to_idx.keys())
+        target_ids_set = set(target_id_to_idx.keys())
+
+        filtered_edges = edges[
+            edges["source_id"].isin(source_ids_set) & edges["target_id"].isin(target_ids_set)
+        ]
+
+        if len(filtered_edges) == 0:
+            return sp.csr_matrix((n_target, n_source), dtype=np.float64)
+
+        # Map neuron IDs to matrix indices
+        row_indices = []
+        col_indices = []
+        weights = []
+
+        for _, edge in filtered_edges.iterrows():
+            source_id = edge["source_id"]
+            target_id = edge["target_id"]
+            weight = edge["synapse_weight"]
+
+            # Skip edges where source/target not in our filtered neuron sets
+            if source_id not in source_id_to_idx or target_id not in target_id_to_idx:
+                continue
+
+            col_idx = source_id_to_idx[source_id]  # source → column
+            row_idx = target_id_to_idx[target_id]  # target → row
+
+            row_indices.append(row_idx)
+            col_indices.append(col_idx)
+            weights.append(weight)
+
+        if len(weights) == 0:
+            return sp.csr_matrix((n_target, n_source), dtype=np.float64)
+
+        # Construct sparse matrix in COO format, then convert to CSR
+        weights_array = np.array(weights, dtype=np.float64)
+        matrix_coo = sp.coo_matrix(
+            (weights_array, (row_indices, col_indices)),
+            shape=(n_target, n_source),
+            dtype=np.float64,
+        )
+        matrix_csr = matrix_coo.tocsr()
+
+        # Apply normalization
+        if normalize == "row":
+            row_sums = np.array(matrix_csr.sum(axis=1)).ravel()
+            row_sums[row_sums == 0] = 1.0  # Avoid division by zero
+            row_inv = sp.diags(1.0 / row_sums, format="csr")
+            matrix_csr = row_inv @ matrix_csr
+        elif normalize == "global":
+            max_weight = matrix_csr.max()
+            if max_weight > 0:
+                matrix_csr = matrix_csr / max_weight
+        elif normalize == "none":
             pass
 
         return matrix_csr

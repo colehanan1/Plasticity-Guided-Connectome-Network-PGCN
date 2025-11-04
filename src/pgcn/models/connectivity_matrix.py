@@ -131,24 +131,60 @@ class ConnectivityMatrix:
     row-slicing and matrix-vector products, which are the primary operations
     during forward propagation through the circuit.
     """
-
-    # Neuron IDs (1D arrays)
+    # ===== REQUIRED FIELDS (NO DEFAULTS) - MUST COME FIRST =====
+    
+    # Neuron IDs (1D arrays) - Core circuit (REQUIRED)
     pn_ids: np.ndarray
     kc_ids: np.ndarray
     mbon_ids: np.ndarray
     dan_ids: np.ndarray
-
-    # Connectivity matrices (sparse CSR format)
+    
+    # Connectivity matrices (sparse CSR format) - Core circuit (REQUIRED)
     pn_to_kc: sp.csr_matrix
     kc_to_mbon: sp.csr_matrix
     dan_to_kc: sp.csr_matrix
     dan_to_mbon: sp.csr_matrix
-
-    # Metadata dictionaries
+    
+    # ===== OPTIONAL FIELDS (WITH DEFAULTS) - MUST COME LAST =====
+    
+    # Neuron IDs (1D arrays) - Extended components (OPTIONAL)
+    ln_ids: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.int64))
+    lh_ids: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.int64))
+    motor_ids: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.int64))
+    an_ids: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.int64))
+    dn_ids: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.int64))
+    
+    # Connectivity matrices (sparse CSR format) - Extended components (OPTIONAL)
+    # Antennal lobe: PN ↔ LN interactions
+    pn_to_ln: Optional[sp.csr_matrix] = None
+    ln_to_pn: Optional[sp.csr_matrix] = None
+    ln_to_kc: Optional[sp.csr_matrix] = None
+    
+    # Lateral horn: innate valence pathway
+    pn_to_lh: Optional[sp.csr_matrix] = None
+    lh_to_motor: Optional[sp.csr_matrix] = None
+    
+    # Motor output: learned and innate pathways
+    mbon_to_dn: Optional[sp.csr_matrix] = None
+    dn_to_motor: Optional[sp.csr_matrix] = None
+    
+    # Behavioral state modulation
+    an_to_mbon: Optional[sp.csr_matrix] = None
+    an_to_dan: Optional[sp.csr_matrix] = None
+    
+    # Metadata dictionaries - Core circuit (OPTIONAL)
     pn_glomeruli: Dict[int, str] = field(default_factory=dict)
     kc_subtypes: Dict[int, str] = field(default_factory=dict)
     mbon_neuropils: Dict[int, List[str]] = field(default_factory=dict)
     dan_neuropils: Dict[int, List[str]] = field(default_factory=dict)
+    
+    # Metadata dictionaries - Extended components (OPTIONAL)
+    ln_neurotransmitters: Dict[int, str] = field(default_factory=dict)
+    lh_cell_types: Dict[int, str] = field(default_factory=dict)
+    motor_targets: Dict[int, str] = field(default_factory=dict)
+    an_modalities: Dict[int, str] = field(default_factory=dict)
+    dn_behaviors: Dict[int, str] = field(default_factory=dict)
+
 
     def __post_init__(self) -> None:
         """Validate connectivity matrix shapes and biological constraints."""
@@ -215,6 +251,31 @@ class ConnectivityMatrix:
     def n_dan(self) -> int:
         """Number of dopaminergic neurons."""
         return len(self.dan_ids)
+
+    @property
+    def n_ln(self) -> int:
+        """Number of local interneurons."""
+        return len(self.ln_ids)
+
+    @property
+    def n_lh(self) -> int:
+        """Number of lateral horn neurons."""
+        return len(self.lh_ids)
+
+    @property
+    def n_motor(self) -> int:
+        """Number of motor neurons."""
+        return len(self.motor_ids)
+
+    @property
+    def n_an(self) -> int:
+        """Number of ascending neurons."""
+        return len(self.an_ids)
+
+    @property
+    def n_dn(self) -> int:
+        """Number of descending neurons."""
+        return len(self.dn_ids)
 
     def slice_kc_subtypes(self, subtypes: List[str]) -> "ConnectivityMatrix":
         """Return new ConnectivityMatrix with only specified KC subtypes.
@@ -514,14 +575,31 @@ class ConnectivityMatrix:
 
     def __repr__(self) -> str:
         """Return summary string for debugging and logging."""
-        return (
+        core_stats = (
             f"ConnectivityMatrix(\n"
-            f"  PNs: {self.n_pn}, KCs: {self.n_kc}, MBONs: {self.n_mbon}, DANs: {self.n_dan}\n"
+            f"  Core: PNs: {self.n_pn}, KCs: {self.n_kc}, MBONs: {self.n_mbon}, DANs: {self.n_dan}\n"
+            f"  Extended: LNs: {self.n_ln}, LH: {self.n_lh}, Motor: {self.n_motor}, "
+            f"ANs: {self.n_an}, DNs: {self.n_dn}\n"
             f"  PN→KC: {self.pn_to_kc.shape} ({self.pn_to_kc.nnz} synapses, "
             f"{self.pn_to_kc_sparsity():.1%} sparse)\n"
             f"  KC→MBON: {self.kc_to_mbon.shape} ({self.kc_to_mbon.nnz} synapses, "
             f"{self.kc_to_mbon_sparsity():.1%} sparse)\n"
             f"  Glomeruli: {len(set(self.pn_glomeruli.values()))}, "
             f"KC subtypes: {len(set(self.kc_subtypes.values()))}\n"
-            f")"
         )
+
+        # Add extended connectivity info if present
+        extended_info = []
+        if self.pn_to_ln is not None and self.pn_to_ln.nnz > 0:
+            extended_info.append(f"  PN→LN: {self.pn_to_ln.nnz} synapses")
+        if self.ln_to_pn is not None and self.ln_to_pn.nnz > 0:
+            extended_info.append(f"  LN→PN: {self.ln_to_pn.nnz} synapses")
+        if self.ln_to_kc is not None and self.ln_to_kc.nnz > 0:
+            extended_info.append(f"  LN→KC: {self.ln_to_kc.nnz} synapses")
+        if self.pn_to_lh is not None and self.pn_to_lh.nnz > 0:
+            extended_info.append(f"  PN→LH: {self.pn_to_lh.nnz} synapses")
+
+        if extended_info:
+            core_stats += "\n".join(extended_info) + "\n"
+
+        return core_stats + ")"

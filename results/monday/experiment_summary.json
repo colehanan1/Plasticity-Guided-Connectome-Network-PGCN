@@ -1,0 +1,15 @@
+{
+  "experiment": "veto_gate",
+  "blocking_index": 0.9936097617874783,
+  "metrics": {
+    "blocking_index": 0.9936097617874783,
+    "phase2_odor_a_mean_rpe": 0.9157019361228016,
+    "phase2_odor_b_mean_rpe": 0.9240997497738302,
+    "veto_efficacy": 0.9999999999999999,
+    "mean_gating_suppression": 0.9999999999999999
+  },
+  "test_responses": {
+    "DA1": 63.91959368766828,
+    "DL3": 0.2048848497490383
+  }
+}

@@ -277,7 +277,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument(
         "--dataset",
         default="public",
-        choices=["public", "production", "sandbox", "flat_630"],
+        choices=["public", "production", "sandbox", "flat_630", "flat_783"],
         help="FlyWire dataset (use 'public' for 783)",
     )
     ap.add_argument(

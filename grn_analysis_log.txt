@@ -1,0 +1,211 @@
+2025-11-03 16:29:06,972 - __main__ - INFO - ================================================================================
+2025-11-03 16:29:06,972 - __main__ - INFO - GRN DOWNSTREAM CONNECTIVITY ANALYSIS PIPELINE
+2025-11-03 16:29:06,972 - __main__ - INFO - ================================================================================
+2025-11-03 16:29:06,972 - __main__ - INFO - Started: 2025-11-03 16:29:06
+2025-11-03 16:29:06,972 - __main__ - INFO - Log level: INFO
+2025-11-03 16:29:06,972 - __main__ - INFO - ================================================================================
+2025-11-03 16:29:06,972 - __main__ - INFO - 
+================================================================================
+2025-11-03 16:29:06,972 - __main__ - INFO - PHASE 1: IDENTIFY & CACHE GRNs
+2025-11-03 16:29:06,972 - __main__ - INFO - ================================================================================
+2025-11-03 16:29:06,972 - grn_downstream_extractor - INFO - GRN Downstream Extractor initialized
+2025-11-03 16:29:06,972 - grn_downstream_extractor - INFO - Cache directory: data/cache
+2025-11-03 16:29:06,972 - grn_downstream_extractor - INFO - FlyWire dataset: fafb
+2025-11-03 16:29:06,972 - grn_downstream_extractor - INFO - fafbseg available: True
+2025-11-03 16:29:06,972 - __main__ - INFO - Loading GRNs from: data/processed_labels.csv.gz
+2025-11-03 16:29:06,972 - grn_downstream_extractor - INFO - Loading labels from: data/processed_labels.csv.gz
+2025-11-03 16:29:06,973 - grn_downstream_extractor - INFO - ✓ Loaded processed_labels.csv.gz
+2025-11-03 16:29:06,973 - grn_downstream_extractor - INFO -   - Total neurons: 8
+2025-11-03 16:29:06,974 - grn_downstream_extractor - INFO -   - Memory usage: 0.0 MB
+2025-11-03 16:29:06,974 - grn_downstream_extractor - INFO - ✓ SUGAR GRNs identified: 3
+2025-11-03 16:29:06,974 - grn_downstream_extractor - INFO -   Sample IDs: [720575940610000001, 720575940610000002, 720575940610000003]
+2025-11-03 16:29:06,974 - grn_downstream_extractor - INFO -   Sample labels:
+2025-11-03 16:29:06,975 - grn_downstream_extractor - INFO -     - sugar gustatory receptor neuron gr5a
+2025-11-03 16:29:06,975 - grn_downstream_extractor - INFO -     - sweet taste gustatory neuron
+2025-11-03 16:29:06,975 - grn_downstream_extractor - INFO -     - sugar sensing gustatory receptor
+2025-11-03 16:29:06,975 - grn_downstream_extractor - INFO -   Breakdown by category:
+2025-11-03 16:29:06,975 - grn_downstream_extractor - INFO -     - sugar: 3
+2025-11-03 16:29:06,975 - grn_downstream_extractor - INFO -   Loading completed in 0.00 seconds
+2025-11-03 16:29:06,975 - grn_downstream_extractor - INFO - Loading labels from: data/processed_labels.csv.gz
+2025-11-03 16:29:06,975 - grn_downstream_extractor - INFO - ✓ Loaded processed_labels.csv.gz
+2025-11-03 16:29:06,975 - grn_downstream_extractor - INFO -   - Total neurons: 8
+2025-11-03 16:29:06,975 - grn_downstream_extractor - INFO -   - Memory usage: 0.0 MB
+2025-11-03 16:29:06,976 - grn_downstream_extractor - INFO - ✓ ALL GRNs identified: 8
+2025-11-03 16:29:06,976 - grn_downstream_extractor - INFO -   Sample IDs: [720575940610000001, 720575940610000002, 720575940610000003]
+2025-11-03 16:29:06,976 - grn_downstream_extractor - INFO -   Sample labels:
+2025-11-03 16:29:06,976 - grn_downstream_extractor - INFO -     - sugar gustatory receptor neuron gr5a
+2025-11-03 16:29:06,976 - grn_downstream_extractor - INFO -     - sweet taste gustatory neuron
+2025-11-03 16:29:06,976 - grn_downstream_extractor - INFO -     - sugar sensing gustatory receptor
+2025-11-03 16:29:06,976 - grn_downstream_extractor - INFO -   Breakdown by category:
+2025-11-03 16:29:06,976 - grn_downstream_extractor - INFO -     - sugar: 3
+2025-11-03 16:29:06,976 - grn_downstream_extractor - INFO -     - bitter: 2
+2025-11-03 16:29:06,976 - grn_downstream_extractor - INFO -     - other: 2
+2025-11-03 16:29:06,976 - grn_downstream_extractor - INFO -     - water: 1
+2025-11-03 16:29:06,976 - grn_downstream_extractor - INFO -   Loading completed in 0.00 seconds
+2025-11-03 16:29:06,977 - grn_downstream_extractor - INFO - ✓ Saved sugar GRNs to: data/cache/sugar_grns_metadata.csv
+2025-11-03 16:29:06,977 - grn_downstream_extractor - INFO - ✓ Saved all GRNs to: data/cache/all_grns_metadata.csv
+2025-11-03 16:29:06,977 - __main__ - INFO - 
+================================================================================
+2025-11-03 16:29:06,977 - __main__ - INFO - PHASE 2: FETCH DOWNSTREAM CONNECTIVITY
+2025-11-03 16:29:06,977 - __main__ - INFO - ================================================================================
+2025-11-03 16:29:06,978 - grn_downstream_extractor - INFO - Loaded 8 GRNs from cache
+2025-11-03 16:29:06,978 - grn_downstream_extractor - INFO - ✓ All GRNs found in cache
+2025-11-03 16:29:06,978 - __main__ - INFO - ✓ Extraction complete:
+2025-11-03 16:29:06,978 - __main__ - INFO -   Sugar GRNs: 3
+2025-11-03 16:29:06,978 - __main__ - INFO -   All GRNs: 8
+2025-11-03 16:29:06,978 - __main__ - INFO - 
+================================================================================
+2025-11-03 16:29:06,978 - __main__ - INFO - PHASE 3: ANALYZE CONNECTIVITY
+2025-11-03 16:29:06,978 - __main__ - INFO - ================================================================================
+2025-11-03 16:29:06,978 - grn_connectivity_analyzer - INFO - GRN Connectivity Analyzer initialized
+2025-11-03 16:29:06,978 - grn_connectivity_analyzer - INFO - Output directory: reports
+2025-11-03 16:29:06,978 - __main__ - INFO - Computing statistics for sugar GRNs...
+2025-11-03 16:29:06,978 - grn_connectivity_analyzer - INFO - Computing connectivity statistics...
+2025-11-03 16:29:06,978 - grn_connectivity_analyzer - INFO -   Computing per-GRN statistics...
+2025-11-03 16:29:06,978 - grn_connectivity_analyzer - INFO -   Computing population statistics...
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO -   Analyzing downstream partners...
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO -   Computing convergence patterns...
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO - 
+================================================================================
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO - CONNECTIVITY STATISTICS SUMMARY
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO - ================================================================================
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO - ✓ GRNs analyzed: 3
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO - ✓ Total connections: 263
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO - ✓ Total synapses: 3,300
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO - 
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO - Partners per GRN:
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO -   min=23, max=120, mean=87.7, median=120
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO - 
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO - Synapses per connection:
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO -   min=1, max=115, mean=12.7, median=6
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO - 
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO - ✓ Unique downstream partners: 263
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO - ✓ Partner type distribution:
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO -     - KC: 112 (42.6%)
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO -     - MBON: 61 (23.2%)
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO -     - LH: 37 (14.1%)
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO -     - Other: 31 (11.8%)
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO -     - Unclassified: 22 (8.4%)
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO - 
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO - ✓ Convergence analysis:
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO -   Convergent partners (≥2 GRNs): 0
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO -   Avg GRNs per target: 1.00
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO -   Max convergence: 1 GRNs
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO - ================================================================================
+2025-11-03 16:29:06,979 - __main__ - INFO - 
+Computing statistics for all GRNs...
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO - Computing connectivity statistics...
+2025-11-03 16:29:06,979 - grn_connectivity_analyzer - INFO -   Computing per-GRN statistics...
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO -   Computing population statistics...
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO -   Analyzing downstream partners...
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO -   Computing convergence patterns...
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO - 
+================================================================================
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO - CONNECTIVITY STATISTICS SUMMARY
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO - ================================================================================
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO - ✓ GRNs analyzed: 8
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO - ✓ Total connections: 524
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO - ✓ Total synapses: 7,405
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO - 
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO - Partners per GRN:
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO -   min=23, max=120, mean=65.5, median=41
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO - 
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO - Synapses per connection:
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO -   min=1, max=173, mean=15.2, median=6
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO - 
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO - ✓ Unique downstream partners: 524
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO - ✓ Partner type distribution:
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO -     - KC: 228 (43.5%)
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO -     - MBON: 122 (23.3%)
+2025-11-03 16:29:06,980 - grn_connectivity_analyzer - INFO -     - LH: 70 (13.4%)
+2025-11-03 16:29:06,981 - grn_connectivity_analyzer - INFO -     - Other: 62 (11.8%)
+2025-11-03 16:29:06,981 - grn_connectivity_analyzer - INFO -     - Unclassified: 42 (8.0%)
+2025-11-03 16:29:06,981 - grn_connectivity_analyzer - INFO - 
+2025-11-03 16:29:06,981 - grn_connectivity_analyzer - INFO - ✓ Convergence analysis:
+2025-11-03 16:29:06,981 - grn_connectivity_analyzer - INFO -   Convergent partners (≥2 GRNs): 0
+2025-11-03 16:29:06,981 - grn_connectivity_analyzer - INFO -   Avg GRNs per target: 1.00
+2025-11-03 16:29:06,981 - grn_connectivity_analyzer - INFO -   Max convergence: 1 GRNs
+2025-11-03 16:29:06,981 - grn_connectivity_analyzer - INFO - ================================================================================
+2025-11-03 16:29:06,981 - __main__ - INFO - 
+Comparing sugar GRNs vs all GRNs...
+2025-11-03 16:29:06,981 - grn_connectivity_analyzer - INFO - Comparing sugar GRNs vs all GRNs...
+2025-11-03 16:29:06,981 - grn_connectivity_analyzer - INFO -   Running Mann-Whitney U test for partner counts...
+2025-11-03 16:29:06,981 - grn_connectivity_analyzer - INFO -   Running Mann-Whitney U test for synapse counts...
+2025-11-03 16:29:06,982 - grn_connectivity_analyzer - INFO - 
+================================================================================
+2025-11-03 16:29:06,982 - grn_connectivity_analyzer - INFO - SUGAR GRN vs ALL GRN COMPARISON
+2025-11-03 16:29:06,982 - grn_connectivity_analyzer - INFO - ================================================================================
+2025-11-03 16:29:06,982 - grn_connectivity_analyzer - INFO - Sugar GRNs: 3
+2025-11-03 16:29:06,982 - grn_connectivity_analyzer - INFO - All GRNs: 8
+2025-11-03 16:29:06,982 - grn_connectivity_analyzer - INFO - 
+2025-11-03 16:29:06,982 - grn_connectivity_analyzer - INFO - Partners per GRN:
+2025-11-03 16:29:06,982 - grn_connectivity_analyzer - INFO -   Sugar: 87.7 ± 45.7
+2025-11-03 16:29:06,982 - grn_connectivity_analyzer - INFO -   All:   65.5 ± 42.8
+2025-11-03 16:29:06,982 - grn_connectivity_analyzer - INFO -   p-value: 0.8301 ns
+2025-11-03 16:29:06,982 - grn_connectivity_analyzer - INFO -   Effect size (Cohen's d): 0.460
+2025-11-03 16:29:06,982 - grn_connectivity_analyzer - INFO - 
+2025-11-03 16:29:06,982 - grn_connectivity_analyzer - INFO - Synapses per connection:
+2025-11-03 16:29:06,982 - grn_connectivity_analyzer - INFO -   Sugar: 12.5 ± 17.3
+2025-11-03 16:29:06,982 - grn_connectivity_analyzer - INFO -   All:   14.1 ± 21.1
+2025-11-03 16:29:06,982 - grn_connectivity_analyzer - INFO -   p-value: 0.5815 ns
+2025-11-03 16:29:06,982 - grn_connectivity_analyzer - INFO -   Effect size (Cohen's d): -0.079
+2025-11-03 16:29:06,982 - grn_connectivity_analyzer - INFO - ================================================================================
+2025-11-03 16:29:06,982 - __main__ - INFO - 
+Generating partner tables...
+2025-11-03 16:29:06,982 - grn_connectivity_analyzer - INFO - Generating partner table (top 30)...
+2025-11-03 16:29:06,984 - grn_connectivity_analyzer - INFO - ✓ Generated partner table with 30 entries
+2025-11-03 16:29:06,984 - grn_connectivity_analyzer - INFO - Saving statistics to files...
+2025-11-03 16:29:06,984 - grn_connectivity_analyzer - INFO - ✓ Saved per-GRN statistics: reports/sugar_per_grn_stats_20251103_162906.csv
+2025-11-03 16:29:06,984 - grn_connectivity_analyzer - INFO - ✓ Saved comparison: reports/sugar_sugar_vs_all_comparison_20251103_162906.csv
+2025-11-03 16:29:06,985 - grn_connectivity_analyzer - INFO - ✓ Saved partner table: reports/sugar_downstream_partners_20251103_162906.csv
+2025-11-03 16:29:06,985 - grn_connectivity_analyzer - INFO - ✓ Saved summary: reports/sugar_connectivity_summary_20251103_162906.txt
+2025-11-03 16:29:06,985 - __main__ - INFO - ✓ Analysis complete
+2025-11-03 16:29:06,985 - __main__ - INFO - 
+================================================================================
+2025-11-03 16:29:06,985 - __main__ - INFO - PHASE 4: GENERATE VISUALIZATIONS
+2025-11-03 16:29:06,985 - __main__ - INFO - ================================================================================
+2025-11-03 16:29:06,985 - grn_visualization - INFO - GRN Connectivity Visualizer initialized
+2025-11-03 16:29:06,985 - grn_visualization - INFO - Output directory: reports
+2025-11-03 16:29:06,985 - grn_visualization - INFO - DPI: 300
+2025-11-03 16:29:06,985 - __main__ - INFO - Generating Figure 1: GRN summary...
+2025-11-03 16:29:06,985 - grn_visualization - INFO - Generating GRN summary bar chart...
+2025-11-03 16:29:07,328 - grn_visualization - INFO - ✓ Saved: reports/grn_connectivity_overview.png
+2025-11-03 16:29:07,328 - grn_visualization - INFO -   File size: 187 KB
+2025-11-03 16:29:07,328 - __main__ - INFO - Generating Figure 2: Sugar vs All comparison...
+2025-11-03 16:29:07,328 - grn_visualization - INFO - Generating sugar vs all GRNs comparison plots...
+2025-11-03 16:29:07,878 - grn_visualization - INFO - ✓ Saved: reports/sugar_vs_all_grns_comparison.png
+2025-11-03 16:29:07,878 - grn_visualization - INFO -   File size: 439 KB
+2025-11-03 16:29:07,878 - __main__ - INFO - Generating Figure 3: Network graph...
+2025-11-03 16:29:07,878 - grn_visualization - INFO - Generating network graph...
+2025-11-03 16:29:07,882 - grn_visualization - INFO -   Network: 266 nodes, 263 edges
+2025-11-03 16:29:09,019 - grn_visualization - INFO - ✓ Saved: reports/grn_downstream_network.png
+2025-11-03 16:29:09,019 - grn_visualization - INFO -   File size: 4009 KB
+2025-11-03 16:29:09,019 - __main__ - INFO - Generating Figure 4: Connectivity heatmap...
+2025-11-03 16:29:09,019 - grn_visualization - INFO - Generating connectivity heatmap (top 30 partners)...
+2025-11-03 16:29:09,444 - grn_visualization - INFO - ✓ Saved: reports/grn_connectivity_heatmap.png
+2025-11-03 16:29:09,444 - grn_visualization - INFO -   File size: 171 KB
+2025-11-03 16:29:09,444 - __main__ - INFO - Generating Figure 5: Analysis dashboard...
+2025-11-03 16:29:09,444 - grn_visualization - INFO - Generating analysis dashboard...
+2025-11-03 16:29:10,174 - grn_visualization - INFO - ✓ Saved: reports/grn_analysis_dashboard.png
+2025-11-03 16:29:10,174 - grn_visualization - INFO -   File size: 509 KB
+2025-11-03 16:29:10,174 - __main__ - INFO - ✓ Generated 5 figures
+2025-11-03 16:29:10,174 - __main__ - INFO - 
+================================================================================
+2025-11-03 16:29:10,174 - __main__ - INFO - ANALYSIS COMPLETE
+2025-11-03 16:29:10,174 - __main__ - INFO - ================================================================================
+2025-11-03 16:29:10,174 - __main__ - INFO - Sugar GRNs analyzed:           3
+2025-11-03 16:29:10,174 - __main__ - INFO - All GRNs analyzed:             8
+2025-11-03 16:29:10,174 - __main__ - INFO - Total downstream partners:     263 (unique)
+2025-11-03 16:29:10,174 - __main__ - INFO - Figures saved:                 5
+2025-11-03 16:29:10,174 - __main__ - INFO - Execution time:                0 min 3 sec
+2025-11-03 16:29:10,174 - __main__ - INFO - Memory peak:                   481 MB
+2025-11-03 16:29:10,174 - __main__ - INFO - ================================================================================
+2025-11-03 16:29:10,174 - __main__ - INFO - Output directory: reports
+2025-11-03 16:29:10,174 - __main__ - INFO - 
+Key files:
+2025-11-03 16:29:10,174 - __main__ - INFO -   - grn_connectivity_overview.png
+2025-11-03 16:29:10,174 - __main__ - INFO -   - sugar_vs_all_grns_comparison.png
+2025-11-03 16:29:10,174 - __main__ - INFO -   - grn_downstream_network.png
+2025-11-03 16:29:10,174 - __main__ - INFO -   - grn_connectivity_heatmap.png
+2025-11-03 16:29:10,174 - __main__ - INFO -   - grn_analysis_dashboard.png
+2025-11-03 16:29:10,174 - __main__ - INFO - ================================================================================

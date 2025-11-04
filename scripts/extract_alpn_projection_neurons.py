@@ -125,11 +125,15 @@ _GLOMERULUS_SPLIT_RE = re.compile(r"[^A-Za-z0-9]+")
 
 @dataclass(slots=True)
 class ExtractionConfig:
-    """Runtime configuration for ALPN extraction."""
+    """Runtime configuration for ALPN extraction.
+
+    Note: min_synapses lowered from 5 to 1 to capture more PN→KC connections.
+    FlyWire connectome has many weak connections that are biologically relevant.
+    """
 
     dataset_dir: Path
     output_dir: Path
-    min_synapses: int = 5
+    min_synapses: int = 1  # Lowered from 5 to capture more connections
 
 
 def _load_dataframe(loader: FlyWireLocalDataLoader, name: str, load_fn) -> pd.DataFrame:
@@ -611,10 +615,12 @@ def compute_pn_kc_connectivity(
     )
 
     print("\nLoading PN→KC connectivity table (filtered to calyx neuropils)...")
+    calyx_regions = ("MB_CA_L", "MB_CA_R")
     connections = loader.load_connections(
-        neuropil_filter=("CA_L", "CA_R"),
+        neuropil_filter=calyx_regions,
         min_synapses=min_synapses,
     )
+    print(f"Found {len(connections):,} calyx connections in {list(calyx_regions)}")
     print(f"Total calyx connections (all neurons): {len(connections):,}")
 
     mask = connections["pre_root_id"].isin(pn_ids_set) & connections["post_root_id"].isin(
@@ -720,7 +726,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument(
         "--min-synapses",
         type=int,
-        default=5,
+        default=1,
         help="Minimum synapse count threshold for PN→KC connections",
     )
     args = parser.parse_args(argv)

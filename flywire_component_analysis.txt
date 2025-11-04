@@ -1,0 +1,861 @@
+FlyWire Classification Data Analysis
+==================================================
+
+ANALYSIS RESULTS (JSON):
+------------------------------
+{
+  "classification": {
+    "summary": {
+      "total_neurons": 139255,
+      "neurons_with_flow": "139255",
+      "neurons_with_super_class": "139255",
+      "neurons_with_class": "106969",
+      "neurons_with_sub_class": "94946",
+      "neurons_with_hemilineage": "36897",
+      "neurons_with_side": "139225",
+      "neurons_with_nerve": "9639"
+    },
+    "flow_unique_values": [
+      "afferent",
+      "efferent",
+      "intrinsic"
+    ],
+    "super_class_unique_values": [
+      "ascending",
+      "central",
+      "descending",
+      "endocrine",
+      "motor",
+      "optic",
+      "sensory",
+      "visual_centrifugal",
+      "visual_projection"
+    ],
+    "class_unique_values": [
+      "ALIN",
+      "ALLN",
+      "ALON",
+      "ALPN",
+      "AN",
+      "CX",
+      "DAN",
+      "Kenyon_Cell",
+      "LHCENT",
+      "LHLN",
+      "MBIN",
+      "MBON",
+      "TPN",
+      "TuBu",
+      "bilateral",
+      "gustatory",
+      "hygrosensory",
+      "mechanosensory",
+      "ocellar",
+      "olfactory",
+      "optic_lobe_intrinsic",
+      "optic_lobes",
+      "pars_intercerebralis",
+      "pars_lateralis",
+      "thermosensory",
+      "unknown_sensory",
+      "visual"
+    ],
+    "sub_class_unique_values": [
+      "AN_AMMC_SAD",
+      "AN_AVLP",
+      "AN_AVLP_GNG",
+      "AN_AVLP_PVLP",
+      "AN_AVLP_SAD",
+      "AN_FLA",
+      "AN_FLA_GNG",
+      "AN_FLA_PRW",
+      "AN_FLA_SMP",
+      "AN_FLA_VES",
+      "AN_GNG",
+      "AN_GNG_AMMC",
+      "AN_GNG_AVLP",
+      "AN_GNG_FLA",
+      "AN_GNG_IPS",
+      "AN_GNG_PRW",
+      "AN_GNG_SAD",
+      "AN_GNG_SPS",
+      "AN_GNG_VES",
+      "AN_GNG_WED",
+      "AN_IPS_GNG",
+      "AN_IPS_LAL",
+      "AN_IPS_SPS",
+      "AN_IPS_WED",
+      "AN_LAL",
+      "AN_LH_AVLP",
+      "AN_PRW_FLA",
+      "AN_SAD_GNG",
+      "AN_SLP_AVLP",
+      "AN_SLP_LH",
+      "AN_SMP",
+      "AN_SMP_FLA",
+      "AN_SPS_GNG",
+      "AN_SPS_IPS",
+      "AN_VES_GNG",
+      "AN_VES_WED",
+      "AN_WED_GNG",
+      "AN_multi",
+      "DRA",
+      "L1-5",
+      "SA_DMT_ADMN",
+      "SA_DMT_DMetaN",
+      "SA_MDA",
+      "SA_VTV_DProN",
+      "SA_VTV_PDMN",
+      "SA_VTV_pro_meso_meta",
+      "accessory_pharyngeal_nerve_sensory_group1",
+      "accessory_pharyngeal_nerve_sensory_group2",
+      "auditory",
+      "bitter",
+      "centrifugal",
+      "circadian_clock",
+      "columnar",
+      "descending",
+      "distal_medulla",
+      "distal_medulla_dorsal_rim_area",
+      "eye_bristle",
+      "head_bristle",
+      "lamina_intrinsic",
+      "lamina_monopolar",
+      "lamina_tangential",
+      "lamina_wide_field",
+      "lobula_intrinsic",
+      "lobula_lobula_plate_tangential",
+      "lobula_medulla_amacrine",
+      "lobula_medulla_tangential",
+      "lobula_plate_intrinsic",
+      "low-salt",
+      "medulla_intrinsic",
+      "medulla_lobula_lobula_plate_amacrine",
+      "medulla_lobula_tangential",
+      "multiglomerular",
+      "ocellar",
+      "ocellar_interneuron",
+      "pharyngeal_nerve_sensory_group1",
+      "pharyngeal_nerve_sensory_group2",
+      "photo_receptor",
+      "proximal_distal_medulla_tangential",
+      "proximal_medulla",
+      "ring_neuron",
+      "serpentine_medulla",
+      "sugar/water",
+      "t1_neuron",
+      "t2_neuron",
+      "t3_neuron",
+      "t4_neuron",
+      "t5_neuron",
+      "tangential",
+      "taste_peg",
+      "translobula_plate",
+      "transmedullary",
+      "transmedullary_y",
+      "uniglomerular",
+      "water_PN",
+      "weirdos",
+      "y_neuron"
+    ],
+    "side_unique_values": [
+      "center",
+      "left",
+      "right"
+    ],
+    "nerve_unique_values": [
+      "AN",
+      "CV",
+      "MxLbN",
+      "NCC",
+      "OCN",
+      "ON",
+      "PhN",
+      "aPhN"
+    ],
+    "target_component_matches": [
+      {
+        "search_term": "olfactory",
+        "field": "class",
+        "count": 2281,
+        "example_sub_classes": {}
+      },
+      {
+        "search_term": "visual",
+        "field": "super_class",
+        "count": 8186,
+        "example_classes": {
+          "bilateral": 85,
+          "ocellar": 45
+        }
+      },
+      {
+        "search_term": "visual",
+        "field": "class",
+        "count": 11469,
+        "example_sub_classes": {
+          "photo_receptor": 9777,
+          "ocellar": 273,
+          "DRA": 24
+        }
+      },
+      {
+        "search_term": "motor",
+        "field": "super_class",
+        "count": 106,
+        "example_classes": {}
+      },
+      {
+        "search_term": "interneuron",
+        "field": "sub_class",
+        "count": 12,
+        "example_values": {
+          "ocellar_interneuron": 12
+        }
+      },
+      {
+        "search_term": "ascending",
+        "field": "super_class",
+        "count": 2362,
+        "example_classes": {
+          "AN": 2362
+        }
+      },
+      {
+        "search_term": "descending",
+        "field": "super_class",
+        "count": 1303,
+        "example_classes": {
+          "ocellar": 2
+        }
+      },
+      {
+        "search_term": "descending",
+        "field": "sub_class",
+        "count": 6,
+        "example_values": {
+          "descending": 6
+        }
+      },
+      {
+        "search_term": "projection",
+        "field": "super_class",
+        "count": 7665,
+        "example_classes": {
+          "bilateral": 85,
+          "ocellar": 20
+        }
+      },
+      {
+        "search_term": "sensory",
+        "field": "super_class",
+        "count": 16981,
+        "example_classes": {
+          "visual": 11469,
+          "mechanosensory": 2648,
+          "olfactory": 2281,
+          "gustatory": 343,
+          "unknown_sensory": 135
+        }
+      },
+      {
+        "search_term": "sensory",
+        "field": "class",
+        "count": 2886,
+        "example_sub_classes": {
+          "eye_bristle": 1111,
+          "auditory": 393,
+          "head_bristle": 302,
+          "taste_peg": 75,
+          "pharyngeal_nerve_sensory_group2": 47
+        }
+      },
+      {
+        "search_term": "sensory",
+        "field": "sub_class",
+        "count": 170,
+        "example_values": {
+          "pharyngeal_nerve_sensory_group2": 52,
+          "accessory_pharyngeal_nerve_sensory_group2": 52,
+          "accessory_pharyngeal_nerve_sensory_group1": 34,
+          "pharyngeal_nerve_sensory_group1": 32
+        }
+      }
+    ]
+  },
+  "neurotransmitters": {
+    "total_predictions": "119597",
+    "nt_types": {
+      "ACH": 82298,
+      "NaN": 19658,
+      "GLUT": 19605,
+      "GABA": 16017,
+      "SER": 1021,
+      "DA": 584,
+      "OCT": 72
+    }
+  },
+  "target_components": {
+    "gaba_interneurons": {
+      "description": "GABAergic Local Interneurons in Antennal Lobe",
+      "found_in_files": {
+        "classification": [
+          {
+            "column": "sub_class",
+            "search_term": "interneuron",
+            "count": 12,
+            "sample_values": {
+              "ocellar_interneuron": 12
+            }
+          }
+        ],
+        "neurons": [
+          {
+            "column": "nt_type",
+            "search_term": "GABA",
+            "count": 16017,
+            "sample_values": {
+              "GABA": 16017
+            }
+          }
+        ],
+        "processed_labels": [
+          {
+            "column": "processed_labels",
+            "search_term": "GABA",
+            "count": 15,
+            "sample_values": {
+              "['transmedullary Y neuron TmY15, GABAergic, FBbt_00048246']": 9,
+              "['centrifugal neuron C3, GABAergic, FBbt_00003744']": 5,
+              "['TmY15; Transmedullary Y neuron 15; FBbt_00048246', 'transmedullary Y neuron TmY15, GABAergic, FBbt_00048246']": 1
+            }
+          },
+          {
+            "column": "processed_labels",
+            "search_term": "interneuron",
+            "count": 62,
+            "sample_values": {
+              "['protocerebral interneuron Delta7; PB interneuron Delta7; Delta7; \u03947; FBbt_00049807']": 35,
+              "['L-neurons, OL-neurones, OCG01 (ocellar neurons with large diameter; part of comprehensive LPTC synaptic partner tracing by Chiappe Lab. OL-neurone naming from N\u00e4ssel and Hagberg 1985, OCG01 from hemibrain)', 'giant ocellar interneuron (hemibrain nomenclature: `ON` just in ocellar nerve, `ON` is not a real cell type)']": 11,
+              "['AMMC-A1/giant commissural interneuron/GCI']": 5
+            }
+          },
+          {
+            "column": "processed_labels",
+            "search_term": "local",
+            "count": 423,
+            "sample_values": {
+              "['AL local neuron, ALLN']": 404,
+              "['AL local neuron, ALLN', 'ALv1']": 7,
+              "['AL local neuron, ALLN', 'ALl1_ventral']": 3
+            }
+          }
+        ]
+      },
+      "candidate_neurons": []
+    },
+    "chol_interneurons": {
+      "description": "Cholinergic Local Interneurons in Antennal Lobe",
+      "found_in_files": {
+        "classification": [
+          {
+            "column": "sub_class",
+            "search_term": "interneuron",
+            "count": 12,
+            "sample_values": {
+              "ocellar_interneuron": 12
+            }
+          }
+        ],
+        "neurons": [
+          {
+            "column": "nt_type",
+            "search_term": "ACH",
+            "count": 82298,
+            "sample_values": {
+              "ACH": 82298
+            }
+          }
+        ],
+        "processed_labels": [
+          {
+            "column": "processed_labels",
+            "search_term": "ACH",
+            "count": 3085,
+            "sample_values": {
+              "['Tm3; Transmedullary neuron 3; Fischbach, K.F., Dittrich, A.P.M. (1989)']": 702,
+              "['transmedullary neuron Tm9, FBbt_00003797 (Fischbach and Dittrich 1989)']": 622,
+              "['Mi4; Medullary intrinsic neuron 4; FBbt_00003779', 'Medullary intrinsic neuron 4, Mi4, Mi4, FBbt_00003779 (Fischbach & Dittrich, 1989)']": 222
+            }
+          },
+          {
+            "column": "processed_labels",
+            "search_term": "interneuron",
+            "count": 62,
+            "sample_values": {
+              "['protocerebral interneuron Delta7; PB interneuron Delta7; Delta7; \u03947; FBbt_00049807']": 35,
+              "['L-neurons, OL-neurones, OCG01 (ocellar neurons with large diameter; part of comprehensive LPTC synaptic partner tracing by Chiappe Lab. OL-neurone naming from N\u00e4ssel and Hagberg 1985, OCG01 from hemibrain)', 'giant ocellar interneuron (hemibrain nomenclature: `ON` just in ocellar nerve, `ON` is not a real cell type)']": 11,
+              "['AMMC-A1/giant commissural interneuron/GCI']": 5
+            }
+          },
+          {
+            "column": "processed_labels",
+            "search_term": "local",
+            "count": 423,
+            "sample_values": {
+              "['AL local neuron, ALLN']": 404,
+              "['AL local neuron, ALLN', 'ALv1']": 7,
+              "['AL local neuron, ALLN', 'ALl1_ventral']": 3
+            }
+          },
+          {
+            "column": "processed_labels",
+            "search_term": "cholinergic",
+            "count": 266,
+            "sample_values": {
+              "['transmedullary neuron Tm9, Cholinergic, FBbt_00003797']": 139,
+              "['transmedullary neuron Tm9; Cholinergic; FBbt_00003797']": 86,
+              "['T5a; FBbt_00003737', 'T5a, T5, T5a, Cholinergic, FBbt_00003737']": 4
+            }
+          }
+        ]
+      },
+      "candidate_neurons": []
+    },
+    "lateral_horn": {
+      "description": "Lateral Horn Neurons",
+      "found_in_files": {
+        "classification": [
+          {
+            "column": "class",
+            "search_term": "lateral",
+            "count": 246,
+            "sample_values": {
+              "bilateral": 220,
+              "pars_lateralis": 26
+            }
+          },
+          {
+            "column": "class",
+            "search_term": "LH",
+            "count": 556,
+            "sample_values": {
+              "LHLN": 514,
+              "LHCENT": 42
+            }
+          },
+          {
+            "column": "sub_class",
+            "search_term": "LH",
+            "count": 3,
+            "sample_values": {
+              "AN_SLP_LH": 2,
+              "AN_LH_AVLP": 1
+            }
+          },
+          {
+            "column": "hemilineage",
+            "search_term": "lateral",
+            "count": 1731,
+            "sample_values": {
+              "VLPl&p2_lateral": 356,
+              "SLPa&l1_lateral": 227,
+              "VLPl&d1_lateral": 209
+            }
+          },
+          {
+            "column": "hemilineage",
+            "search_term": "LH",
+            "count": 2218,
+            "sample_values": {
+              "LHp2": 368,
+              "LHp1": 196,
+              "LHa2": 186
+            }
+          }
+        ],
+        "cell_types": [
+          {
+            "column": "primary_type",
+            "search_term": "LH",
+            "count": 1166,
+            "sample_values": {
+              "LHPV5c1": 29,
+              "LHPV5b3": 19,
+              "LHAV4a4": 17
+            }
+          },
+          {
+            "column": "additional_type(s)",
+            "search_term": "LH",
+            "count": 334,
+            "sample_values": {
+              "LHAD1b2": 18,
+              "LHAD1b2_c": 15,
+              "LHAV2b2, aSP9": 14
+            }
+          }
+        ],
+        "neurons": [
+          {
+            "column": "group",
+            "search_term": "LH",
+            "count": 3110,
+            "sample_values": {
+              "LH": 1132,
+              "LH.SLP": 1129,
+              "AL.LH": 295
+            }
+          }
+        ],
+        "names": [
+          {
+            "column": "name",
+            "search_term": "LH",
+            "count": 3110,
+            "sample_values": {
+              "LH.SLP.892": 1,
+              "LH.96": 1,
+              "LH.AVLP.92": 1
+            }
+          },
+          {
+            "column": "group",
+            "search_term": "LH",
+            "count": 3110,
+            "sample_values": {
+              "LH": 1132,
+              "LH.SLP": 1129,
+              "AL.LH": 295
+            }
+          }
+        ],
+        "processed_labels": [
+          {
+            "column": "processed_labels",
+            "search_term": "lateral",
+            "count": 611,
+            "sample_values": {
+              "['DM3_lateral']": 107,
+              "['DM6_lateral']": 61,
+              "['LHl2_lateral']": 52
+            }
+          },
+          {
+            "column": "processed_labels",
+            "search_term": "horn",
+            "count": 9,
+            "sample_values": {
+              "['Horn; See Sterne et al., 2021; https://doi.org/10.7554/eLife.71679; See https://splitgal4.janelia.org/cgi-bin/view_splitgal4_imagery.cgi?line=SS38555#']": 3,
+              "['Horntail; See Sterne et al., 2021; https://doi.org/10.7554/eLife.71679; See https://splitgal4.janelia.org/cgi-bin/view_splitgal4_imagery.cgi?line=SS41428#', 'unclassified_IN_FW_96']": 2,
+              "['Lateral Horn Leucokinin neurons; LHLK; https://doi.org/10.3390/ijms22041940']": 2
+            }
+          },
+          {
+            "column": "processed_labels",
+            "search_term": "LH",
+            "count": 682,
+            "sample_values": {
+              "['LHl4_anterior']": 95,
+              "['LHl1']": 94,
+              "['LHp2_medial']": 89
+            }
+          }
+        ]
+      },
+      "candidate_neurons": []
+    },
+    "motor_proboscis": {
+      "description": "Proboscis Motor Neurons",
+      "found_in_files": {
+        "classification": [
+          {
+            "column": "super_class",
+            "search_term": "motor",
+            "count": 106,
+            "sample_values": {
+              "motor": 106
+            }
+          },
+          {
+            "column": "sub_class",
+            "search_term": "MN",
+            "count": 1326,
+            "sample_values": {
+              "columnar": 1244,
+              "SA_DMT_ADMN": 80,
+              "SA_VTV_PDMN": 2
+            }
+          }
+        ],
+        "cell_types": [
+          {
+            "column": "primary_type",
+            "search_term": "MN",
+            "count": 159,
+            "sample_values": {
+              "TPMN": 75,
+              "SA_DMT_ADMN_11": 21,
+              "SA_DMT_ADMN_7": 10
+            }
+          },
+          {
+            "column": "additional_type(s)",
+            "search_term": "MN",
+            "count": 6,
+            "sample_values": {
+              "vpoDN, pMN2, pMN2/vpoDN": 2,
+              "pMN1/DNp13": 2,
+              "hb-953013850, pMN1": 2
+            }
+          }
+        ],
+        "processed_labels": [
+          {
+            "column": "processed_labels",
+            "search_term": "motor",
+            "count": 121,
+            "sample_values": {
+              "['Proboscis motor neuron/MN in pharyngeal nerve']": 26,
+              "['VLPl2_ventral', 'AIP; CL062 (Hemibrain); Duistermars, B. J., Pfeiffer, B. D., Hoopfer, E. D. & Anderson, D. J. A Brain Module for Scalable Control of Complex, Multi-motor Threat Displays. Neuron 100, 1474-1490.e4 (2018).', 'AVLP_pr12']": 12,
+              "['Proboscis motor neuron/MN in compound labial nerve']": 11
+            }
+          },
+          {
+            "column": "processed_labels",
+            "search_term": "MN",
+            "count": 3980,
+            "sample_values": {
+              "['Lobula-Lobula Plate Columnar neuron 1; LLPC1; Lccn2; FBbt_00058227']": 326,
+              "['lobula columnar neuron LC10; (e.g. Otsuna']": 276,
+              "['LPLC2, lobula plate-lobula columnar neuron 2, FBbt_00111763']": 208
+            }
+          },
+          {
+            "column": "processed_labels",
+            "search_term": "proboscis",
+            "count": 66,
+            "sample_values": {
+              "['Proboscis motor neuron/MN in pharyngeal nerve']": 26,
+              "['Proboscis motor neuron/MN in compound labial nerve']": 11,
+              "['Motor neuron 2 dorsal; MN2D', 'Proboscis motor neuron/MN in compound labial nerve']": 2
+            }
+          }
+        ]
+      },
+      "candidate_neurons": []
+    },
+    "ascending": {
+      "description": "Ascending Neurons (VNC\u2192Brain)",
+      "found_in_files": {
+        "classification": [
+          {
+            "column": "super_class",
+            "search_term": "ascending",
+            "count": 2362,
+            "sample_values": {
+              "ascending": 2362
+            }
+          },
+          {
+            "column": "class",
+            "search_term": "AN",
+            "count": 5341,
+            "sample_values": {
+              "mechanosensory": 2648,
+              "AN": 2362,
+              "DAN": 331
+            }
+          },
+          {
+            "column": "sub_class",
+            "search_term": "AN",
+            "count": 27276,
+            "sample_values": {
+              "transmedullary": 17947,
+              "transmedullary_y": 5278,
+              "AN_GNG": 658
+            }
+          },
+          {
+            "column": "hemilineage",
+            "search_term": "AN",
+            "count": 1361,
+            "sample_values": {
+              "SLPa&l1_anterior": 218,
+              "VLPp&l1_anterior": 213,
+              "LALa1_anterior": 182
+            }
+          },
+          {
+            "column": "nerve",
+            "search_term": "AN",
+            "count": 3456,
+            "sample_values": {
+              "AN": 3456
+            }
+          }
+        ],
+        "cell_types": [
+          {
+            "column": "primary_type",
+            "search_term": "AN",
+            "count": 1749,
+            "sample_values": {
+              "SA_DMT_DMetaN_12": 62,
+              "BM_Ant": 41,
+              "AN_GNG_165": 38
+            }
+          },
+          {
+            "column": "additional_type(s)",
+            "search_term": "AN",
+            "count": 7,
+            "sample_values": {
+              "5-HT-IR_Tan": 5,
+              "Giant_Fiber, GF": 2
+            }
+          }
+        ],
+        "neurons": [
+          {
+            "column": "group",
+            "search_term": "AN",
+            "count": 16,
+            "sample_values": {
+              "ICL.CAN": 3,
+              "SMP.CAN": 3,
+              "CAN.GNG": 3
+            }
+          }
+        ],
+        "names": [
+          {
+            "column": "name",
+            "search_term": "AN",
+            "count": 16,
+            "sample_values": {
+              "ICL.CAN.3": 1,
+              "CAN.SLP.1": 1,
+              "CAN.ICL.1": 1
+            }
+          },
+          {
+            "column": "group",
+            "search_term": "AN",
+            "count": 16,
+            "sample_values": {
+              "ICL.CAN": 3,
+              "SMP.CAN": 3,
+              "CAN.GNG": 3
+            }
+          }
+        ],
+        "processed_labels": [
+          {
+            "column": "processed_labels",
+            "search_term": "ascending",
+            "count": 381,
+            "sample_values": {
+              "['ascending 8B/10B']": 79,
+              "['ascending neurons']": 9,
+              "['ascending tarsal GRN (atGRN) (Thoma et al. 2016)']": 6
+            }
+          },
+          {
+            "column": "processed_labels",
+            "search_term": "AN",
+            "count": 22983,
+            "sample_values": {
+              "['Tm1; Transmedullary neuron 1; FBbt_00003789']": 1273,
+              "['Tm4; Transmedullary neuron 4; FBbt_00003792']": 1251,
+              "['Tm3; Transmedullary neuron 3; FBbt_00003791']": 895
+            }
+          }
+        ]
+      },
+      "candidate_neurons": []
+    },
+    "descending": {
+      "description": "Descending Neurons (Brain\u2192VNC)",
+      "found_in_files": {
+        "classification": [
+          {
+            "column": "super_class",
+            "search_term": "descending",
+            "count": 1303,
+            "sample_values": {
+              "descending": 1303
+            }
+          },
+          {
+            "column": "sub_class",
+            "search_term": "descending",
+            "count": 6,
+            "sample_values": {
+              "descending": 6
+            }
+          }
+        ],
+        "cell_types": [
+          {
+            "column": "primary_type",
+            "search_term": "descending",
+            "count": 7,
+            "sample_values": {
+              "labial_nerve_sensory_descending": 7
+            }
+          },
+          {
+            "column": "primary_type",
+            "search_term": "DN",
+            "count": 1521,
+            "sample_values": {
+              "s-CPDN3A": 38,
+              "s-CPDN3D": 37,
+              "s-CPDN3C": 32
+            }
+          },
+          {
+            "column": "additional_type(s)",
+            "search_term": "DN",
+            "count": 90,
+            "sample_values": {
+              "DNES1": 14,
+              "CB1791, DN3A": 12,
+              "DNp16/17": 10
+            }
+          }
+        ],
+        "processed_labels": [
+          {
+            "column": "processed_labels",
+            "search_term": "descending",
+            "count": 250,
+            "sample_values": {
+              "['DNa', 'descending neuron/DN similar to aSP3']": 7,
+              "['MDN; MDN (Moonwalker Descending Neuron) characterized in our previous work, Bidaye et al 2014, Science', 'DNp']": 3,
+              "['WEDd1', 'descending neuron/DN similar to aSP3']": 2
+            }
+          },
+          {
+            "column": "processed_labels",
+            "search_term": "DN",
+            "count": 1494,
+            "sample_values": {
+              "['DNg']": 475,
+              "['DNp']": 200,
+              "['DNa']": 31
+            }
+          }
+        ]
+      },
+      "candidate_neurons": []
+    }
+  },
+  "recommended_queries": {
+    "ascending_neurons": [
+      "class == AN"
+    ]
+  }
+}

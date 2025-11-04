@@ -15,6 +15,11 @@ __all__ = [
     "get_pn_neurons",
     "get_mbon_neurons",
     "get_dan_neurons",
+    "get_local_interneurons",
+    "get_lateral_horn_neurons",
+    "get_motor_neurons",
+    "get_ascending_neurons",
+    "get_descending_neurons",
     "extract_neurotransmitter_info",
     "map_brain_regions",
     "infer_pn_glomerulus_labels",
@@ -35,6 +40,32 @@ _DAN_KEYWORDS = (
     "dan",
     "dopaminergic",
     "octopamin",
+)
+_LN_KEYWORDS = (
+    "local",
+    "interneuron",
+    "alln",
+    "ln",
+    "antennal lobe local",
+)
+_LH_KEYWORDS = (
+    "lateral horn",
+    "lhln",
+    "lhcent",
+    "lh",
+)
+_MOTOR_KEYWORDS = (
+    "motor",
+    "proboscis",
+    "per",
+)
+_ASCENDING_KEYWORDS = (
+    "ascending",
+    "an",
+)
+_DESCENDING_KEYWORDS = (
+    "descending",
+    "dn",
 )
 
 
@@ -417,6 +448,398 @@ def get_dan_neurons(cell_types_df: pd.DataFrame, classification_df: pd.DataFrame
         | _keyword_mask(merged.get("sub_class"), _DAN_KEYWORDS)
     )
     return merged.loc[mask].drop_duplicates(subset=["root_id"]).reset_index(drop=True)
+
+
+def get_local_interneurons(
+    cell_types_df: pd.DataFrame,
+    classification_df: pd.DataFrame,
+    *,
+    names_df: pd.DataFrame | None = None,
+    neurons_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Return antennal lobe local interneuron annotations.
+
+    Biological Context
+    ------------------
+    Local interneurons (LNs) in the antennal lobe mediate lateral interactions
+    between glomeruli, implementing gain control, normalization, and decorrelation
+    of olfactory inputs. Two main functional classes:
+
+    1. GABAergic LNs (inhibitory): Implement lateral inhibition between glomeruli,
+       sharpening odor representations and enabling competitive dynamics.
+    2. Cholinergic LNs (excitatory): Amplify weak signals and synchronize PN activity.
+
+    LNs are critical for blocking experiments as they provide the veto mechanism
+    that can suppress PN→KC transmission when enhanced.
+
+    Parameters
+    ----------
+    cell_types_df : pd.DataFrame
+        Cell type annotations from FlyWire.
+    classification_df : pd.DataFrame
+        Hierarchical classification metadata.
+    names_df : pd.DataFrame, optional
+        Names metadata with group/region annotations.
+    neurons_df : pd.DataFrame, optional
+        Neuron predictions with neurotransmitter types.
+
+    Returns
+    -------
+    pd.DataFrame
+        LN annotations with merged metadata, including nt_type for functional
+        classification into GABAergic vs. Cholinergic populations.
+    """
+    merged = _merge_classification(cell_types_df, classification_df)
+
+    if names_df is not None and not names_df.empty:
+        validate_dataframe_columns(names_df, ["root_id"], frame_name="names")
+        name_subset = names_df.loc[:, [column for column in ("root_id", "group") if column in names_df.columns]]
+        name_subset = name_subset.drop_duplicates(subset=["root_id"])
+        merged = merged.merge(name_subset, on="root_id", how="left")
+
+    if neurons_df is not None and not neurons_df.empty:
+        validate_dataframe_columns(neurons_df, ["root_id"], frame_name="neurons")
+        nt_columns = [
+            column
+            for column in ("nt_type", "predicted_nt", "primary_nt", "neurotransmitter")
+            if column in neurons_df.columns
+        ]
+        if nt_columns:
+            neuron_subset = neurons_df.loc[:, ["root_id", *nt_columns]].drop_duplicates(subset=["root_id"])
+            merged = merged.merge(neuron_subset, on="root_id", how="left")
+
+    # Keyword matching across all metadata fields
+    keyword_mask = (
+        _keyword_mask(merged.get("cell_type"), _LN_KEYWORDS)
+        | _keyword_mask(merged.get("cell_type_aliases"), _LN_KEYWORDS)
+        | _keyword_mask(merged.get("super_class"), _LN_KEYWORDS)
+        | _keyword_mask(merged.get("class"), _LN_KEYWORDS)
+        | _keyword_mask(merged.get("sub_class"), _LN_KEYWORDS)
+    )
+
+    # Filter by class == ALLN (antennal lobe local neuron)
+    class_series = merged.get("class")
+    if class_series is not None:
+        class_mask = class_series.astype(str).str.contains("alln", case=False, na=False)
+    else:
+        class_mask = pd.Series(False, index=merged.index, dtype=bool)
+
+    # Filter by group starting with AL (antennal lobe)
+    group_series = merged.get("group")
+    if group_series is not None:
+        group_mask = group_series.astype(str).str.upper().str.startswith("AL")
+    else:
+        group_mask = pd.Series(False, index=merged.index, dtype=bool)
+
+    mask = keyword_mask | class_mask | group_mask
+    return merged.loc[mask].drop_duplicates(subset=["root_id"]).reset_index(drop=True)
+
+
+def get_lateral_horn_neurons(
+    cell_types_df: pd.DataFrame,
+    classification_df: pd.DataFrame,
+    *,
+    names_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Return lateral horn neuron annotations.
+
+    Biological Context
+    ------------------
+    Lateral horn (LH) neurons mediate innate behavioral responses to odors,
+    parallel to the learned responses mediated by the mushroom body. LH neurons
+    receive direct PN input and project to premotor centers, implementing
+    hardwired attraction/aversion without requiring learning.
+
+    Key cell types:
+    - LHLN (lateral horn local neurons): Process odor information within LH
+    - LHCENT (lateral horn output neurons): Project to premotor areas
+
+    LH neurons enable models to separate innate valence (LH-mediated) from
+    learned valence (MB-mediated), testing predictions about how these pathways
+    interact during blocking experiments.
+
+    Parameters
+    ----------
+    cell_types_df : pd.DataFrame
+        Cell type annotations from FlyWire.
+    classification_df : pd.DataFrame
+        Hierarchical classification metadata.
+    names_df : pd.DataFrame, optional
+        Names metadata with group/region annotations.
+
+    Returns
+    -------
+    pd.DataFrame
+        LH neuron annotations with merged metadata.
+    """
+    merged = _merge_classification(cell_types_df, classification_df)
+
+    if names_df is not None and not names_df.empty:
+        validate_dataframe_columns(names_df, ["root_id"], frame_name="names")
+        name_subset = names_df.loc[:, [column for column in ("root_id", "group") if column in names_df.columns]]
+        name_subset = name_subset.drop_duplicates(subset=["root_id"])
+        merged = merged.merge(name_subset, on="root_id", how="left")
+
+    # Keyword matching
+    keyword_mask = (
+        _keyword_mask(merged.get("cell_type"), _LH_KEYWORDS)
+        | _keyword_mask(merged.get("cell_type_aliases"), _LH_KEYWORDS)
+        | _keyword_mask(merged.get("super_class"), _LH_KEYWORDS)
+        | _keyword_mask(merged.get("class"), _LH_KEYWORDS)
+        | _keyword_mask(merged.get("sub_class"), _LH_KEYWORDS)
+    )
+
+    # Filter by group == LH
+    group_series = merged.get("group")
+    if group_series is not None:
+        group_mask = group_series.astype(str).str.upper() == "LH"
+    else:
+        group_mask = pd.Series(False, index=merged.index, dtype=bool)
+
+    # Filter by class containing LHLN or LHCENT
+    class_series = merged.get("class")
+    if class_series is not None:
+        class_mask = class_series.astype(str).str.contains("lhln|lhcent", case=False, na=False)
+    else:
+        class_mask = pd.Series(False, index=merged.index, dtype=bool)
+
+    mask = keyword_mask | group_mask | class_mask
+    return merged.loc[mask].drop_duplicates(subset=["root_id"]).reset_index(drop=True)
+
+
+def get_motor_neurons(
+    cell_types_df: pd.DataFrame,
+    classification_df: pd.DataFrame,
+    *,
+    names_df: pd.DataFrame | None = None,
+    processed_labels_df: pd.DataFrame | None = None,
+    proboscis_only: bool = True,
+) -> pd.DataFrame:
+    """Return motor neuron annotations, optionally filtered to proboscis.
+
+    Biological Context
+    ------------------
+    Motor neurons execute behavioral outputs. For olfactory learning studies,
+    proboscis extension reflex (PER) is the primary behavioral readout:
+    - Proboscis motor neurons control feeding responses
+    - PER magnitude reflects learned odor valence
+    - Blocking experiments measure PER to quantify learning deficits
+
+    Implementation Note
+    -------------------
+    Uses hybrid search strategy to find proboscis neurons in both structured
+    fields and community labels (free-text annotations). FlyWire often stores
+    proboscis neuron labels in text fields like "Proboscis motor neuron/MN in
+    compound labial nerve".
+
+    Parameters
+    ----------
+    cell_types_df : pd.DataFrame
+        Cell type annotations from FlyWire.
+    classification_df : pd.DataFrame
+        Hierarchical classification metadata.
+    proboscis_only : bool, optional
+        If True (default), return only proboscis-related motor neurons.
+        If False, return all motor neurons.
+
+    Returns
+    -------
+    pd.DataFrame
+        Motor neuron annotations with merged metadata.
+    """
+    merged = _merge_classification(cell_types_df, classification_df)
+    motor_candidates: list[int | float] = []
+
+    if proboscis_only:
+        # Primary: search processed_labels for proboscis annotations
+        if processed_labels_df is not None and "processed_labels" in processed_labels_df.columns:
+            proboscis_mask = processed_labels_df["processed_labels"].astype(str).str.contains(
+                "proboscis", case=False, na=False
+            )
+            proboscis_neurons = processed_labels_df.loc[proboscis_mask]
+            if not proboscis_neurons.empty:
+                motor_candidates.extend(proboscis_neurons["root_id"].dropna().unique().tolist())
+                print(f"Found {len(proboscis_neurons)} proboscis neurons from processed_labels")
+
+        # Fallback: search auxiliary metadata tables
+        if len(motor_candidates) == 0:
+            for df, df_name in ((names_df, "names"), (cell_types_df, "cell_types")):
+                if df is None:
+                    continue
+                for column in ("label", "name", "group", "primary_type", "cell_type"):
+                    if column in df.columns:
+                        column_mask = df[column].astype(str).str.contains("proboscis", case=False, na=False)
+                        proboscis_ids = df.loc[column_mask, "root_id"].dropna().unique().tolist()
+                        motor_candidates.extend(proboscis_ids)
+                        if proboscis_ids:
+                            print(f"Found {len(proboscis_ids)} proboscis neurons from {df_name}.{column}")
+    else:
+        # General motor neurons: rely on classification super_class annotations and keyword matches
+        keyword_mask = (
+            _keyword_mask(merged.get("cell_type"), _MOTOR_KEYWORDS)
+            | _keyword_mask(merged.get("cell_type_aliases"), _MOTOR_KEYWORDS)
+            | _keyword_mask(merged.get("sub_class"), _MOTOR_KEYWORDS)
+        )
+
+        super_class_series = merged.get("super_class")
+        if super_class_series is not None:
+            super_class_mask = super_class_series.astype(str).str.contains("motor", case=False, na=False)
+        else:
+            super_class_mask = pd.Series(False, index=merged.index, dtype=bool)
+
+        motor_mask = keyword_mask | super_class_mask
+        motor_candidates.extend(merged.loc[motor_mask, "root_id"].dropna().unique().tolist())
+        if super_class_series is not None:
+            print(f"Found {super_class_mask.sum()} general motor neurons from super_class")
+
+    # Deduplicate candidates and merge metadata
+    motor_candidate_series = pd.Series(motor_candidates, dtype="object").dropna()
+    motor_candidate_ids = (
+        pd.to_numeric(motor_candidate_series, errors="coerce")
+        .dropna()
+        .astype("int64")
+        .unique()
+        .tolist()
+    )
+
+    if motor_candidate_ids:
+        motor_df = merged[merged["root_id"].isin(motor_candidate_ids)].copy()
+
+        # Ensure we keep any proboscis IDs missing from cell_types metadata
+        found_ids = set(motor_df["root_id"].dropna().astype("int64").tolist())
+        missing_ids = [root_id for root_id in motor_candidate_ids if root_id not in found_ids]
+        if missing_ids:
+            classification_subset = classification_df[classification_df["root_id"].isin(missing_ids)].copy()
+            if not classification_subset.empty:
+                motor_df = pd.concat([motor_df, classification_subset], ignore_index=True, sort=False)
+
+        motor_df = motor_df.drop_duplicates(subset=["root_id"]).reset_index(drop=True)
+
+        # Optionally merge in group annotations from names_df for additional context
+        if names_df is not None and "root_id" in names_df.columns:
+            group_columns = [column for column in ("root_id", "group") if column in names_df.columns]
+            if len(group_columns) > 1:
+                name_subset = names_df.loc[:, group_columns].drop_duplicates(subset=["root_id"])
+                motor_df = motor_df.merge(name_subset, on="root_id", how="left")
+
+        return motor_df
+
+    return pd.DataFrame()
+
+
+def get_ascending_neurons(
+    cell_types_df: pd.DataFrame,
+    classification_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Return ascending neuron annotations.
+
+    Biological Context
+    ------------------
+    Ascending neurons (ANs) carry sensory and state information from the ventral
+    nerve cord (VNC) to the brain. They encode:
+    - Proprioceptive feedback from body position
+    - Gustatory signals from taste receptors
+    - Motor state and behavioral context
+
+    ANs enable the brain to modulate learning based on behavioral state,
+    implementing context-dependent plasticity rules.
+
+    Parameters
+    ----------
+    cell_types_df : pd.DataFrame
+        Cell type annotations from FlyWire.
+    classification_df : pd.DataFrame
+        Hierarchical classification metadata.
+
+    Returns
+    -------
+    pd.DataFrame
+        Ascending neuron annotations with merged metadata.
+    """
+    merged = _merge_classification(cell_types_df, classification_df)
+
+    # Keyword matching
+    keyword_mask = (
+        _keyword_mask(merged.get("cell_type"), _ASCENDING_KEYWORDS)
+        | _keyword_mask(merged.get("cell_type_aliases"), _ASCENDING_KEYWORDS)
+    )
+
+    # Filter by class == AN
+    class_series = merged.get("class")
+    if class_series is not None:
+        class_mask = class_series.astype(str).str.upper() == "AN"
+    else:
+        class_mask = pd.Series(False, index=merged.index, dtype=bool)
+
+    # Filter by super_class containing ascending
+    super_class_series = merged.get("super_class")
+    if super_class_series is not None:
+        super_class_mask = super_class_series.astype(str).str.contains("ascending", case=False, na=False)
+    else:
+        super_class_mask = pd.Series(False, index=merged.index, dtype=bool)
+
+    mask = keyword_mask | class_mask | super_class_mask
+    return merged.loc[mask].drop_duplicates(subset=["root_id"]).reset_index(drop=True)
+
+
+def get_descending_neurons(
+    cell_types_df: pd.DataFrame,
+    classification_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Return descending neuron annotations.
+
+    Biological Context
+    ------------------
+    Descending neurons (DNs) carry motor commands from the brain to the VNC,
+    translating high-level behavioral decisions into specific motor patterns.
+
+    DNs are the final common pathway for learned behaviors:
+    - MB valence signals → premotor centers → DNs → VNC motor circuits
+    - Different DN types control distinct behaviors (feeding, walking, flight, etc.)
+
+    Blocking experiments measure behavioral output via DNs to assess whether
+    learning occurred despite pathway manipulations.
+
+    Parameters
+    ----------
+    cell_types_df : pd.DataFrame
+        Cell type annotations from FlyWire.
+    classification_df : pd.DataFrame
+        Hierarchical classification metadata.
+
+    Returns
+    -------
+    pd.DataFrame
+        Descending neuron annotations with merged metadata.
+    """
+    if classification_df is None or "super_class" not in classification_df.columns:
+        print("WARNING: Classification data missing super_class column for descending neurons.")
+        return pd.DataFrame()
+
+    super_class_series = classification_df["super_class"].astype(str)
+    desc_mask = super_class_series.str.lower() == "descending"
+    desc_neurons = classification_df.loc[desc_mask].copy()
+
+    if desc_neurons.empty:
+        print("WARNING: No descending neurons found")
+        return pd.DataFrame()
+
+    print(f"Found {len(desc_neurons)} descending neurons from super_class")
+
+    # Merge with cell_types metadata to maintain downstream columns
+    merged = _merge_classification(cell_types_df, classification_df)
+    root_ids = desc_neurons["root_id"].dropna().unique()
+    result = (
+        merged[merged["root_id"].isin(root_ids)]
+        .drop_duplicates(subset=["root_id"])
+        .reset_index(drop=True)
+    )
+
+    # Ensure at least key classification columns are retained even if merge fails
+    if result.empty:
+        return desc_neurons.loc[:, [column for column in ("root_id", "super_class", "class") if column in desc_neurons.columns]].reset_index(drop=True)
+
+    return result
 
 
 def infer_pn_glomerulus_labels(
