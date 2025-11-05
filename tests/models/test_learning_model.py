@@ -27,6 +27,7 @@ def plasticity_manager(small_weights):
         learning_rate=0.01,
         eligibility_trace_tau=None,
         plasticity_mode="three_factor",
+        init_mode="copy",
     )
 
 
@@ -38,6 +39,7 @@ def plasticity_with_traces(small_weights):
         learning_rate=0.01,
         eligibility_trace_tau=0.1,
         plasticity_mode="eligibility_trace",
+        init_mode="copy",
     )
 
 
@@ -82,6 +84,7 @@ def test_plasticity_initialization_dense(small_weights):
     plasticity = DopamineModulatedPlasticity(
         kc_to_mbon_weights=small_weights,
         learning_rate=0.01,
+        init_mode="copy",
     )
 
     assert plasticity.learning_rate == 0.01
@@ -96,6 +99,7 @@ def test_plasticity_initialization_sparse(small_weights):
     plasticity = DopamineModulatedPlasticity(
         kc_to_mbon_weights=sparse_weights,
         learning_rate=0.01,
+        init_mode="copy",
     )
 
     # Should be converted to dense
@@ -110,6 +114,7 @@ def test_plasticity_initialization_with_eligibility_traces(small_weights):
         kc_to_mbon_weights=small_weights,
         eligibility_trace_tau=0.1,
         plasticity_mode="eligibility_trace",
+        init_mode="copy",
     )
 
     # Eligibility traces should be initialized to zeros
@@ -124,6 +129,7 @@ def test_plasticity_invalid_learning_rate(small_weights):
         DopamineModulatedPlasticity(
             kc_to_mbon_weights=small_weights,
             learning_rate=-0.01,
+            init_mode="copy",
         )
 
 
@@ -133,6 +139,7 @@ def test_plasticity_invalid_mode(small_weights):
         DopamineModulatedPlasticity(
             kc_to_mbon_weights=small_weights,
             plasticity_mode="invalid_mode",
+            init_mode="copy",
         )
 
 
@@ -296,6 +303,7 @@ def test_update_weights_gated_mode_threshold():
         kc_to_mbon_weights=weights,
         learning_rate=0.01,
         plasticity_mode="gated",
+        init_mode="copy",
     )
 
     kc_activity = np.ones(20) * 0.5
@@ -345,6 +353,7 @@ def test_learning_experiment_single_trial(sample_circuit, small_weights):
     plasticity = DopamineModulatedPlasticity(
         kc_to_mbon_weights=small_weights,
         learning_rate=0.01,
+        init_mode="copy",
     )
     experiment = LearningExperiment(sample_circuit, plasticity)
 
@@ -375,6 +384,7 @@ def test_learning_experiment_run_full_protocol(sample_circuit, small_weights):
     plasticity = DopamineModulatedPlasticity(
         kc_to_mbon_weights=small_weights,
         learning_rate=0.05,  # Higher LR for faster learning
+        init_mode="copy",
     )
     experiment = LearningExperiment(sample_circuit, plasticity)
 

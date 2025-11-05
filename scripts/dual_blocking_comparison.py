@@ -29,7 +29,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Tuple
 
 # Use non-GUI backend for headless environments
 import matplotlib
@@ -115,6 +115,168 @@ class DualBlockingExperiment:
 
         return circuit
 
+    def compute_virgin_responses(
+        self,
+        circuit: EnhancedOlfactoryCircuit,
+        plasticity: DopamineModulatedPlasticity,
+        odors: List[str],
+        verbose: bool = True,
+    ) -> Tuple[pd.DataFrame, float]:
+        """Compute pre-training MBON responses for specified odors."""
+        records: List[Dict[str, Any]] = []
+        core_circuit = circuit.core_circuit
+
+        for odor in odors:
+            pn_activity = core_circuit.activate_pns_by_glomeruli([odor], firing_rate=1.0)
+            kc_activity = core_circuit.propagate_pn_to_kc(pn_activity)
+            mbon_output = plasticity.compute_mbon_output(kc_activity)
+            records.append(
+                {
+                    "odor": odor,
+                    "virgin_mbon_output": float(np.mean(np.abs(mbon_output))),
+                    "virgin_primary_output": float(mbon_output[0]),
+                }
+            )
+
+        virgin_df = pd.DataFrame(records)
+        virgin_df["abs_mbon_output"] = virgin_df["virgin_mbon_output"].abs()
+
+        ratio = float("nan")
+        if len(virgin_df) >= 2:
+            min_floor = 1e-3
+            abs_values = virgin_df["abs_mbon_output"].values[:2]
+            numerator = max(abs_values[0], abs_values[1], min_floor)
+            denominator = max(min(abs_values[0], abs_values[1]), min_floor)
+            ratio = float(numerator / denominator)
+
+        if verbose:
+            if np.isfinite(ratio) and ratio > 3.0:
+                print("  ⚠ Virgin response imbalance detected:")
+                print(
+                    f"    Fold difference ({odors[0]} vs {odors[1]}): {ratio:.2f} (>3x)"
+                )
+            else:
+                print("  ✓ Virgin responses balanced within 3x threshold.")
+
+        virgin_df["target_over_distractor_ratio"] = ratio
+
+        return virgin_df, ratio
+
+    def balance_initial_responses(
+        self,
+        circuit: EnhancedOlfactoryCircuit,
+        plasticity: DopamineModulatedPlasticity,
+        odors: List[str],
+        init_scale: float,
+        max_attempts: int = 25,
+        threshold: float = 3.0,
+        max_adjustments: int = 10,
+    ) -> Tuple[pd.DataFrame, float, int]:
+        """Resample initial weights until virgin responses are balanced."""
+        core_circuit = circuit.core_circuit
+        odor_kc_map: Dict[str, np.ndarray] = {}
+        for odor in odors:
+            pn_activity = core_circuit.activate_pns_by_glomeruli([odor], firing_rate=1.0)
+            odor_kc_map[odor] = core_circuit.propagate_pn_to_kc(pn_activity)
+
+        virgin_df, ratio = self.compute_virgin_responses(
+            circuit=circuit,
+            plasticity=plasticity,
+            odors=odors,
+            verbose=False,
+        )
+
+        attempts = 0
+        while np.isfinite(ratio) and ratio > threshold and attempts < max_attempts:
+            plasticity.reset_weights_random(init_scale=init_scale)
+            virgin_df, ratio = self.compute_virgin_responses(
+                circuit=circuit,
+                plasticity=plasticity,
+                odors=odors,
+                verbose=False,
+            )
+            attempts += 1
+
+        if np.isfinite(ratio) and ratio > threshold:
+            adjustments = 0
+            while (
+                np.isfinite(ratio)
+                and ratio > threshold
+                and adjustments < max_adjustments
+            ):
+                self.adjust_weights_for_balance(
+                    plasticity=plasticity,
+                    odor_kc_map=odor_kc_map,
+                    virgin_df=virgin_df,
+                )
+                plasticity.enforce_connectivity_mask()
+                virgin_df, ratio = self.compute_virgin_responses(
+                    circuit=circuit,
+                    plasticity=plasticity,
+                    odors=odors,
+                    verbose=False,
+                )
+                adjustments += 1
+            attempts += adjustments
+
+        return virgin_df, ratio, attempts
+
+    @staticmethod
+    def log_virgin_balance(
+        odors: List[str],
+        ratio: float,
+        attempts: int,
+        threshold: float = 3.0,
+    ) -> None:
+        """Log whether virgin responses satisfied balance criterion."""
+        if np.isfinite(ratio) and ratio > threshold:
+            print("  ⚠ Virgin response imbalance persists after resampling:")
+            print(
+                f"    Fold difference ({odors[0]} vs {odors[1]}): {ratio:.2f} (> {threshold}x)"
+            )
+            print(
+                f"    Attempts: {attempts} (consider adjusting init_scale or mask)."
+            )
+        else:
+            balance_msg = "  ✓ Virgin responses balanced within {threshold}x threshold."
+            if attempts > 0:
+                balance_msg += f" (resampled {attempts}×)"
+            print(balance_msg.format(threshold=threshold))
+
+    @staticmethod
+    def adjust_weights_for_balance(
+        plasticity: DopamineModulatedPlasticity,
+        odor_kc_map: Dict[str, np.ndarray],
+        virgin_df: pd.DataFrame,
+        mbon_index: int = 0,
+    ) -> None:
+        """Apply corrective adjustment to reduce virgin response imbalance."""
+        outputs = {
+            row["odor"]: row.get("virgin_primary_output", row["virgin_mbon_output"])
+            for row in virgin_df.to_dict("records")
+        }
+
+        if len(outputs) < 2:
+            return
+
+        # Identify dominant (higher magnitude) odor response
+        odors_sorted = sorted(outputs.items(), key=lambda item: abs(item[1]), reverse=True)
+        dominant_odor, dominant_output = odors_sorted[0]
+        secondary_odor, secondary_output = odors_sorted[1]
+
+        mask_row = plasticity._connectivity_mask[mbon_index]
+        if not mask_row.any():  # No connections to adjust
+            return
+
+        kc_dominant = odor_kc_map[dominant_odor][mask_row]
+        dot_self = float(np.dot(kc_dominant, kc_dominant))
+        if dot_self < 1e-9:
+            return
+
+        alpha = dominant_output / dot_self
+        # Subtract projection of weights onto dominant odor KC activity
+        plasticity.kc_to_mbon[mbon_index, mask_row] -= alpha * kc_dominant
+
     def run_single_blocking_experiment(
         self,
         circuit: EnhancedOlfactoryCircuit,
@@ -152,11 +314,35 @@ class DualBlockingExperiment:
 
         # Initialize fresh plasticity for this experiment
         initial_weights = circuit.connectivity.kc_to_mbon.toarray().copy()
+        plasticity_init_scale = 1e-4
+        balance_threshold = 3.0
         plasticity = DopamineModulatedPlasticity(
             kc_to_mbon_weights=initial_weights,
-            learning_rate=0.01,
+            learning_rate=0.001,
             eligibility_trace_tau=None,
+            init_mode="random",
+            init_scale=plasticity_init_scale,
+            mbon_output_divisor=10.0,
+            mbon_output_max=100.0,
         )
+
+        print("    Assessing virgin (pre-training) MBON responses...")
+        virgin_df, virgin_ratio, resample_attempts = self.balance_initial_responses(
+            circuit=circuit,
+            plasticity=plasticity,
+            odors=[target_odor, distractor_odor],
+            init_scale=plasticity_init_scale,
+            threshold=balance_threshold,
+        )
+        self.log_virgin_balance(
+            odors=[target_odor, distractor_odor],
+            ratio=virgin_ratio,
+            attempts=resample_attempts,
+            threshold=balance_threshold,
+        )
+        virgin_csv = self.output_dir / f"{experiment_name.lower().replace(' ', '_')}_virgin_responses.csv"
+        virgin_df.to_csv(virgin_csv, index=False)
+        print(f"    ✓ Saved virgin response diagnostics: {virgin_csv}")
 
         # Create veto experiment (veto_glomerulus is the one being BLOCKED)
         veto_exp = VetoGateExperiment(
@@ -189,6 +375,8 @@ class DualBlockingExperiment:
             "distractor_odor": distractor_odor,
             "results": results,
             "metrics": metrics,
+            "virgin_responses": virgin_df.to_dict(orient="records"),
+            "virgin_ratio": virgin_ratio,
         }
 
     def run_dual_experiments(
@@ -290,30 +478,64 @@ class DualBlockingExperiment:
             ax.legend(fontsize=10)
             ax.grid(alpha=0.3)
 
-        # Plot final responses comparison
+        # Plot virgin vs post-training responses
         for col, exp in enumerate([exp_a, exp_b]):
             ax = axes[1, col]
             test_responses = exp["results"]["test_responses"]
+            virgin_map = {
+                row["odor"]: row["virgin_mbon_output"] for row in exp.get("virgin_responses", [])
+            }
+
             odors = list(test_responses.keys())
-            responses = list(test_responses.values())
+            x = np.arange(len(odors))
+            width = 0.35
+
+            virgin_vals = [virgin_map.get(odor, np.nan) for odor in odors]
+            post_vals = [test_responses[odor] for odor in odors]
+
             colors = ["green" if o == exp["target_odor"] else "red" for o in odors]
 
-            bars = ax.bar(odors, responses, color=colors, alpha=0.7, edgecolor="black", linewidth=2)
-            ax.set_ylabel("Final MBON Response", fontsize=12)
-            ax.set_title("Test Responses", fontsize=12)
-            ax.grid(axis="y", alpha=0.3)
+            bars_virgin = ax.bar(
+                x - width / 2,
+                virgin_vals,
+                width,
+                label="Virgin",
+                color=["#9edae5" if c == "green" else "#ff9896" for c in colors],
+                edgecolor="black",
+                linewidth=1,
+                alpha=0.8,
+            )
+            bars_post = ax.bar(
+                x + width / 2,
+                post_vals,
+                width,
+                label="Post-training",
+                color=colors,
+                edgecolor="black",
+                linewidth=1,
+                alpha=0.8,
+            )
 
-            # Add value labels
-            for bar, val in zip(bars, responses):
-                height = bar.get_height()
-                ax.text(
-                    bar.get_x() + bar.get_width() / 2.0,
-                    height,
-                    f"{val:.0f}",
-                    ha="center",
-                    va="bottom",
-                    fontweight="bold",
-                )
+            ax.set_ylabel("MBON Response", fontsize=12)
+            ax.set_title("Virgin vs Post-training Responses", fontsize=12)
+            ax.set_xticks(x)
+            ax.set_xticklabels(odors)
+            ax.grid(axis="y", alpha=0.3)
+            ax.legend(fontsize=10)
+
+            for bars, values in [(bars_virgin, virgin_vals), (bars_post, post_vals)]:
+                for bar, val in zip(bars, values):
+                    if np.isnan(val):
+                        continue
+                    height = bar.get_height()
+                    ax.text(
+                        bar.get_x() + bar.get_width() / 2.0,
+                        height,
+                        f"{val:.0f}",
+                        ha="center",
+                        va="bottom" if height >= 0 else "top",
+                        fontweight="bold",
+                    )
 
         # Plot blocking metrics summary
         for col, exp in enumerate([exp_a, exp_b]):
@@ -370,6 +592,11 @@ class DualBlockingExperiment:
         exp_b = dual_results["experiment_b"]
 
         # Save combined summary JSON
+        def _safe_ratio(value: Optional[float]) -> Optional[float]:
+            if value is None:
+                return None
+            return float(value) if np.isfinite(value) else None
+
         summary = {
             "experiment_a": {
                 "name": exp_a["experiment_name"],
@@ -381,6 +608,11 @@ class DualBlockingExperiment:
                 "test_responses": {
                     k: float(v) for k, v in exp_a["results"]["test_responses"].items()
                 },
+                "test_responses_abs": {
+                    k: float(v) for k, v in exp_a["results"].get("test_responses_abs", {}).items()
+                },
+                "virgin_ratio": _safe_ratio(exp_a.get("virgin_ratio")),
+                "virgin_responses": exp_a["virgin_responses"],
             },
             "experiment_b": {
                 "name": exp_b["experiment_name"],
@@ -392,6 +624,11 @@ class DualBlockingExperiment:
                 "test_responses": {
                     k: float(v) for k, v in exp_b["results"]["test_responses"].items()
                 },
+                "test_responses_abs": {
+                    k: float(v) for k, v in exp_b["results"].get("test_responses_abs", {}).items()
+                },
+                "virgin_ratio": _safe_ratio(exp_b.get("virgin_ratio")),
+                "virgin_responses": exp_b["virgin_responses"],
             },
         }
 
@@ -422,14 +659,20 @@ class DualBlockingExperiment:
         exp_b = dual_results["experiment_b"]
 
         print("\n  EXPERIMENT A (Block DL3 - Normal Blocking):")
-        print(f"    Target (DA1) learns:     {exp_a['results']['test_responses']['DA1']:.1f}")
-        print(f"    Distractor (DL3) blocked: {exp_a['results']['test_responses']['DL3']:.1f}")
+        print(f"    Target (DA1) learns:     {exp_a['results']['test_responses']['DA1']:.4f}")
+        print(f"    Distractor (DL3) blocked: {exp_a['results']['test_responses']['DL3']:.4f}")
         print(f"    Blocking Index:          {exp_a['results']['blocking_index']:+.3f} (DA1 > DL3)")
+        ratio_a = exp_a.get("virgin_ratio")
+        if ratio_a is not None and np.isfinite(ratio_a):
+            print(f"    Virgin balance (DA1/DL3): {ratio_a:.2f}x")
 
         print("\n  EXPERIMENT B (Block DA1 - Reversed Blocking):")
-        print(f"    Target (DL3) learns:     {exp_b['results']['test_responses']['DL3']:.1f}")
-        print(f"    Distractor (DA1) blocked: {exp_b['results']['test_responses']['DA1']:.1f}")
+        print(f"    Target (DL3) learns:     {exp_b['results']['test_responses']['DL3']:.4f}")
+        print(f"    Distractor (DA1) blocked: {exp_b['results']['test_responses']['DA1']:.4f}")
         print(f"    Blocking Index:          {exp_b['results']['blocking_index']:+.3f} (DL3 > DA1)")
+        ratio_b = exp_b.get("virgin_ratio")
+        if ratio_b is not None and np.isfinite(ratio_b):
+            print(f"    Virgin balance (DL3/DA1): {ratio_b:.2f}x")
 
         print("\n  BIOLOGICAL SIGNIFICANCE:")
         print("    ✓ Veto mechanism is FLEXIBLE (works on any odor)")

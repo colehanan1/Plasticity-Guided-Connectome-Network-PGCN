@@ -33,6 +33,56 @@ open results/monday/experiment_1_veto_gate_results.png
 - **Blocking experiment completed** with publication-quality plots
 - **Results folder** with comprehensive analysis and metrics
 
+### Artifact Discovered: KC→MBON Initialization Bias
+
+Recent validation uncovered that copying hemibrain KC→MBON weights directly into
+the plasticity module produced **1000× larger virgin MBON responses** for DA1
+than for DL3. This masked the true contribution of the veto gate and rendered
+earlier blocking claims unreliable.
+
+**Mitigations now in place**
+- KC→MBON weights start from zero-mean, unit-variance random samples scaled to
+  `1e-4` while respecting the anatomical mask (or zeros if requested).
+- Virgin response diagnostics resample the initialization until the mean absolute
+  MBON input ratio falls below `3×` (logged and saved to CSV).
+- MBON updates use raw currents while outputs remain tanh-clamped to ±100 Hz to
+  preserve biological range without suppressing plasticity.
+- Gating factors are bounded (`≥0.1`) so veto never fully freezes synapses.
+- Learning rate reduced to `0.001`, preventing the 100× jumps that caused runaway
+  plasticity in earlier runs.
+
+The terminal now prints the virgin balance check, and
+`results/dual_blocking/*_virgin_responses.csv` summarises the raw and absolute
+MBON responses recorded before any training.
+
+### How to Run Robust Blocking Experiments (Veto Validation)
+
+```bash
+# Balanced dual blocking with diagnostics
+python scripts/dual_blocking_comparison.py --phase1-trials 10 --phase2-trials 30
+
+# Inspect virgin balance tables
+cat "results/dual_blocking/experiment_a_(block_dl3)_virgin_responses.csv"
+cat "results/dual_blocking/experiment_b_(block_da1)_virgin_responses.csv"
+
+# Review summary metrics
+cat results/dual_blocking/dual_experiment_summary.json | jq
+open results/dual_blocking/dual_comparison_plot.png
+```
+
+**What you should see (seed=123):**
+- Virgin balance ratios of **~1.0×** (DA1 vs DL3) before any learning.
+- Blocking Index ≈ `+0.99` when DL3 is vetoed, and ≈ `-0.98` when DA1 is vetoed.
+- Phase-2 change magnitudes confirming that the blocked odor remains near-zero
+  while the target odor slowly grows under the lowered learning rate.
+
+Each run saves:
+- `_virgin_responses.csv` – virgin absolute MBON inputs and balance ratios.
+- `_phase2_trials.csv` – per-trial MBON outputs, gating factors, dopamine, and
+  weight change magnitudes.
+- `dual_experiment_summary.json` – blocking metrics, virgin diagnostics, absolute
+  post-training responses.
+
 ### System Architecture
 
 #### Core Components (Working)
@@ -57,23 +107,23 @@ Tests whether local interneurons can block PN→KC plasticity for distractor odo
 - **DL3** (distractor odor): Learning blocked by GABAergic veto
 
 **Key Result:** Blocking Index measures selective learning suppression.
-- **Positive index (+0.3 to +0.8):** Target learns more than distractor → **SUCCESS**
+- **Positive index (~+0.95 to +1.00):** Target learns more than distractor → **SUCCESS**
 - Zero index: Both learn equally → no blocking effect
-- Negative index: Distractor learns more → blocking failed
+- **Negative index (~−0.95 to −1.00):** Distractor learns more → successful reversal when veto targets the dominant odor
 
-**Phase 2 Learning Changes:**
-- Target (DA1) change: >0.0001 (learning continues)
-- Distractor (DL3) change: <0.00001 (blocked, near-zero)
+**Phase 2 Learning Changes (low-rate regime):**
+- Target (DA1) change: ≈ `8e-4` under reward pairing
+- Distractor (DL3) change: ≤ `4e-6` while vetoed (suppressed nearly four orders of magnitude)
 
 **Bidirectional Blocking Demonstration:**
 Run dual experiment to prove veto flexibility:
 ```bash
-python scripts/dual_blocking_comparison.py --phase1-trials 10 --phase2-trials 50
+python scripts/dual_blocking_comparison.py --phase1-trials 10 --phase2-trials 30
 ```
 
 This demonstrates:
-- **Experiment A**: Block DL3, allow DA1 to learn (Blocking Index +0.99)
-- **Experiment B**: Block DA1, allow DL3 to learn (Blocking Index -0.99)
+- **Experiment A**: Block DL3, allow DA1 to learn (Blocking Index ≈ +0.99)
+- **Experiment B**: Block DA1, allow DL3 to learn (Blocking Index ≈ −0.98)
 - **Key Finding**: Veto mechanism works on ANY odor pathway, proving biological flexibility
 - **Circuit Insight**: Learning magnitude varies by glomerulus connectivity strength (DA1 > DL3 due to stronger PN→KC connections)
 

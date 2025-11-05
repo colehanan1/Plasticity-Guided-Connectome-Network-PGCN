@@ -181,6 +181,10 @@ class DopamineModulatedPlasticity:
         plasticity_mode: str = "three_factor",
         reward_prediction_tau: float = 1.0,
         weight_decay_rate: float = 0.0,
+        init_mode: str = "random",
+        init_scale: float = 0.01,
+        mbon_output_divisor: float = 10.0,
+        mbon_output_max: float = 100.0,
     ) -> None:
         """Initialize plasticity manager with weight reference and parameters."""
         # Validate learning rate
@@ -196,15 +200,39 @@ class DopamineModulatedPlasticity:
 
         # Convert sparse to dense if needed (learning updates are dense)
         if sp.issparse(kc_to_mbon_weights):
-            self.kc_to_mbon = kc_to_mbon_weights.toarray()
+            base_weights = kc_to_mbon_weights.toarray()
         else:
-            self.kc_to_mbon = np.array(kc_to_mbon_weights, dtype=np.float64)
+            base_weights = np.array(kc_to_mbon_weights, dtype=np.float64)
+
+        self._connectivity_mask = base_weights != 0.0
+
+        if init_mode not in {"random", "copy", "zeros"}:
+            raise ValueError(
+                f"init_mode must be one of {{'random', 'copy', 'zeros'}}, got '{init_mode}'"
+            )
+
+        if init_mode == "copy":
+            self.kc_to_mbon = base_weights
+        elif init_mode == "zeros":
+            self.kc_to_mbon = np.zeros_like(base_weights, dtype=np.float64)
+        else:
+            rng = np.random.default_rng()
+            random_weights = rng.normal(loc=0.0, scale=1.0, size=base_weights.shape)
+            self.kc_to_mbon = np.zeros_like(base_weights, dtype=np.float64)
+            if self._connectivity_mask.any():
+                self.kc_to_mbon[self._connectivity_mask] = random_weights[self._connectivity_mask]
+                self._normalize_random_weights(init_scale)
+            else:
+                # No anatomical mask; use dense initialization
+                self.kc_to_mbon = random_weights * init_scale
 
         self.learning_rate = learning_rate
         self.eligibility_trace_tau = eligibility_trace_tau
         self.plasticity_mode = plasticity_mode
         self.reward_prediction_tau = reward_prediction_tau
         self.weight_decay_rate = weight_decay_rate
+        self.mbon_output_divisor = mbon_output_divisor
+        self.mbon_output_max = mbon_output_max
 
         # Initialize eligibility traces if requested
         self.eligibility_traces: Optional[np.ndarray] = None
@@ -219,6 +247,50 @@ class DopamineModulatedPlasticity:
 
         # Optional: sign-flipped synapses for microsurgery experiments
         self._sign_flip_synapses: set = set()
+
+    def reset_weights_random(self, init_scale: float = 0.01) -> None:
+        """Reset KC→MBON weights to small random values while preserving mask."""
+        rng = np.random.default_rng()
+        random_weights = rng.normal(loc=0.0, scale=1.0, size=self.kc_to_mbon.shape)
+        if self._connectivity_mask.any():
+            self.kc_to_mbon = np.zeros_like(self.kc_to_mbon, dtype=np.float64)
+            self.kc_to_mbon[self._connectivity_mask] = random_weights[self._connectivity_mask]
+            self._normalize_random_weights(init_scale)
+        else:
+            self.kc_to_mbon = random_weights * init_scale
+
+    def enforce_connectivity_mask(self) -> None:
+        """Zero weights for non-anatomical connections."""
+        if self._connectivity_mask.any():
+            self.kc_to_mbon[~self._connectivity_mask] = 0.0
+
+    def _normalize_random_weights(self, init_scale: float) -> None:
+        """Zero-center and scale random weights per MBON row."""
+        for row_idx in range(self.kc_to_mbon.shape[0]):
+            mask_row = self._connectivity_mask[row_idx]
+            if not mask_row.any():
+                continue
+            row_values = self.kc_to_mbon[row_idx, mask_row]
+            row_values = row_values - np.mean(row_values)
+            std = float(np.std(row_values))
+            if std < 1e-9:
+                row_values = np.zeros_like(row_values)
+            else:
+                row_values = (row_values / std) * init_scale
+            self.kc_to_mbon[row_idx, mask_row] = row_values
+
+    def compute_mbon_output(self, kc_activity: np.ndarray) -> np.ndarray:
+        """Compute normalized MBON output from KC activity.
+
+        The raw KC→MBON weighted sum is passed through a tanh squashing function
+        to maintain biologically realistic firing rates (≈±100 Hz).
+        """
+        raw_output = self.kc_to_mbon @ kc_activity
+        return self.apply_mbon_activation(raw_output)
+
+    def apply_mbon_activation(self, raw_output: np.ndarray) -> np.ndarray:
+        """Apply tanh squashing to raw MBON inputs."""
+        return np.tanh(raw_output / self.mbon_output_divisor) * self.mbon_output_max
 
     def compute_rpe(
         self,
@@ -432,6 +504,9 @@ class DopamineModulatedPlasticity:
         # Apply weight decay (L2 regularization) if enabled
         if self.weight_decay_rate > 0:
             self.kc_to_mbon *= (1.0 - self.weight_decay_rate * dt)
+
+        # Enforce anatomical mask after updates
+        self.enforce_connectivity_mask()
 
         # Compute diagnostics
         weight_change_magnitude = float(np.linalg.norm(delta_w))
@@ -668,14 +743,14 @@ class LearningExperiment:
         kc_activity = self.circuit.propagate_pn_to_kc(pn_activity)
 
         # Override circuit's KC→MBON with plasticity's learned weights
-        mbon_output = self.plasticity.kc_to_mbon @ kc_activity  # Dense matrix @ vector
+        raw_mbon_output = self.plasticity.kc_to_mbon @ kc_activity
+        mbon_output = self.plasticity.apply_mbon_activation(raw_mbon_output)
 
         # 3. Extract valence prediction (use first MBON as primary valence signal)
         mbon_valence = float(mbon_output[0])
 
-        # Normalize to [0, 1] range for RPE computation
-        # Assume MBON outputs are roughly in range [-100, 100] initially
-        predicted_value = mbon_valence / 100.0
+        # Normalize to [-1, 1] range for RPE computation
+        predicted_value = mbon_valence / self.plasticity.mbon_output_max
         predicted_value = np.clip(predicted_value, -1.0, 1.0)  # Constrain to reasonable range
 
         # 4. Compute RPE (reward prediction error)
@@ -688,7 +763,7 @@ class LearningExperiment:
         # 6. Update KC→MBON weights using three-factor rule
         update_diagnostics = self.plasticity.update_weights(
             kc_activity=kc_activity,
-            mbon_activity=mbon_output,
+            mbon_activity=raw_mbon_output,
             dopamine_signal=dopamine,
             dt=1.0,
         )

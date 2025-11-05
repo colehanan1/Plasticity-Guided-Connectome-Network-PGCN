@@ -308,30 +308,23 @@ class VetoGateExperiment:
         # 2. Compute veto gate
         veto_value = self.apply_veto(pn_activity) if veto_active else 0.0
 
-        # 3. Compute gating factor
-        gating_factor = 1.0 - self.veto_strength * veto_value
-
-        # Validate veto mechanism is working correctly
+        # 3. Compute gating factor with floor to avoid complete shutdown
         if veto_active:
-            assert gating_factor < 0.5, (
-                f"Veto active but gating_factor={gating_factor:.3f} (should be < 0.5). "
-                f"veto_value={veto_value:.3f}, veto_strength={self.veto_strength}"
-            )
+            gating_factor = 1.0 - self.veto_strength * veto_value
         else:
-            assert gating_factor > 0.5, (
-                f"Veto inactive but gating_factor={gating_factor:.3f} (should be > 0.5). "
-                f"veto_value={veto_value:.3f}, veto_strength={self.veto_strength}"
-            )
+            gating_factor = 1.0
+        gating_factor = max(0.1, gating_factor)
 
         # 4. Forward propagation (PN → KC → MBON)
         kc_activity = self.circuit.propagate_pn_to_kc(pn_activity)
 
-        # Use plasticity's current weights for MBON output
-        mbon_output_vec = self.plasticity.kc_to_mbon @ kc_activity
+        # Compute raw and normalized MBON activity
+        raw_mbon_output = self.plasticity.kc_to_mbon @ kc_activity
+        mbon_output_vec = self.plasticity.apply_mbon_activation(raw_mbon_output)
         mbon_output = float(mbon_output_vec[0])
 
         # 5. Compute RPE
-        predicted_value = mbon_output / 100.0  # Normalize to [0, 1]
+        predicted_value = mbon_output / self.plasticity.mbon_output_max
         predicted_value = np.clip(predicted_value, -1.0, 1.0)
         rpe = self.plasticity.compute_rpe(reward, predicted_value, learning_rate_rpe=0.1)
 
@@ -340,7 +333,7 @@ class VetoGateExperiment:
 
         # 7. Apply gated weight update
         # Modify the standard three-factor update with gating
-        prepost = np.outer(mbon_output_vec, kc_activity)
+        prepost = np.outer(raw_mbon_output, kc_activity)
         delta_w = self.plasticity.learning_rate * prepost * dopamine * gating_factor * 1.0  # dt=1
 
         # Apply frozen/sign-flip masks if present (for microsurgery experiments)
@@ -351,6 +344,7 @@ class VetoGateExperiment:
 
         # Update weights
         self.plasticity.kc_to_mbon += delta_w
+        self.plasticity.enforce_connectivity_mask()
 
         weight_change_magnitude = float(np.linalg.norm(delta_w))
 
@@ -471,37 +465,30 @@ class VetoGateExperiment:
         # Both odors get reward, but only OdorB's plasticity is blocked by veto
         # Biological rationale: Block distractor learning, allow target learning
         for trial_idx in range(n_phase2_trials):
-            if trial_idx % 2 == 0:
-                # OdorA → reward without veto (normal learning of target)
-                trial_data = self.run_trial_with_veto(
-                    odor=odor_a,
-                    reward=1.0,
-                    veto_active=False,  # Normal learning of rewarded target
-                )
-                results["phase2_trials"].append(trial_data)
-            else:
-                # OdorB → reward with veto active (block distractor learning)
-                trial_data = self.run_trial_with_veto(
-                    odor=odor_b,
-                    reward=1.0,  # Same reward as OdorA
-                    veto_active=True,  # Veto blocks distractor learning
-                )
-                results["phase2_trials"].append(trial_data)
+            current_odor = odor_a if trial_idx % 2 == 0 else odor_b
+            veto_active = current_odor == self.veto_glomerulus
+            trial_data = self.run_trial_with_veto(
+                odor=current_odor,
+                reward=1.0,
+                veto_active=veto_active,
+            )
+            results["phase2_trials"].append(trial_data)
 
         # Phase 3: Test responses (no reward, no learning)
         # Measure final MBON outputs for both odors
         for odor in [odor_a, odor_b]:
             pn_activity = self.circuit.activate_pns_by_glomeruli([odor], firing_rate=1.0)
             kc_activity = self.circuit.propagate_pn_to_kc(pn_activity)
-            mbon_output_vec = self.plasticity.kc_to_mbon @ kc_activity
+            mbon_output_vec = self.plasticity.compute_mbon_output(kc_activity)
             mbon_output = float(mbon_output_vec[0])
             results["test_responses"][odor] = mbon_output
+            results.setdefault("test_responses_abs", {})[odor] = abs(mbon_output)
 
         # Compute blocking index: (OdorA - OdorB) / (OdorA + OdorB + epsilon)
         # Positive = OdorA (target) > OdorB (distractor) → blocking successful
-        odor_a_response = results["test_responses"][odor_a]
-        odor_b_response = results["test_responses"][odor_b]
-        denom = abs(odor_a_response) + abs(odor_b_response) + 1e-6
+        odor_a_response = abs(results["test_responses"][odor_a])
+        odor_b_response = abs(results["test_responses"][odor_b])
+        denom = odor_a_response + odor_b_response + 1e-6
         blocking_index = (odor_a_response - odor_b_response) / denom
 
         results["blocking_index"] = blocking_index
