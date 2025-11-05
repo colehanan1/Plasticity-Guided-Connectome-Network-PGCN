@@ -1,0 +1,58 @@
+# DoOR-FlyWire Integration Requirements
+# Complete dependencies for ORN pathway analysis system
+
+# Core scientific computing
+numpy>=1.21.0
+pandas>=1.3.0
+scipy>=1.7.0
+
+# Deep learning (optional, for DoORConstrainedORNLayer)
+torch>=1.9.0  # PyTorch for neural network layers
+
+# R integration for DoOR database access
+rpy2>=3.4.0  # Python-R interface for DoOR packages
+
+# Data visualization
+matplotlib>=3.4.0
+seaborn>=0.11.0
+
+# Network analysis
+networkx>=2.6.0  # For connectivity graph analysis
+
+# Web data access
+requests>=2.26.0  # For Zenodo downloads
+
+# Testing
+pytest>=6.2.0
+pytest-cov>=2.12.0
+
+# Development tools
+black>=21.0  # Code formatting
+flake8>=3.9.0  # Linting
+mypy>=0.910  # Type checking
+
+# Documentation
+sphinx>=4.0.0  # Documentation generation
+sphinx-rtd-theme>=0.5.0
+
+# Jupyter support (for interactive analysis)
+jupyter>=1.0.0
+ipykernel>=6.0.0
+
+# Progress bars
+tqdm>=4.62.0
+
+# Logging utilities
+coloredlogs>=15.0
+
+# Note: R (>=4.0.0) must be installed separately for rpy2 to work
+# Installation instructions:
+#   Ubuntu/Debian: sudo apt-get install r-base r-base-dev
+#   macOS: brew install r
+#   Windows: Download from https://cran.r-project.org/
+
+# After installing Python requirements:
+#   pip install -r requirements_door.txt
+#
+# Then install DoOR R packages:
+#   python -c "from pgcn.door import DoORDataManager; DoORDataManager().install_door_packages()"
