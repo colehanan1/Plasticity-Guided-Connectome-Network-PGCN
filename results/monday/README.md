@@ -17,8 +17,8 @@
 
 ### Test Responses
 
-- **DA1**: 63.920
-- **DL3**: 0.205
+- **DA1**: 35433.479
+- **DL3**: 113.612
 
 
 ### Files Generated
