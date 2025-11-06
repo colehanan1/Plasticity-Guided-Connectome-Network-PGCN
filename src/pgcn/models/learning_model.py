@@ -81,7 +81,7 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
-from pgcn.models.olfactory_circuit import OlfactoryCircuit
+from .olfactory_circuit import OlfactoryCircuit
 
 
 class DopamineModulatedPlasticity:
