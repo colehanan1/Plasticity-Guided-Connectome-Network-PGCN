@@ -28,6 +28,16 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+# Import existing neuron classification functions
+from data_loaders.neuron_classification import (
+    get_pn_neurons,
+    get_local_interneurons,
+    infer_pn_glomerulus_labels,
+)
+
 # Suppress warnings
 warnings.filterwarnings('ignore')
 
@@ -144,6 +154,8 @@ class LNGlomerulusMapper:
         self._connections = None
         self._cell_types = None
         self._classification = None
+        self._labels = None
+        self._neurons = None
 
     def load_connections(self) -> pd.DataFrame:
         """Load synaptic connections."""
@@ -218,6 +230,51 @@ class LNGlomerulusMapper:
         self._classification = df
         return df
 
+    def load_labels(self) -> pd.DataFrame:
+        """Load processed labels."""
+        if self._labels is not None:
+            return self._labels
+
+        labels_path = self.data_dir / "processed_labels.csv.gz"
+        logger.info(f"Loading labels from {labels_path}")
+
+        if not labels_path.exists():
+            logger.warning(f"Labels file not found: {labels_path}")
+            return pd.DataFrame()
+
+        df = pd.read_csv(labels_path, compression='gzip')
+
+        # Rename processed_labels to label if needed
+        if 'processed_labels' in df.columns and 'label' not in df.columns:
+            df = df.rename(columns={'processed_labels': 'label'})
+
+        logger.info(f"Loaded {len(df):,} label annotations")
+
+        self._labels = df
+        return df
+
+    def load_neurons(self) -> pd.DataFrame:
+        """Load neuron metadata."""
+        if self._neurons is not None:
+            return self._neurons
+
+        neurons_path = self.data_dir / "neurons.csv.gz"
+
+        if not neurons_path.exists():
+            logger.warning(f"Neurons file not found: {neurons_path}")
+            return pd.DataFrame()
+
+        logger.info(f"Loading neuron metadata from {neurons_path}")
+        df = pd.read_csv(neurons_path, compression='gzip')
+
+        # Standardize column names
+        if 'rootid' in df.columns and 'root_id' not in df.columns:
+            df = df.rename(columns={'rootid': 'root_id'})
+
+        logger.info(f"Loaded metadata for {len(df):,} neurons")
+        self._neurons = df
+        return df
+
     def identify_local_neurons(self, cell_types: pd.DataFrame) -> pd.DataFrame:
         """
         Identify Local Neurons from cell type annotations.
@@ -259,39 +316,35 @@ class LNGlomerulusMapper:
 
         return lns
 
-    def identify_projection_neurons(self, cell_types: pd.DataFrame) -> pd.DataFrame:
+    def identify_projection_neurons(self) -> pd.DataFrame:
         """
-        Identify Projection Neurons with glomerulus labels.
-
-        Parameters
-        ----------
-        cell_types : pd.DataFrame
-            Cell type annotations
+        Identify Projection Neurons with glomerulus labels using existing classification functions.
 
         Returns
         -------
         pd.DataFrame
-            Projection neurons with root_id, cell_type, and glomerulus
+            Projection neurons with root_id and glomerulus
         """
         logger.info("\nIdentifying Projection Neurons...")
 
-        # Find cells with 'PN' in their type
-        pn_mask = pd.Series(False, index=cell_types.index)
+        # Load required data
+        cell_types = self.load_cell_types()
+        classification = self.load_classification()
+        labels = self.load_labels()
+        neurons = self.load_neurons()
 
-        for col in ['cell_type', 'hemibrain_type', 'flywire_type']:
-            if col in cell_types.columns:
-                pn_mask |= cell_types[col].str.contains('PN', case=False, na=False)
+        # Use existing get_pn_neurons function
+        pns = get_pn_neurons(
+            cell_types,
+            classification,
+            neurons_df=neurons,
+            processed_labels_df=labels
+        )
 
-        pns = cell_types[pn_mask].copy()
-        logger.info(f"Found {len(pns):,} potential Projection Neurons")
+        logger.info(f"Found {len(pns):,} Projection Neurons")
 
-        # Extract glomerulus from cell type
-        pns['glomerulus'] = None
-
-        for col in ['cell_type', 'hemibrain_type', 'flywire_type']:
-            if col in pns.columns:
-                gloms = pns[col].apply(extract_glomerulus_from_pn)
-                pns.loc[gloms.notna(), 'glomerulus'] = gloms[gloms.notna()]
+        # Infer glomerulus labels using existing function
+        pns['glomerulus'] = infer_pn_glomerulus_labels(pns, processed_labels_df=labels)
 
         # Keep only PNs with glomerulus labels
         pns = pns[pns['glomerulus'].notna()].copy()
@@ -300,8 +353,9 @@ class LNGlomerulusMapper:
         logger.info(f"Unique glomeruli: {pns['glomerulus'].nunique()}")
 
         # Show top glomeruli
-        top_gloms = pns['glomerulus'].value_counts().head(10)
-        logger.info(f"Top glomeruli: {dict(top_gloms)}")
+        if len(pns) > 0:
+            top_gloms = pns['glomerulus'].value_counts().head(10)
+            logger.info(f"Top glomeruli: {dict(top_gloms)}")
 
         return pns
 
@@ -553,7 +607,7 @@ class LNGlomerulusMapper:
 
         # Identify neurons
         lns = self.identify_local_neurons(cell_types)
-        pns = self.identify_projection_neurons(cell_types)
+        pns = self.identify_projection_neurons()
 
         if len(pns) == 0:
             logger.error("No PNs with glomerulus labels found - cannot proceed!")
