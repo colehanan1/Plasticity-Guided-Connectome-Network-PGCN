@@ -265,15 +265,29 @@ class LNPNConnectivityAnalyzer:
         # Merge with glomerulus labels
         # Extract glomerulus from label field
         labels_processed = labels.copy()
-        if 'label' in labels_processed.columns:
-            # Extract glomerulus name (handle various formats)
-            labels_processed['glomerulus'] = labels_processed['label'].str.extract(r'(D[ALMR]\d+[a-z]?|V[AL]\d+[a-z]?|DC\d+)', expand=False)
 
-        neurons = neurons.merge(
-            labels_processed[['root_id', 'glomerulus']],
-            on='root_id',
-            how='left'
-        )
+        # Try to extract or find glomerulus column
+        if 'glomerulus' not in labels_processed.columns:
+            if 'label' in labels_processed.columns:
+                # Extract glomerulus name (handle various formats)
+                labels_processed['glomerulus'] = labels_processed['label'].str.extract(r'(D[ALMR]\d+[a-z]?|V[AL]\d+[a-z]?|DC\d+)', expand=False)
+            else:
+                # No label column - check what columns exist
+                logger.warning(f"No 'label' or 'glomerulus' column found in labels file. Available columns: {list(labels_processed.columns)}")
+                # Create empty glomerulus column to avoid errors
+                labels_processed['glomerulus'] = None
+
+        # Only merge if we have both required columns
+        if 'root_id' in labels_processed.columns and 'glomerulus' in labels_processed.columns:
+            neurons = neurons.merge(
+                labels_processed[['root_id', 'glomerulus']],
+                on='root_id',
+                how='left'
+            )
+        else:
+            # Can't merge - just add empty glomerulus column
+            logger.warning("Could not merge glomerulus labels - missing required columns")
+            neurons['glomerulus'] = None
 
         # Log statistics
         type_counts = neurons['neuron_type'].value_counts()
