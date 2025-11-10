@@ -302,7 +302,7 @@ This will:
 Combine LN connectivity with odorant responses:
 
 ```python
-from door_toolkit.integration.encoder import DoOREncoder
+from door_toolkit.encoder import DoOREncoder
 from door_toolkit.integration.integrator import DoORFlyWireIntegrator
 
 # Get activated glomeruli for an odorant

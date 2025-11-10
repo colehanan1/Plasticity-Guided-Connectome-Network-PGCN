@@ -39,7 +39,7 @@ def main():
         print("\n  2. Install in editable mode:")
         print("     pip install -e .")
         print("\n  3. Verify installation:")
-        print("     python -c 'from door_toolkit.integration.encoder import DoOREncoder; print(\"✅ Success\")'")
+        print("     python -c 'from door_toolkit.encoder import DoOREncoder; print(\"✅ Success\")'")
         print("\n  4. Re-run this test:")
         print("     python scripts/test_door_integration.py")
         print("\nFor detailed diagnostics, run:")

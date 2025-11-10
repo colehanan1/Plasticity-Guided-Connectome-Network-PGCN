@@ -25,7 +25,7 @@ pip install -e .
 cd ~/Documents/cole/VSCode/Plasticity-Guided-Connectome-Network-PGCN-
 
 # 4. Test import
-python -c "from door_toolkit.integration.encoder import DoOREncoder; print('✅ DoOR toolkit available')"
+python -c "from door_toolkit.encoder import DoOREncoder; print('✅ DoOR toolkit available')"
 ```
 
 ### Option 2: Standard Install (Recommended for Production)
@@ -44,7 +44,7 @@ pip install ~/Documents/cole/VSCode/door-python-toolkit
 
 ```bash
 python -c "
-from door_toolkit.integration.encoder import DoOREncoder
+from door_toolkit.encoder import DoOREncoder
 from door_toolkit.integration.integrator import DoORFlyWireIntegrator
 
 encoder = DoOREncoder()
@@ -231,7 +231,7 @@ Check import in Python:
 ```python
 import sys
 try:
-    from door_toolkit.integration.encoder import DoOREncoder
+    from door_toolkit.encoder import DoOREncoder
     print("✅ DoOR available")
 except ImportError as e:
     print(f"❌ DoOR not available: {e}")

@@ -30,7 +30,7 @@ from data_loaders.neuron_classification import (
 
 # Try to import DoOR toolkit
 try:
-    from door_toolkit.integration.encoder import DoOREncoder
+    from door_toolkit.encoder import DoOREncoder
     from door_toolkit.integration.integrator import DoORFlyWireIntegrator
     DOOR_AVAILABLE = True
     print("✅ DoOR toolkit available")

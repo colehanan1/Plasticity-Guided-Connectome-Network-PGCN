@@ -14,7 +14,7 @@ import numpy as np
 
 # Try to import DoOR toolkit
 try:
-    from door_toolkit.integration.encoder import DoOREncoder
+    from door_toolkit.encoder import DoOREncoder
     from door_toolkit.integration.integrator import DoORFlyWireIntegrator
     DOOR_AVAILABLE = True
 except ImportError as e:
