@@ -29,6 +29,7 @@ from matplotlib.patches import FancyBboxPatch
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from tqdm import tqdm
 
 try:
     from scipy import stats
@@ -197,7 +198,7 @@ class ORNPathwayResult:
 
 
 BASE_CATEGORY_PATTERNS: Dict[str, List[str]] = {
-    "PN": ["adpn", "lpn", "_pn"],
+    "PN": ["adpn", "lpn", "_pn", "lv2pn", "mz_lv2pn"],
     "KC": ["kc", "kenyon"],
     "MBON": ["mbon"],
     "Motor": ["dnp", "dna", "dnb", "mdn", "motor"],
@@ -350,7 +351,24 @@ class ORNPathwayTracer:
     # Core helpers
     # ------------------------------------------------------------------ #
     def identify_cell_category(self, cell_type: str) -> str:
-        """Assign a broad category to a cell type."""
+        """
+        Assign a broad functional category to a cell type string.
+
+        Uses pattern matching against curated category dictionaries including
+        PN (projection neurons), KC (Kenyon cells), MBON (mushroom body output
+        neurons), Motor, Descending, and Central_Complex neurons.
+
+        Parameters
+        ----------
+        cell_type : str
+            Cell type string from FlyWire annotations
+
+        Returns
+        -------
+        str
+            Broad category: PN, KC, MBON, Motor, Descending, Central_Complex,
+            Other, or Unknown
+        """
         if pd.isna(cell_type):
             return "Unknown"
         lowered = str(cell_type).lower()
@@ -361,16 +379,34 @@ class ORNPathwayTracer:
         return "Other"
 
     def _load_orn_root_ids(self) -> List[int]:
+        """Load ORN root IDs with validation and detailed logging."""
+        if not self.config.orn_csv.exists():
+            raise FileNotFoundError(
+                f"{self.config.name}: ORN data file not found at {self.config.orn_csv}\n"
+                f"Please ensure the data file exists or update the configuration."
+            )
+
+        logger.info(f"Loading {self.config.name} neurons from {self.config.orn_csv}")
         df = pd.read_csv(self.config.orn_csv)
+
         if "root_id" not in df.columns:
-            raise ValueError(f"{self.config.name}: missing `root_id` column in {self.config.orn_csv}")
+            raise ValueError(
+                f"{self.config.name}: missing required 'root_id' column in {self.config.orn_csv}\n"
+                f"Available columns: {list(df.columns)}"
+            )
+
+        # Validate expected count with percentage for context
         if self.config.expected_orn_count is not None and len(df) != self.config.expected_orn_count:
             logger.warning(
-                "%s: expected %d ORNs but found %d",
+                "%s: expected %d ORNs but found %d (%.1f%% of expected)",
                 self.config.name,
                 self.config.expected_orn_count,
                 len(df),
+                100 * len(df) / self.config.expected_orn_count,
             )
+        else:
+            logger.info(f"Loaded {len(df)} {self.config.name} neurons")
+
         return pd.to_numeric(df["root_id"], errors="raise").astype("int64").tolist()
 
     def _get_outputs(self, source_ids: Sequence[int]) -> pd.DataFrame:
@@ -457,35 +493,66 @@ class ORNPathwayTracer:
         if self.max_levels >= 2:
             level_1 = self._summarise_level(1, self.level_titles[1], source_ids, ("PN",))
             self.levels[1] = level_1
-            pn_root_ids = level_1.root_ids
-            if self.config.pn_root_ids:
-                whitelist = set(self.config.pn_root_ids)
-                filtered_ids = [rid for rid in pn_root_ids if rid in whitelist]
-                if filtered_ids:
-                    pn_root_ids = filtered_ids
-                    if level_1.connections_to_next is not None:
-                        mask = level_1.connections_to_next["post_root_id"].isin(whitelist)
-                        level_1.connections_to_next = level_1.connections_to_next[mask].copy()
-                else:
-                    logger.warning(
-                        "%s: PN whitelist provided but no matches found; using detected PN set",
-                        self.config.name,
-                    )
+
+            # Filter to actual PNs - use same logic as OR7a-specific script
             if level_1.connections_to_next is not None:
+                pn_outputs = level_1.connections_to_next
+                pn_mask = pn_outputs["target_category"] == "PN"
+
+                # If whitelist provided, use it (more restrictive)
+                if self.config.pn_root_ids:
+                    whitelist = set(self.config.pn_root_ids)
+                    pn_mask = pn_mask & pn_outputs["post_root_id"].isin(whitelist)
+                    logger.info("  Applying PN whitelist with %d specified root IDs", len(whitelist))
+
+                # Get PN root IDs from filtered connections
+                pn_root_ids = pn_outputs[pn_mask]["post_root_id"].unique().tolist()
+
+                # Update level to PNs only
                 level_1.root_ids = pn_root_ids
                 level_1.neuron_count = len(pn_root_ids)
+                level_1.connections_to_next = pn_outputs[pn_mask].copy()
+            else:
+                pn_root_ids = []
+
             logger.info("  Level 1 (%s): %d PNs", self.level_titles[1], len(pn_root_ids))
 
         if self.max_levels >= 3 and pn_root_ids:
             level_2 = self._summarise_level(2, self.level_titles[2], pn_root_ids, ("KC",))
             self.levels[2] = level_2
-            kc_root_ids = level_2.root_ids
+
+            # Filter to actual KCs - same logic as OR7a script
+            if level_2.connections_to_next is not None:
+                kc_outputs = level_2.connections_to_next
+                kc_mask = kc_outputs["target_category"] == "KC"
+                kc_root_ids = kc_outputs[kc_mask]["post_root_id"].unique().tolist()
+
+                # Update level to KCs only
+                level_2.root_ids = kc_root_ids
+                level_2.neuron_count = len(kc_root_ids)
+                level_2.connections_to_next = kc_outputs[kc_mask].copy()
+            else:
+                kc_root_ids = []
+
             logger.info("  Level 2 (%s): %d KCs", self.level_titles[2], len(kc_root_ids))
 
         if self.max_levels >= 4 and kc_root_ids:
             level_3 = self._summarise_level(3, self.level_titles[3], kc_root_ids, ("MBON",))
             self.levels[3] = level_3
-            mbon_root_ids = level_3.root_ids
+
+            # Filter to actual MBONs - same logic as OR7a script
+            if level_3.connections_to_next is not None:
+                mbon_outputs = level_3.connections_to_next
+                mbon_mask = mbon_outputs["target_category"] == "MBON"
+                mbon_root_ids = mbon_outputs[mbon_mask]["post_root_id"].unique().tolist()
+
+                # Update level to MBONs only
+                level_3.root_ids = mbon_root_ids
+                level_3.neuron_count = len(mbon_root_ids)
+                level_3.connections_to_next = mbon_outputs[mbon_mask].copy()
+            else:
+                mbon_root_ids = []
+
             logger.info("  Level 3 (%s): %d MBONs", self.level_titles[3], len(mbon_root_ids))
 
         if self.max_levels >= 5 and mbon_root_ids:
@@ -1018,7 +1085,7 @@ ORN_CONFIGS: Tuple[ORNPathwayConfig, ...] = (
         neurotransmitter_profile="ACH",
         pn_patterns=("dl5_adpn", "dl5_lpn", "dl5"),
         expected_orn_count=41,
-        pn_root_ids=(720575940639080700, 720575940617207200),
+        pn_root_ids=(720575940617207185, 720575940639080765),  # Fixed: correct DL5_adPN IDs
         color="#9467bd",
     ),
     ORNPathwayConfig(
@@ -1028,6 +1095,7 @@ ORN_CONFIGS: Tuple[ORNPathwayConfig, ...] = (
         neurotransmitter_profile="ACH",
         pn_patterns=("dc2_adpn", "dc2_lpn", "dc2"),
         expected_orn_count=20,
+        pn_root_ids=(720575940631193052, 720575940627160322, 720575940630493818, 720575940616824588),
         color="#1f77b4",
     ),
     ORNPathwayConfig(
@@ -1037,6 +1105,7 @@ ORN_CONFIGS: Tuple[ORNPathwayConfig, ...] = (
         neurotransmitter_profile="mixed ACH/SER",
         pn_patterns=("dm1_adpn", "dm1_lpn", "dm1"),
         expected_orn_count=71,
+        pn_root_ids=(720575940619071005, 720575940630770042),
         color="#ff7f0e",
     ),
     ORNPathwayConfig(
@@ -1044,8 +1113,12 @@ ORN_CONFIGS: Tuple[ORNPathwayConfig, ...] = (
         orn_csv=DEFAULT_DATA_DIR / "search_results_Or47b.csv",
         glomerulus="VA1v",
         neurotransmitter_profile="mixed ACH/SER",
-        pn_patterns=("va1v_adpn", "va1v_lpn", "va1v"),
+        pn_patterns=("va1v_adpn", "va1v_lpn", "va1v_vpn", "mz_lv2pn", "va1v"),
         expected_orn_count=98,
+        pn_root_ids=(720575940629733626, 720575940623739076, 720575940620199962, 720575940621696747,
+                     720575940628283560, 720575940630989354, 720575940625014928, 720575940633165025,
+                     720575940629097922, 720575940632720026, 720575940631742156, 720575940634229615,
+                     720575940621103743, 720575940615189465, 720575940638288447),  # All 3 types: VA1v_adPN (9), VA1v_vPN (4), MZ_lv2PN (2)
         color="#2ca02c",
     ),
     ORNPathwayConfig(
@@ -1055,6 +1128,7 @@ ORN_CONFIGS: Tuple[ORNPathwayConfig, ...] = (
         neurotransmitter_profile="ACH",
         pn_patterns=("dm4_adpn", "dm4_lpn", "dm4"),
         expected_orn_count=40,
+        pn_root_ids=(720575940615366055, 720575940623528925),
         color="#d62728",
     ),
 )
@@ -1062,7 +1136,56 @@ ORN_CONFIGS: Tuple[ORNPathwayConfig, ...] = (
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Trace ORN→PN→KC→MBON→behavior pathways for multiple receptor types."
+        description="Trace ORN→PN→KC→MBON→behavior pathways for multiple receptor types.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Run complete 5-level pathway analysis (recommended)
+  python scripts/map_multi_orn_pathways.py
+
+  # Analyze only up to KC level (faster)
+  python scripts/map_multi_orn_pathways.py --max-levels 3
+
+  # Custom output location
+  python scripts/map_multi_orn_pathways.py --output-root results/pathway_analysis/
+
+  # Stricter synapse threshold for high-confidence connections
+  python scripts/map_multi_orn_pathways.py --min-synapses 5
+
+  # Custom data paths
+  python scripts/map_multi_orn_pathways.py \\
+      --connections data/flywire/connections_v783.csv.gz \\
+      --cell-types data/flywire/cell_types_v783.csv.gz
+
+  # Debug mode with verbose logging
+  python scripts/map_multi_orn_pathways.py --log-level DEBUG
+
+Circuit Levels Traced:
+  Level 0: ORNs (Olfactory Receptor Neurons)
+  Level 1: PNs (Projection Neurons)
+  Level 2: KCs (Kenyon Cells - mushroom body)
+  Level 3: MBONs (Mushroom Body Output Neurons)
+  Level 4: Behavioral outputs (motor, descending, central complex)
+
+Output Files (per ORN type):
+  - {orn}_complete_pathway.csv                 : All connections across levels
+  - pathway_summary_by_level.csv               : Neuron counts per level
+  - pathway_summary_connections.csv            : Connection statistics
+  - pathway_summary_categories.csv             : Cell category distribution
+  - pathway_summary_bottlenecks.csv            : Information flow bottlenecks
+  - target_priorities.csv                      : Critical pathway hubs
+  - {orn}_complete_pathway_analysis.png        : Publication figure
+
+Cross-ORN Comparative Outputs:
+  - multi_orn_convergence_comparison.csv       : Convergence ratios
+  - receptor_specific_bottlenecks.csv          : Bottleneck analysis
+  - cross_orn_kc_recruitment.csv               : KC recruitment patterns
+  - behavioral_output_specialization.csv       : Behavioral specialization
+  - pathway_significance_tests.json            : Statistical tests
+  - multi_orn_pathway_overview.png             : Multi-panel comparison
+
+For more information, see the PGCN repository documentation.
+        """
     )
     parser.add_argument(
         "--connections",
@@ -1116,7 +1239,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     cell_types = load_cell_types(args.cell_types)
 
     results: List[ORNPathwayResult] = []
-    for config in ORN_CONFIGS:
+    for config in tqdm(ORN_CONFIGS, desc="Tracing ORN pathways", unit="pathway"):
         tracer = ORNPathwayTracer(
             config=config,
             connections=connections,

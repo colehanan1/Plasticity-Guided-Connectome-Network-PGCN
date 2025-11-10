@@ -36,6 +36,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from tqdm import tqdm
 
 try:  # SciPy is part of the project requirements but keep a graceful fallback.
     from scipy import stats
@@ -133,6 +134,11 @@ CELL_TYPE_MAPPING: Dict[str, str] = {
     "ORN_VA1v": "olfactory receptor neuron VA1v type",
 }
 
+CELL_TYPE_REVERSE_MAPPING: Dict[str, str] = {
+    expanded.lower(): abbrev
+    for abbrev, expanded in CELL_TYPE_MAPPING.items()
+}
+
 
 def expand_cell_type_name(abbreviation: Optional[str]) -> Optional[str]:
     """
@@ -153,6 +159,33 @@ def expand_cell_type_name(abbreviation: Optional[str]) -> Optional[str]:
     if not isinstance(abbreviation, str):
         return abbreviation
     return CELL_TYPE_MAPPING.get(abbreviation, abbreviation)
+
+
+def normalise_cell_type_identifier(value: Union[str, float, None]) -> str:
+    """
+    Map descriptive cell type labels back to canonical abbreviations when possible.
+
+    Parameters
+    ----------
+    value : Union[str, float, None]
+        Cell type value from annotations table.
+
+    Returns
+    -------
+    str
+        Canonical abbreviation if available, otherwise the original string
+        (or 'unknown' when not provided).
+    """
+    if value is None:
+        return "unknown"
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if pd.isna(value):
+            return "unknown"
+        value = str(value)
+    text = str(value).strip()
+    if not text:
+        return "unknown"
+    return CELL_TYPE_REVERSE_MAPPING.get(text.lower(), text)
 
 
 def expand_cell_type_field(value: Union[str, Sequence[str], float, None]) -> Union[str, Sequence[str], float, None]:
@@ -264,6 +297,79 @@ ORN_DEFINITIONS: Tuple[ORNConfig, ...] = (
 )
 
 
+ORN_PN_SUBTYPES: Dict[str, Tuple[str, ...]] = {
+    # Previously only VA1v_adPN accounted for Or47b; include all validated PN classes.
+    "Or47b": ("VA1v_adPN", "VA1v_vPN", "MZ_lv2PN"),
+}
+
+PN_SUBTYPE_LOOKUPS: Dict[str, Dict[str, str]] = {
+    orn: {subtype.lower(): subtype for subtype in subtypes}
+    for orn, subtypes in ORN_PN_SUBTYPES.items()
+}
+
+GLOBAL_PN_SUBTYPE_LOOKUP: Dict[str, str] = {
+    subtype.lower(): subtype
+    for subtypes in ORN_PN_SUBTYPES.values()
+    for subtype in subtypes
+}
+
+
+def annotate_projection_neuron_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Ensure projection-neuron metadata columns exist and are populated.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Long-format ORN output table containing 'orn_type' and 'target_primary_type'.
+
+    Returns
+    -------
+    pd.DataFrame
+        Copy of the input with projection-neuron subtype annotations and helper columns.
+    """
+    if df.empty:
+        result = df.copy()
+        if "target_primary_type_label" not in result.columns:
+            result["target_primary_type_label"] = pd.Series(dtype="object")
+        if "target_primary_type_code" not in result.columns:
+            result["target_primary_type_code"] = pd.Series(dtype="object")
+        if "target_projection_neuron_subtype" not in result.columns:
+            result["target_projection_neuron_subtype"] = pd.Series(dtype="object")
+        if "target_is_projection_neuron" not in result.columns:
+            result["target_is_projection_neuron"] = pd.Series(dtype="bool")
+        else:
+            result["target_is_projection_neuron"] = result["target_is_projection_neuron"].astype(bool)
+        return result
+
+    if "target_primary_type" not in df.columns:
+        return df
+
+    result = df.copy()
+    result["target_primary_type_label"] = (
+        result["target_primary_type"].fillna("unknown").astype(str)
+    )
+    result["target_primary_type_code"] = result["target_primary_type_label"].apply(
+        normalise_cell_type_identifier
+    )
+
+    lowered_primary = result["target_primary_type_code"].str.lower()
+    if "orn_type" in result.columns:
+        orn_labels = result["orn_type"].astype(str)
+    else:
+        orn_labels = pd.Series([""] * len(result))
+
+    result["target_projection_neuron_subtype"] = [
+        PN_SUBTYPE_LOOKUPS.get(orn, {}).get(cell_type, GLOBAL_PN_SUBTYPE_LOOKUP.get(cell_type))
+        for orn, cell_type in zip(orn_labels, lowered_primary)
+    ]
+    result["target_is_projection_neuron"] = result["target_projection_neuron_subtype"].notna()
+
+    result["target_primary_type"] = result["target_primary_type_code"].apply(expand_cell_type_field)
+
+    return result
+
+
 class ORNProcessingError(RuntimeError):
     """Raised when a specific ORN dataset fails processing."""
 
@@ -310,6 +416,24 @@ class MultiORNOutputMapper:
     # Data loading helpers
     # --------------------------------------------------------------------- #
     def _load_cell_types(self) -> pd.DataFrame:
+        """
+        Load cell type annotations from consolidated CSV file.
+
+        Performs column name standardization (primary_type → cell_type) and
+        applies cell type name expansion for publication-quality labels.
+
+        Returns
+        -------
+        pd.DataFrame
+            Cell type annotations with columns: root_id, primary_type, additional_type(s)
+
+        Raises
+        ------
+        FileNotFoundError
+            If cell types file does not exist at configured path
+        ValueError
+            If required 'root_id' column is missing
+        """
         if self._cell_types_df is not None:
             return self._cell_types_df
 
@@ -374,11 +498,14 @@ class MultiORNOutputMapper:
         return [item for item in items if item]
 
     def _load_orn_table(self, config: ORNConfig) -> pd.DataFrame:
+        """Load and validate ORN neuron table with comprehensive error checking."""
         if not config.csv_path.exists():
             raise ORNProcessingError(
-                f"{config.name}: data file not found at {config.csv_path}"
+                f"{config.name}: ORN data file not found at {config.csv_path}\n"
+                f"Please ensure the data file exists or update the configuration."
             )
 
+        logger.info(f"Loading {config.name} neuron data from {config.csv_path}")
         df = pd.read_csv(config.csv_path)
 
         required_cols = {
@@ -392,7 +519,8 @@ class MultiORNOutputMapper:
         missing = required_cols.difference(df.columns)
         if missing:
             raise ORNProcessingError(
-                f"{config.name}: dataset missing required columns {sorted(missing)}"
+                f"{config.name}: dataset missing required columns {sorted(missing)}\n"
+                f"Available columns: {sorted(df.columns)}"
             )
 
         # Normalise list-like columns for downstream parsing.
@@ -422,17 +550,47 @@ class MultiORNOutputMapper:
                 f"{config.name}: duplicate root ids detected {example}"
             )
 
+        # Log hemisphere distribution (matching OR7a detailed logging style)
+        logger.info(f"Loaded {len(df)} {config.name} neurons")
+        left_count = (df["side"] == "left").sum()
+        right_count = (df["side"] == "right").sum()
+        unknown_count = (df["side"] == "unknown").sum()
+        logger.info(f"  Left hemisphere: {left_count}")
+        logger.info(f"  Right hemisphere: {right_count}")
+        if unknown_count > 0:
+            logger.info(f"  Unknown hemisphere: {unknown_count}")
+
+        # Validate expected count with informative warning
         if config.expected_count is not None and len(df) != config.expected_count:
             logger.warning(
-                "%s: expected %d neurons, found %d",
+                "%s: expected %d neurons, found %d (%.1f%% of expected)",
                 config.name,
                 config.expected_count,
                 len(df),
+                100 * len(df) / config.expected_count,
             )
 
         return df
 
     def _load_relevant_connections(self, pre_root_ids: Iterable[int]) -> pd.DataFrame:
+        """
+        Load connections from presynaptic ORN neurons using chunked reading.
+
+        Efficiently scans large connection tables by processing in chunks,
+        filtering for ORN presynaptic IDs, and concatenating results.
+        Shows progress via tqdm for long-running operations.
+
+        Parameters
+        ----------
+        pre_root_ids : Iterable[int]
+            Presynaptic neuron root IDs (ORNs) to filter connections for
+
+        Returns
+        -------
+        pd.DataFrame
+            Filtered connections with columns: pre_root_id, post_root_id,
+            syn_count, and optional neuropil/nt_type columns
+        """
         columns = self._detect_connection_columns()
         root_ids = {int(x) for x in pre_root_ids}
         if not root_ids:
@@ -445,7 +603,7 @@ class MultiORNOutputMapper:
         )
 
         frames: List[pd.DataFrame] = []
-        for chunk in pd.read_csv(
+        chunk_iterator = pd.read_csv(
             self.connections_path,
             usecols=columns,
             dtype={
@@ -454,7 +612,9 @@ class MultiORNOutputMapper:
                 "syn_count": "int32",
             },
             chunksize=self.chunk_size,
-        ):
+        )
+
+        for chunk in tqdm(chunk_iterator, desc="Scanning connections", unit="chunk"):
             mask = chunk["pre_root_id"].isin(root_ids)
             if mask.any():
                 frames.append(chunk.loc[mask].copy())
@@ -547,16 +707,13 @@ class MultiORNOutputMapper:
                 "additional_type(s)": "target_additional_types",
             }
         )
-        long_df["target_primary_type"] = (
-            long_df["target_primary_type"]
-            .fillna("unknown")
-            .apply(expand_cell_type_field)
-        )
+        long_df["target_primary_type"] = long_df["target_primary_type"].fillna("unknown")
         long_df["target_additional_types"] = (
             long_df["target_additional_types"]
             .fillna("")
             .apply(expand_cell_type_field)
         )
+        long_df = annotate_projection_neuron_columns(long_df)
 
         # Enforce minimum synapse threshold
         long_df = long_df[long_df["syn_count"] >= self.min_synapses].copy()
@@ -587,6 +744,10 @@ class MultiORNOutputMapper:
             "orn_output_synapses_reported",
             "target_root_id",
             "target_primary_type",
+            "target_primary_type_label",
+            "target_primary_type_code",
+            "target_projection_neuron_subtype",
+            "target_is_projection_neuron",
             "target_additional_types",
             "neuropil",
             "syn_count",
@@ -682,18 +843,37 @@ class MultiORNOutputMapper:
                 }
             )
 
+        if "target_is_projection_neuron" not in long_df.columns:
+            long_df = long_df.copy()
+            long_df["target_is_projection_neuron"] = False
+        if "target_projection_neuron_subtype" not in long_df.columns:
+            long_df = long_df.copy()
+            long_df["target_projection_neuron_subtype"] = pd.Series([None] * len(long_df))
+
         per_neuron_targets = (
             long_df.groupby("orn_root_id")["target_root_id"].nunique()
         )
         per_neuron_synapses = long_df.groupby("orn_root_id")["syn_count"].sum()
         neuropil_totals = long_df.groupby("neuropil")["syn_count"].sum().sort_values(ascending=False)
         target_totals = long_df.groupby("target_primary_type")["syn_count"].sum().sort_values(ascending=False)
+        pn_totals = (
+            long_df[long_df["target_is_projection_neuron"]]
+            .groupby("target_projection_neuron_subtype")["syn_count"]
+            .sum()
+            .sort_values(ascending=False)
+        )
 
         dominant_target = target_totals.index[0] if not target_totals.empty else "unknown"
         dominant_target_fraction = (
             target_totals.iloc[0] / long_df["syn_count"].sum()
             if not target_totals.empty else float("nan")
         )
+        dominant_pn_subtype = pn_totals.index[0] if not pn_totals.empty else "NA"
+        dominant_pn_fraction = (
+            pn_totals.iloc[0] / long_df["syn_count"].sum()
+            if not pn_totals.empty else float("nan")
+        )
+        expected_pn_subtypes = ", ".join(ORN_PN_SUBTYPES.get(config.name, ())) or "NA"
         dominant_neuropil = neuropil_totals.index[0] if not neuropil_totals.empty else "unknown"
         dominant_neuropil_fraction = (
             neuropil_totals.iloc[0] / long_df["syn_count"].sum()
@@ -717,8 +897,11 @@ class MultiORNOutputMapper:
                 "total_unique_targets": [long_df["target_root_id"].nunique()],
                 "dominant_target_primary_type": [expand_cell_type_name(dominant_target)],
                 "dominant_target_fraction": [dominant_target_fraction],
+                "dominant_projection_neuron_subtype": [dominant_pn_subtype],
+                "dominant_projection_neuron_fraction": [dominant_pn_fraction],
                 "dominant_neuropil": [dominant_neuropil],
                 "dominant_neuropil_fraction": [dominant_neuropil_fraction],
+                "expected_projection_neuron_subtypes": [expected_pn_subtypes],
                 "hemisphere_left": [left_count],
                 "hemisphere_right": [right_count],
                 "hemisphere_unknown": [unknown_count],
@@ -794,8 +977,9 @@ class MultiORNOutputMapper:
         if "nt_type" in outputs_raw.columns:
             long_df["nt_type"] = outputs_raw["nt_type"]
 
-        long_df["target_primary_type"] = long_df["target_primary_type"].apply(expand_cell_type_field)
+        long_df["target_primary_type"] = long_df["target_primary_type"].fillna("unknown")
         long_df["target_additional_types"] = long_df["target_additional_types"].apply(expand_cell_type_field)
+        long_df = annotate_projection_neuron_columns(long_df)
 
         neuron_totals = long_df.groupby("orn_root_id")["syn_count"].transform("sum")
         neuron_totals = neuron_totals.replace(0, np.nan)
@@ -879,25 +1063,27 @@ class MultiORNOutputMapper:
         )
         ax2.set_title("Output Neuropil Distribution", fontsize=12, fontweight="bold")
 
-        # 3. Targets per neuron histogram
+        # 3. Targets per neuron histogram (matching OR7a bin count and styling)
         ax3 = fig.add_subplot(gs[1, 0])
         targets_per_orn = outputs.groupby("orn_id")["target_root_id"].count()
-        ax3.hist(targets_per_orn, bins=20, color="coral", edgecolor="black")
+        ax3.hist(targets_per_orn, bins=20, color="coral", edgecolor="black", alpha=0.7)
         ax3.set_title("Number of Targets per Neuron", fontsize=12, fontweight="bold")
         ax3.set_xlabel("Number of Downstream Targets")
-        ax3.set_ylabel("Neuron Count")
+        ax3.set_ylabel(f"Number of {config.name} Neurons")
         if len(targets_per_orn) > 0:
             mean_targets = targets_per_orn.mean()
-            ax3.axvline(mean_targets, color="red", linestyle="--", label=f"Mean: {mean_targets:.1f}")
+            ax3.axvline(mean_targets, color="red", linestyle="--", linewidth=2, label=f"Mean: {mean_targets:.1f}")
             ax3.legend()
+        ax3.grid(axis="y", alpha=0.3)
 
-        # 4. Synapse count distribution
+        # 4. Synapse count distribution (log scale for clarity, matching OR7a style)
         ax4 = fig.add_subplot(gs[1, 1])
         ax4.hist(outputs["synapse_count"], bins=30, color="mediumpurple", edgecolor="black")
         ax4.set_title("Synapse Count Distribution", fontsize=12, fontweight="bold")
         ax4.set_xlabel("Synapses per Connection")
         ax4.set_ylabel("Count")
         ax4.set_yscale("log")
+        ax4.grid(axis="y", alpha=0.3)  # Add subtle grid for readability
 
         # 5. Hemispheric comparison
         ax5 = fig.add_subplot(gs[1, 2])
@@ -908,7 +1094,17 @@ class MultiORNOutputMapper:
             .rename(columns={"target_root_id": "num_targets", "orn_side": "side"})
         )
         if not hemis_data.empty:
-            sns.boxplot(data=hemis_data, x="side", y="num_targets", ax=ax5, palette="Set2")
+            sns.boxplot(
+                data=hemis_data,
+                x="side",
+                y="num_targets",
+                hue="side",
+                palette="Set2",
+                dodge=False,
+                ax=ax5,
+            )
+            if ax5.legend_ is not None:
+                ax5.legend_.remove()
             sns.swarmplot(data=hemis_data, x="side", y="num_targets", ax=ax5, color="black", alpha=0.5, size=4)
         ax5.set_title("Hemispheric Comparison", fontsize=12, fontweight="bold")
         ax5.set_xlabel("Hemisphere")
@@ -1111,7 +1307,7 @@ class MultiORNOutputMapper:
     # Public API
     # --------------------------------------------------------------------- #
     def run(self) -> None:
-        for config in self.orn_configs:
+        for config in tqdm(self.orn_configs, desc="Processing ORN types", unit="ORN"):
             try:
                 result = self._process_single_orn(config)
             except Exception as exc:  # pragma: no cover - defensive logging
@@ -1185,7 +1381,48 @@ class MultiORNOutputMapper:
 
 def parse_args(args: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Map FlyWire ORN outputs across multiple receptor types."
+        description="Map FlyWire ORN outputs across multiple receptor types.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Run with default settings (recommended)
+  python scripts/map_multi_orn_outputs.py
+
+  # Custom output directory
+  python scripts/map_multi_orn_outputs.py --output-dir results/custom_orn_analysis/
+
+  # Adjust minimum synapse threshold for stricter filtering
+  python scripts/map_multi_orn_outputs.py --min-synapses 5
+
+  # Include more top targets per neuron in wide format
+  python scripts/map_multi_orn_outputs.py --top-targets 30
+
+  # Custom data paths
+  python scripts/map_multi_orn_outputs.py \\
+      --connections data/flywire/my_connections.csv.gz \\
+      --cell-types data/flywire/my_cell_types.csv.gz
+
+  # Smaller chunk size for memory-constrained systems
+  python scripts/map_multi_orn_outputs.py --chunk-size 100000
+
+  # Increase logging verbosity for debugging
+  python scripts/map_multi_orn_outputs.py --log-level DEBUG
+
+Output Files (per ORN type):
+  - {orn}_output_targets_long.csv  : All ORN→target connections
+  - {orn}_output_targets_wide.csv  : Top-N targets per neuron
+  - {orn}_summary_statistics.csv   : Population-level metrics
+  - {orn}_output_analysis.png      : Publication-quality visualization
+
+Cross-ORN Comparative Outputs:
+  - comparative_orn_analysis.csv           : Combined summary metrics
+  - comparative_orn_pairwise_tests.csv     : Statistical comparisons
+  - comparative_orn_significance.json      : Global test statistics
+  - orn_synapse_distribution.png           : Synapse distribution plot
+  - orn_target_celltype_heatmap.png        : Target cell-type heatmap
+
+For more information, see the PGCN repository documentation.
+        """
     )
     parser.add_argument(
         "--connections",

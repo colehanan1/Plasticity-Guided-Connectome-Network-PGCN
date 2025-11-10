@@ -554,7 +554,17 @@ class OR7aOutputMapper:
         ax5 = fig.add_subplot(gs[1, 2])
         hemis_data = outputs.groupby(['or7a_side', 'or7a_root_id'])['target_root_id'].count().reset_index()
         hemis_data.columns = ['side', 'or7a_root_id', 'num_targets']
-        sns.boxplot(data=hemis_data, x='side', y='num_targets', ax=ax5, palette='Set2')
+        sns.boxplot(
+            data=hemis_data,
+            x='side',
+            y='num_targets',
+            hue='side',
+            palette='Set2',
+            dodge=False,
+            ax=ax5,
+        )
+        if ax5.legend_ is not None:
+            ax5.legend_.remove()
         sns.swarmplot(data=hemis_data, x='side', y='num_targets', ax=ax5, color='black', alpha=0.5, size=4)
         ax5.set_title('Hemispheric Comparison', fontsize=12, fontweight='bold')
         ax5.set_xlabel('Hemisphere')
