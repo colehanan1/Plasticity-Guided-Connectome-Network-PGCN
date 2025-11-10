@@ -244,19 +244,19 @@ class LNPNConnectivityAnalyzer:
         # Initialize neuron_type column
         neurons['neuron_type'] = 'Other'
 
-        # Identify LNs (local neurons)
-        ln_mask = neurons['class'].str.contains('LN', case=False, na=False)
-
-        # Also check flow column if it exists
-        if 'flow' in neurons.columns:
-            ln_mask = ln_mask | (neurons['flow'] == 'intrinsic')
-
-        neurons.loc[ln_mask, 'neuron_type'] = 'LN'
+        # Identify KCs (Kenyon cells) - MUST BE FIRST (most specific)
+        # FlyWire uses "Kenyon_Cell" not "KC"
+        kc_mask = (
+            (neurons['class'] == 'Kenyon_Cell') |
+            (neurons['class'].str.contains(r'\bKC\b', case=False, na=False, regex=True))
+        )
+        neurons.loc[kc_mask, 'neuron_type'] = 'KC'
 
         # Identify PNs (projection neurons)
         pn_mask = (
-            neurons['class'].str.contains('ALPN', case=False, na=False) |
-            neurons['class'].str.contains('_PN', case=False, na=False)
+            neurons['class'].str.contains(r'\bALPN\b', case=False, na=False, regex=True) |
+            neurons['class'].str.contains(r'_PN\b', case=False, na=False, regex=True) |
+            neurons['class'].str.contains(r'^PN\b', case=False, na=False, regex=True)
         )
 
         # Also check superclass if it exists (handle both naming conventions)
@@ -267,9 +267,16 @@ class LNPNConnectivityAnalyzer:
 
         neurons.loc[pn_mask, 'neuron_type'] = 'PN'
 
-        # Identify KCs (Kenyon cells)
-        kc_mask = neurons['class'].str.contains('KC', case=False, na=False)
-        neurons.loc[kc_mask, 'neuron_type'] = 'KC'
+        # Identify LNs (local neurons) - Check class == "olfactory" FIRST
+        # Then will refine using labels that contain "LN"
+        ln_mask = (neurons['class'] == 'olfactory')
+
+        # Also check flow column if it exists
+        if 'flow' in neurons.columns:
+            ln_mask = ln_mask | (neurons['flow'] == 'intrinsic')
+
+        # Mark potential LNs (will refine with labels later)
+        neurons.loc[ln_mask, 'neuron_type'] = 'LN_candidate'
 
         # Identify MBONs
         mbon_mask = neurons['class'].str.contains('MBON', case=False, na=False)
@@ -287,10 +294,10 @@ class LNPNConnectivityAnalyzer:
         if 'glomerulus' not in labels_processed.columns:
             if 'label' in labels_processed.columns:
                 # Extract glomerulus name (handle various formats)
-                # Patterns: ORN_DL5, DA1_adPN, DL5, VC3, DC2, etc.
-                # Also handles: lLN2F_a, VA1v_adPN, etc.
+                # Labels are stored as strings like "['ORN_DL5']" or "['DA1_adPN']"
+                # Patterns to match: DL5, DA1, DM1, DM2, VA1v, VC3, DC2, DP1l, etc.
                 labels_processed['glomerulus'] = labels_processed['label'].str.extract(
-                    r'(?:ORN_)?(?:^|_)(D[ALMR]\d+[a-z]?|V[ACL]\d+[a-z]?|DC\d+|DP\d+[a-z]?|DA\d+[a-z]?)(?:_|$)',
+                    r'\b(D[ALMR]\d+[a-z]?|V[ACL]\d+[a-z]?|DC\d+|DP\d+[a-z]?)\b',
                     expand=False
                 )
 
@@ -308,7 +315,7 @@ class LNPNConnectivityAnalyzer:
                 # Create empty glomerulus column to avoid errors
                 labels_processed['glomerulus'] = None
 
-        # Only merge if we have both required columns
+        # Merge glomerulus info
         if 'root_id' in labels_processed.columns and 'glomerulus' in labels_processed.columns:
             neurons = neurons.merge(
                 labels_processed[['root_id', 'glomerulus']],
@@ -319,6 +326,28 @@ class LNPNConnectivityAnalyzer:
             # Can't merge - just add empty glomerulus column
             logger.warning("Could not merge glomerulus labels - missing required columns")
             neurons['glomerulus'] = None
+
+        # Merge full labels for LN refinement
+        if 'root_id' in labels_processed.columns and 'label' in labels_processed.columns:
+            neurons = neurons.merge(
+                labels_processed[['root_id', 'label']],
+                on='root_id',
+                how='left',
+                suffixes=('', '_full')
+            )
+
+            # Refine LN classification: Must have "LN" in label
+            # Use word boundary to match only complete "LN" token
+            ln_candidate_mask = (neurons['neuron_type'] == 'LN_candidate')
+            if 'label' in neurons.columns:
+                has_ln_in_label = neurons['label'].astype(str).str.contains(r'\bLN\b', case=False, na=False, regex=True)
+                # Keep only LN candidates that have "LN" in their label
+                neurons.loc[ln_candidate_mask & has_ln_in_label, 'neuron_type'] = 'LN'
+                # Others go back to Other
+                neurons.loc[ln_candidate_mask & ~has_ln_in_label, 'neuron_type'] = 'Other'
+        else:
+            # No labels available - keep all LN_candidates as LNs
+            neurons.loc[neurons['neuron_type'] == 'LN_candidate', 'neuron_type'] = 'LN'
 
         # Log statistics
         type_counts = neurons['neuron_type'].value_counts()
