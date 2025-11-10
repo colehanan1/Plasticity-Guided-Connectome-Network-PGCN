@@ -49,6 +49,20 @@ DEFAULT_OUTPUT_DIR = Path("results/ln_pn_analysis")
 # Key glomeruli of interest (can be expanded)
 GLOMERULI_OF_INTEREST = ["DL5", "DM1", "DM2", "DM3", "DM4", "DA1", "DL1", "DL3", "DC2", "VA1v", "VA1d"]
 
+# Olfactory receptor to glomerulus mapping
+OR_TO_GLOMERULUS = {
+    'or7a': 'DL5',
+    'or13a': 'DA2',
+    'or42b': 'DM2',
+    'or47b': 'VA1v',
+    'or59b': 'DM4',
+    'or67d': 'DA1',
+    'or82a': 'VA3',
+    'or88a': 'VA1d',
+    'or92a': 'VA2',
+    # Add more as needed
+}
+
 
 @dataclass
 class LNPNConnectivityAnalyzer:
@@ -133,12 +147,15 @@ class LNPNConnectivityAnalyzer:
         if 'rootid' in df.columns and 'root_id' not in df.columns:
             df = df.rename(columns={'rootid': 'root_id'})
 
-        # Keep only glomerulus-related labels
+        # FlyWire uses 'processed_labels' not 'label'
+        if 'processed_labels' in df.columns and 'label' not in df.columns:
+            df = df.rename(columns={'processed_labels': 'label'})
+
+        # Keep only rows with labels
         if 'label' in df.columns:
-            # Filter for glomerulus labels (typically format: "glomerulus_XX")
             df = df[df['label'].notna()].copy()
 
-        logger.info(f"Loaded {len(df):,} glomerulus label annotations")
+        logger.info(f"Loaded {len(df):,} label annotations")
         self._labels_df = df
         return df
 
@@ -270,7 +287,21 @@ class LNPNConnectivityAnalyzer:
         if 'glomerulus' not in labels_processed.columns:
             if 'label' in labels_processed.columns:
                 # Extract glomerulus name (handle various formats)
-                labels_processed['glomerulus'] = labels_processed['label'].str.extract(r'(D[ALMR]\d+[a-z]?|V[AL]\d+[a-z]?|DC\d+)', expand=False)
+                # Patterns: ORN_DL5, DA1_adPN, DL5, VC3, DC2, etc.
+                # Also handles: lLN2F_a, VA1v_adPN, etc.
+                labels_processed['glomerulus'] = labels_processed['label'].str.extract(
+                    r'(?:ORN_)?(?:^|_)(D[ALMR]\d+[a-z]?|V[ACL]\d+[a-z]?|DC\d+|DP\d+[a-z]?|DA\d+[a-z]?)(?:_|$)',
+                    expand=False
+                )
+
+                # Also try to map OR names to glomeruli (e.g., or7a → DL5)
+                # For neurons where glomerulus wasn't extracted, check for OR names
+                mask_no_glom = labels_processed['glomerulus'].isna()
+                for or_name, glomerulus in OR_TO_GLOMERULUS.items():
+                    # Case-insensitive search for OR names like "or7a", "Or7a", "OR7a"
+                    or_mask = labels_processed['label'].str.contains(or_name, case=False, na=False)
+                    labels_processed.loc[mask_no_glom & or_mask, 'glomerulus'] = glomerulus
+
             else:
                 # No label column - check what columns exist
                 logger.warning(f"No 'label' or 'glomerulus' column found in labels file. Available columns: {list(labels_processed.columns)}")
