@@ -306,9 +306,7 @@ class LNPNConnectivityAnalyzer:
             neurons_df=neurons_df
         )
         lns['neuron_type'] = 'LN'
-
-        # Infer glomerulus for LNs using same function as PNs
-        lns['glomerulus'] = infer_pn_glomerulus_labels(lns, processed_labels_df=labels_df)
+        # Don't try to infer glomeruli here - LNs need connectivity-based inference
 
         # Combine all classified neurons
         classified = pd.concat([kcs, pns, mbons, lns], ignore_index=True)
@@ -341,11 +339,89 @@ class LNPNConnectivityAnalyzer:
             logger.info(f"  {ntype}: {count:,}")
 
         # Log glomerulus coverage
-        ln_with_glom = neurons[(neurons['neuron_type'] == 'LN') & (neurons['glomerulus'].notna())]
         pn_with_glom = neurons[(neurons['neuron_type'] == 'PN') & (neurons['glomerulus'].notna())]
-
-        logger.info(f"LNs with glomerulus labels: {len(ln_with_glom):,} / {type_counts.get('LN', 0):,}")
         logger.info(f"PNs with glomerulus labels: {len(pn_with_glom):,} / {type_counts.get('PN', 0):,}")
+        logger.info(f"(LN glomeruli will be inferred from connectivity in next step)")
+
+        return neurons
+
+    def infer_ln_glomeruli(self, neurons: pd.DataFrame) -> pd.DataFrame:
+        """
+        Infer glomerulus associations for LNs based on connectivity with PNs.
+
+        Parameters
+        ----------
+        neurons : pd.DataFrame
+            Classified neurons
+
+        Returns
+        -------
+        pd.DataFrame
+            Neurons with LN glomeruli assigned
+        """
+        logger.info("\nInferring LN glomeruli from connectivity...")
+
+        connections = self.load_connections()
+
+        # Get LNs and PNs
+        lns = neurons[neurons['neuron_type'] == 'LN'].copy()
+        pns = neurons[
+            (neurons['neuron_type'] == 'PN') &
+            (neurons['glomerulus'].notna())
+        ].copy()
+
+        if len(pns) == 0:
+            logger.warning("No PNs with glomerulus labels - cannot infer LN glomeruli")
+            return neurons
+
+        # Create PN lookup
+        pn_glom_lookup = pns.set_index('root_id')['glomerulus'].to_dict()
+
+        # Find PN→LN connections
+        pn_to_ln = connections[
+            connections['pre_root_id'].isin(pns['root_id']) &
+            connections['post_root_id'].isin(lns['root_id'])
+        ].copy()
+        pn_to_ln['source_glom'] = pn_to_ln['pre_root_id'].map(pn_glom_lookup)
+        pn_to_ln = pn_to_ln.dropna(subset=['source_glom'])
+
+        # Find LN→PN connections
+        ln_to_pn = connections[
+            connections['pre_root_id'].isin(lns['root_id']) &
+            connections['post_root_id'].isin(pns['root_id'])
+        ].copy()
+        ln_to_pn['target_glom'] = ln_to_pn['post_root_id'].map(pn_glom_lookup)
+        ln_to_pn = ln_to_pn.dropna(subset=['target_glom'])
+
+        # Aggregate all glomeruli per LN (both input and output)
+        ln_input_gloms = pn_to_ln.groupby(['post_root_id', 'source_glom'])['syn_count'].sum().reset_index()
+        ln_input_gloms = ln_input_gloms.rename(columns={'post_root_id': 'ln_id', 'source_glom': 'glomerulus'})
+
+        ln_output_gloms = ln_to_pn.groupby(['pre_root_id', 'target_glom'])['syn_count'].sum().reset_index()
+        ln_output_gloms = ln_output_gloms.rename(columns={'pre_root_id': 'ln_id', 'target_glom': 'glomerulus'})
+
+        # Combine and get all unique LN-glomerulus pairs
+        all_ln_gloms = pd.concat([
+            ln_input_gloms[['ln_id', 'glomerulus']],
+            ln_output_gloms[['ln_id', 'glomerulus']]
+        ]).drop_duplicates()
+
+        # Create a mapping of LN to list of glomeruli
+        ln_to_gloms = all_ln_gloms.groupby('ln_id')['glomerulus'].apply(list).to_dict()
+
+        # Update neurons dataframe with LN glomeruli
+        # Store as comma-separated list for LNs with multiple glomeruli
+        def get_ln_glomeruli(row):
+            if row['neuron_type'] == 'LN' and row['root_id'] in ln_to_gloms:
+                gloms = ln_to_gloms[row['root_id']]
+                return ','.join(sorted(gloms)) if len(gloms) > 1 else gloms[0]
+            return row.get('glomerulus', None)
+
+        neurons['glomerulus'] = neurons.apply(get_ln_glomeruli, axis=1)
+
+        # Log statistics
+        lns_with_glom = neurons[(neurons['neuron_type'] == 'LN') & (neurons['glomerulus'].notna())]
+        logger.info(f"Assigned glomeruli to {len(lns_with_glom):,} / {len(lns):,} LNs via connectivity")
 
         return neurons
 
@@ -882,6 +958,9 @@ class LNPNConnectivityAnalyzer:
         # Step 1: Identify neuron types
         logger.info("\nStep 1: Loading and classifying neurons...")
         neurons = self.identify_neuron_types()
+
+        # Step 1b: Infer LN glomeruli from connectivity
+        neurons = self.infer_ln_glomeruli(neurons)
 
         # Step 2: Analyze LN cross-glomerular connections
         ln_connections = self.analyze_ln_cross_glomerular_connections(neurons)
