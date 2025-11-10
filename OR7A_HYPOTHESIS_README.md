@@ -71,6 +71,45 @@ This script tests **3 specific hypotheses** about Or7a receptor's role in blocki
 - ✅ **Fast Execution**: Completes in <30 seconds
 - ✅ **Publication Ready**: 300 DPI figures with proper formatting
 
+## DoOR Toolkit Integration
+
+For enhanced functionality with real odorant response data:
+
+### Install DoOR Toolkit
+
+```bash
+# Navigate to door-toolkit repository
+cd ~/Documents/cole/VSCode/door-python-toolkit
+
+# Install in editable mode
+pip install -e .
+
+# Test installation
+python scripts/test_door_integration.py
+```
+
+See **`DOOR_TOOLKIT_SETUP.md`** for complete installation and usage guide.
+
+### Using PGCNDoorIntegration
+
+```python
+from door_integration.pgcn_door import PGCNDoorIntegration
+
+pgcn_door = PGCNDoorIntegration()
+
+# Get Or7a selectivity
+selectivity = pgcn_door.calculate_selectivity('Or7a', 'benzaldehyde', 'hexanol')
+print(f"Or7a selectivity: {selectivity:.2f}x")
+
+# Find shared receptors
+shared = pgcn_door.find_shared_receptors('benzaldehyde', 'hexanol', threshold=0.5)
+print(f"Cross-learning via: {shared}")
+
+# Map odorant to glomeruli
+glomeruli = pgcn_door.map_odorant_to_glomeruli('benzaldehyde', threshold=0.3)
+print(f"Active glomeruli: {glomeruli}")
+```
+
 ## Biological Context
 
 ### Or7a Learning Veto Mechanism
