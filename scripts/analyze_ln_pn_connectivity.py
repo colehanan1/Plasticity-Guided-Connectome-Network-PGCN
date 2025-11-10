@@ -228,18 +228,26 @@ class LNPNConnectivityAnalyzer:
         neurons['neuron_type'] = 'Other'
 
         # Identify LNs (local neurons)
-        ln_mask = (
-            neurons['class'].str.contains('LN', case=False, na=False) |
-            (neurons['flow'] == 'intrinsic')
-        )
+        ln_mask = neurons['class'].str.contains('LN', case=False, na=False)
+
+        # Also check flow column if it exists
+        if 'flow' in neurons.columns:
+            ln_mask = ln_mask | (neurons['flow'] == 'intrinsic')
+
         neurons.loc[ln_mask, 'neuron_type'] = 'LN'
 
         # Identify PNs (projection neurons)
         pn_mask = (
             neurons['class'].str.contains('ALPN', case=False, na=False) |
-            neurons['class'].str.contains('_PN', case=False, na=False) |
-            neurons['superclass'].str.contains('projection', case=False, na=False)
+            neurons['class'].str.contains('_PN', case=False, na=False)
         )
+
+        # Also check superclass if it exists (handle both naming conventions)
+        if 'superclass' in neurons.columns:
+            pn_mask = pn_mask | neurons['superclass'].str.contains('projection', case=False, na=False)
+        elif 'super_class' in neurons.columns:
+            pn_mask = pn_mask | neurons['super_class'].str.contains('projection', case=False, na=False)
+
         neurons.loc[pn_mask, 'neuron_type'] = 'PN'
 
         # Identify KCs (Kenyon cells)
