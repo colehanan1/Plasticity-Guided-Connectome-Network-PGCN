@@ -351,7 +351,12 @@ class LNPNConnectivityAnalyzer:
 
     def analyze_ln_cross_glomerular_connections(self, neurons: pd.DataFrame) -> pd.DataFrame:
         """
-        Analyze LN-mediated cross-glomerular connections.
+        Analyze LN-mediated cross-glomerular connections by inferring glomeruli from connectivity.
+
+        Since LNs typically don't have glomerulus labels in their metadata, we infer them from
+        their connectivity patterns with PNs:
+        - Source glomerulus: Which PN glomerulus provides input to the LN
+        - Target glomerulus: Which PN glomerulus receives output from the LN
 
         Parameters
         ----------
@@ -368,54 +373,83 @@ class LNPNConnectivityAnalyzer:
 
         connections = self.load_connections()
 
-        # Get LNs with glomerulus labels
-        lns = neurons[
-            (neurons['neuron_type'] == 'LN') &
+        # Get all LNs (don't require glomerulus labels)
+        lns = neurons[neurons['neuron_type'] == 'LN'].copy()
+        logger.info(f"Found {len(lns):,} LNs total")
+
+        # Get PNs with glomerulus labels
+        pns = neurons[
+            (neurons['neuron_type'] == 'PN') &
             (neurons['glomerulus'].notna())
         ].copy()
+        logger.info(f"Found {len(pns):,} PNs with glomerulus labels")
 
-        if len(lns) == 0:
-            logger.warning("No LNs with glomerulus labels found!")
+        if len(pns) == 0:
+            logger.warning("No PNs with glomerulus labels - cannot infer LN connectivity!")
             return pd.DataFrame(columns=['source_glom', 'target_glom', 'ln_count', 'total_synapses', 'mean_weight', 'std_weight'])
 
-        logger.info(f"Found {len(lns):,} LNs with glomerulus labels")
+        # Create PN lookup: root_id -> glomerulus
+        pn_glom_lookup = pns.set_index('root_id')['glomerulus'].to_dict()
 
-        # Get all neurons with glomerulus labels for targets
-        all_labeled = neurons[neurons['glomerulus'].notna()].copy()
-
-        # Filter connections where source is an LN
-        ln_connections = connections[
-            connections['pre_root_id'].isin(lns['root_id'])
+        # Step 1: Find PN→LN connections (inputs to LNs)
+        pn_to_ln = connections[
+            connections['pre_root_id'].isin(pns['root_id']) &
+            connections['post_root_id'].isin(lns['root_id'])
         ].copy()
+        logger.info(f"Found {len(pn_to_ln):,} PN→LN connections")
 
-        logger.info(f"Found {len(ln_connections):,} LN output connections")
+        # Add source glomerulus from PN
+        pn_to_ln['source_glom'] = pn_to_ln['pre_root_id'].map(pn_glom_lookup)
+        pn_to_ln = pn_to_ln.dropna(subset=['source_glom'])
 
-        # Merge with source (LN) glomerulus info
-        ln_connections = ln_connections.merge(
-            lns[['root_id', 'glomerulus']],
-            left_on='pre_root_id',
-            right_on='root_id',
-            how='inner'
-        ).rename(columns={'glomerulus': 'source_glom'})
-
-        # Merge with target glomerulus info
-        ln_connections = ln_connections.merge(
-            all_labeled[['root_id', 'glomerulus']],
-            left_on='post_root_id',
-            right_on='root_id',
-            how='inner',
-            suffixes=('_src', '_tgt')
-        ).rename(columns={'glomerulus': 'target_glom'})
-
-        # Filter for cross-glomerular connections only (no self-loops)
-        cross_glom = ln_connections[
-            ln_connections['source_glom'] != ln_connections['target_glom']
+        # Step 2: Find LN→PN connections (outputs from LNs)
+        ln_to_pn = connections[
+            connections['pre_root_id'].isin(lns['root_id']) &
+            connections['post_root_id'].isin(pns['root_id'])
         ].copy()
+        logger.info(f"Found {len(ln_to_pn):,} LN→PN connections")
 
-        logger.info(f"Found {len(cross_glom):,} cross-glomerular LN connections")
+        # Add target glomerulus from PN
+        ln_to_pn['target_glom'] = ln_to_pn['post_root_id'].map(pn_glom_lookup)
+        ln_to_pn = ln_to_pn.dropna(subset=['target_glom'])
 
-        # Aggregate by source-target glomerulus pairs
-        summary = cross_glom.groupby(['source_glom', 'target_glom']).agg({
+        # Step 3: For each LN, determine its primary input and output glomeruli
+        # Use the glomerulus with the most synaptic weight
+        ln_inputs = pn_to_ln.groupby(['post_root_id', 'source_glom'])['syn_count'].sum().reset_index()
+        ln_inputs = ln_inputs.sort_values('syn_count', ascending=False).drop_duplicates('post_root_id')
+        ln_inputs = ln_inputs.rename(columns={'post_root_id': 'ln_id', 'source_glom': 'input_glom'})
+
+        ln_outputs = ln_to_pn.groupby(['pre_root_id', 'target_glom'])['syn_count'].sum().reset_index()
+        ln_outputs = ln_outputs.sort_values('syn_count', ascending=False).drop_duplicates('pre_root_id')
+        ln_outputs = ln_outputs.rename(columns={'pre_root_id': 'ln_id', 'target_glom': 'output_glom'})
+
+        # Merge to get LNs with both input and output glomeruli
+        ln_glomeruli = ln_inputs.merge(ln_outputs, on='ln_id', how='inner')
+        logger.info(f"Assigned glomeruli to {len(ln_glomeruli):,} LNs based on connectivity")
+
+        # Step 4: Find cross-glomerular LNs (input_glom != output_glom)
+        cross_glom_lns = ln_glomeruli[ln_glomeruli['input_glom'] != ln_glomeruli['output_glom']].copy()
+        logger.info(f"Found {len(cross_glom_lns):,} cross-glomerular LNs")
+
+        if len(cross_glom_lns) == 0:
+            logger.warning("No cross-glomerular LNs found!")
+            return pd.DataFrame(columns=['source_glom', 'target_glom', 'ln_count', 'total_synapses', 'mean_weight', 'std_weight'])
+
+        # Step 5: Get all LN→PN connections for these cross-glomerular LNs
+        cross_ln_ids = set(cross_glom_lns['ln_id'])
+        cross_ln_conns = ln_to_pn[ln_to_pn['pre_root_id'].isin(cross_ln_ids)].copy()
+
+        # Add input glomerulus for each LN
+        ln_input_lookup = ln_glomeruli.set_index('ln_id')['input_glom'].to_dict()
+        cross_ln_conns['source_glom'] = cross_ln_conns['pre_root_id'].map(ln_input_lookup)
+        cross_ln_conns = cross_ln_conns.dropna(subset=['source_glom'])
+
+        # Filter for connections where target_glom != source_glom
+        cross_ln_conns = cross_ln_conns[cross_ln_conns['target_glom'] != cross_ln_conns['source_glom']]
+        logger.info(f"Found {len(cross_ln_conns):,} cross-glomerular connections from LNs to PNs")
+
+        # Step 6: Aggregate by source-target glomerulus pairs
+        summary = cross_ln_conns.groupby(['source_glom', 'target_glom']).agg({
             'pre_root_id': 'nunique',  # Number of unique LNs
             'syn_count': ['sum', 'mean', 'std']
         }).reset_index()
@@ -426,13 +460,13 @@ class LNPNConnectivityAnalyzer:
         # Fill NaN std with 0 (happens when only 1 connection)
         summary['std_weight'] = summary['std_weight'].fillna(0)
 
-        logger.info(f"Identified {len(summary)} unique glomerular pairs with LN connections")
+        logger.info(f"Identified {len(summary)} unique glomerular pairs with LN-mediated connections")
 
         # Report top connections
         logger.info("\nTop 10 LN-mediated cross-glomerular connections:")
         for idx, row in summary.head(10).iterrows():
             logger.info(f"  {row['source_glom']} → {row['target_glom']}: "
-                       f"{row['ln_count']} LNs, {row['total_synapses']} synapses "
+                       f"{row['ln_count']} LNs, {row['total_synapses']:.0f} synapses "
                        f"(mean={row['mean_weight']:.1f})")
 
         return summary
