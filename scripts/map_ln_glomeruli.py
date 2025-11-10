@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import re
 import sys
 import warnings
 from pathlib import Path
@@ -52,47 +51,6 @@ logger = logging.getLogger(__name__)
 # Default paths
 DEFAULT_DATA_DIR = Path("data/flywire")
 DEFAULT_OUTPUT_DIR = Path("results/ln_mapping")
-
-# PN cell type patterns for glomerulus extraction
-PN_GLOMERULUS_PATTERNS = [
-    r'PN[_\s]([A-Z][A-Za-z0-9]+)',      # PN_DL5, PN DL5
-    r'([A-Z][A-Za-z0-9]+)[_\s]?[au]?PN', # DL5_adPN, DA1uPN, DL5PN
-    r'uPN[_\s]([A-Z][A-Za-z0-9]+)',     # uPN_DL5, uPN DL5
-    r'([A-Z][A-Za-z0-9]+)[_\s]projection', # DL5_projection
-]
-
-# LN cell type patterns
-LN_PATTERNS = ['lLN', 'LN_', 'ALln', 'ALLN', r'\bLN\b', 'local.*neuron']
-
-
-def extract_glomerulus_from_pn(cell_type: str) -> Optional[str]:
-    """
-    Extract glomerulus name from PN cell type label.
-
-    Parameters
-    ----------
-    cell_type : str
-        PN cell type annotation
-
-    Returns
-    -------
-    Optional[str]
-        Glomerulus name (e.g., 'DL5', 'DA1') or None if not found
-    """
-    if pd.isna(cell_type):
-        return None
-
-    cell_type = str(cell_type)
-
-    for pattern in PN_GLOMERULUS_PATTERNS:
-        match = re.search(pattern, cell_type, re.IGNORECASE)
-        if match:
-            glom = match.group(1)
-            # Validate glomerulus name (should start with capital letter)
-            if glom and glom[0].isupper():
-                return glom
-
-    return None
 
 
 def categorize_ln_by_breadth(num_glomeruli: int) -> str:
@@ -275,44 +233,30 @@ class LNGlomerulusMapper:
         self._neurons = df
         return df
 
-    def identify_local_neurons(self, cell_types: pd.DataFrame) -> pd.DataFrame:
+    def identify_local_neurons(self) -> pd.DataFrame:
         """
-        Identify Local Neurons from cell type annotations.
-
-        Parameters
-        ----------
-        cell_types : pd.DataFrame
-            Cell type annotations
+        Identify Local Neurons using existing classification functions.
 
         Returns
         -------
         pd.DataFrame
-            Local neurons with root_id and cell_type
+            Local neurons with root_id
         """
         logger.info("\nIdentifying Local Neurons...")
 
-        # Build LN detection mask
-        ln_mask = pd.Series(False, index=cell_types.index)
-
-        for pattern in LN_PATTERNS:
-            if 'cell_type' in cell_types.columns:
-                ln_mask |= cell_types['cell_type'].str.contains(pattern, case=False, na=False, regex=True)
-            if 'hemibrain_type' in cell_types.columns:
-                ln_mask |= cell_types['hemibrain_type'].str.contains(pattern, case=False, na=False, regex=True)
-            if 'flywire_type' in cell_types.columns:
-                ln_mask |= cell_types['flywire_type'].str.contains(pattern, case=False, na=False, regex=True)
-
-        # Also check classification if available
+        # Load required data
+        cell_types = self.load_cell_types()
         classification = self.load_classification()
-        if not classification.empty and 'class' in classification.columns:
-            olfactory_lns = classification[
-                (classification['class'] == 'olfactory') |
-                (classification['class'] == 'alln')
-            ]['root_id'].values
-            ln_mask |= cell_types['root_id'].isin(olfactory_lns)
+        neurons = self.load_neurons()
 
-        lns = cell_types[ln_mask].copy()
-        logger.info(f"Found {len(lns):,} Local Neurons")
+        # Use existing get_local_interneurons function (AL-specific)
+        lns = get_local_interneurons(
+            cell_types,
+            classification,
+            neurons_df=neurons
+        )
+
+        logger.info(f"Found {len(lns):,} Local Neurons (antennal lobe)")
 
         return lns
 
@@ -603,10 +547,9 @@ class LNGlomerulusMapper:
 
         # Load data
         connections = self.load_connections()
-        cell_types = self.load_cell_types()
 
         # Identify neurons
-        lns = self.identify_local_neurons(cell_types)
+        lns = self.identify_local_neurons()
         pns = self.identify_projection_neurons()
 
         if len(pns) == 0:
