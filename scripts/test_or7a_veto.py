@@ -183,9 +183,18 @@ class Or7aHypothesisTester:
 
         # Identify neurons
         print("\nIdentifying neurons...")
-        lns = get_local_interneurons(self.cell_types, self.classification, self.neurons)
-        pns = get_pn_neurons(self.cell_types, self.classification, self.neurons, self.processed_labels)
-        pns['glomerulus'] = infer_pn_glomerulus_labels(pns, self.processed_labels)
+        lns = get_local_interneurons(
+            self.cell_types,
+            self.classification,
+            neurons_df=self.neurons
+        )
+        pns = get_pn_neurons(
+            self.cell_types,
+            self.classification,
+            neurons_df=self.neurons,
+            processed_labels_df=self.processed_labels
+        )
+        pns['glomerulus'] = infer_pn_glomerulus_labels(pns, processed_labels_df=self.processed_labels)
 
         print(f"Found {len(lns):,} Local Neurons")
         print(f"Found {len(pns):,} Projection Neurons")
