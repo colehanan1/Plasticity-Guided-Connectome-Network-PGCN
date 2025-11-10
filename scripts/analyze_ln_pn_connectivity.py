@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import sys
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +27,18 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from tqdm import tqdm
+
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+# Import existing neuron classification functions
+from data_loaders.neuron_classification import (
+    get_kc_neurons,
+    get_pn_neurons,
+    get_mbon_neurons,
+    get_local_interneurons,
+    infer_pn_glomerulus_labels,
+)
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore')
@@ -123,6 +136,27 @@ class LNPNConnectivityAnalyzer:
 
         logger.info(f"Loaded classification for {len(df):,} neurons")
         self._classification_df = df
+        return df
+
+    def load_cell_types(self) -> pd.DataFrame:
+        """Load consolidated cell types data."""
+        cell_types_path = self.data_dir / "consolidated_cell_types.csv.gz"
+
+        if not cell_types_path.exists():
+            cell_types_path = self.data_dir / "consolidatedcelltypes.csv.gz"
+            if not cell_types_path.exists():
+                logger.warning(f"Cell types file not found: {cell_types_path}")
+                # Return empty dataframe with root_id column
+                return pd.DataFrame(columns=['root_id'])
+
+        logger.info(f"Loading cell types from {cell_types_path}")
+        df = pd.read_csv(cell_types_path, compression='gzip')
+
+        # Standardize column names
+        if 'rootid' in df.columns and 'root_id' not in df.columns:
+            df = df.rename(columns={'rootid': 'root_id'})
+
+        logger.info(f"Loaded cell types for {len(df):,} neurons")
         return df
 
     def load_labels(self) -> pd.DataFrame:
@@ -225,129 +259,80 @@ class LNPNConnectivityAnalyzer:
 
     def identify_neuron_types(self) -> pd.DataFrame:
         """
-        Identify and classify neurons by type (LN, PN, KC, MBON, ORN).
+        Identify and classify neurons by type using existing classification functions.
 
         Returns
         -------
         pd.DataFrame
-            Dataframe with columns: root_id, neuron_type, class, subclass, flow, glomerulus
+            Dataframe with columns: root_id, neuron_type, class, glomerulus, etc.
         """
-        logger.info("Identifying neuron types...")
+        logger.info("Identifying neuron types using existing classification functions...")
 
-        # Load base data
-        classification = self.load_classification()
-        labels = self.load_labels()
+        # Load all required data
+        classification_df = self.load_classification()
+        cell_types_df = self.load_cell_types()
+        labels_df = self.load_labels()
+        neurons_df = self.load_neurons()
 
-        # Create neuron type classifications
-        neurons = classification.copy()
-
-        # Initialize neuron_type column
-        neurons['neuron_type'] = 'Other'
-
-        # Identify KCs (Kenyon cells) - MUST BE FIRST (most specific)
-        # FlyWire uses "Kenyon_Cell" not "KC"
-        kc_mask = (
-            (neurons['class'] == 'Kenyon_Cell') |
-            (neurons['class'].str.contains(r'\bKC\b', case=False, na=False, regex=True))
+        # Use existing classification functions
+        logger.info("Extracting Kenyon Cells...")
+        kcs = get_kc_neurons(
+            cell_types_df,
+            classification_df,
+            processed_labels_df=labels_df
         )
-        neurons.loc[kc_mask, 'neuron_type'] = 'KC'
+        kcs['neuron_type'] = 'KC'
 
-        # Identify PNs (projection neurons)
-        pn_mask = (
-            neurons['class'].str.contains(r'\bALPN\b', case=False, na=False, regex=True) |
-            neurons['class'].str.contains(r'_PN\b', case=False, na=False, regex=True) |
-            neurons['class'].str.contains(r'^PN\b', case=False, na=False, regex=True)
+        logger.info("Extracting Projection Neurons...")
+        pns = get_pn_neurons(
+            cell_types_df,
+            classification_df,
+            neurons_df=neurons_df,
+            processed_labels_df=labels_df
         )
+        pns['neuron_type'] = 'PN'
 
-        # Also check superclass if it exists (handle both naming conventions)
-        if 'superclass' in neurons.columns:
-            pn_mask = pn_mask | neurons['superclass'].str.contains('projection', case=False, na=False)
-        elif 'super_class' in neurons.columns:
-            pn_mask = pn_mask | neurons['super_class'].str.contains('projection', case=False, na=False)
+        # Infer glomerulus for PNs
+        pns['glomerulus'] = infer_pn_glomerulus_labels(pns, processed_labels_df=labels_df)
 
-        neurons.loc[pn_mask, 'neuron_type'] = 'PN'
+        logger.info("Extracting MBONs...")
+        mbons = get_mbon_neurons(cell_types_df, classification_df)
+        mbons['neuron_type'] = 'MBON'
 
-        # Identify LNs (local neurons) - Check class == "olfactory" FIRST
-        # Then will refine using labels that contain "LN"
-        ln_mask = (neurons['class'] == 'olfactory')
+        logger.info("Extracting Local Interneurons...")
+        lns = get_local_interneurons(
+            cell_types_df,
+            classification_df,
+            neurons_df=neurons_df
+        )
+        lns['neuron_type'] = 'LN'
 
-        # Also check flow column if it exists
-        if 'flow' in neurons.columns:
-            ln_mask = ln_mask | (neurons['flow'] == 'intrinsic')
+        # Infer glomerulus for LNs using same function as PNs
+        lns['glomerulus'] = infer_pn_glomerulus_labels(lns, processed_labels_df=labels_df)
 
-        # Mark potential LNs (will refine with labels later)
-        neurons.loc[ln_mask, 'neuron_type'] = 'LN_candidate'
+        # Combine all classified neurons
+        classified = pd.concat([kcs, pns, mbons, lns], ignore_index=True)
 
-        # Identify MBONs
-        mbon_mask = neurons['class'].str.contains('MBON', case=False, na=False)
-        neurons.loc[mbon_mask, 'neuron_type'] = 'MBON'
+        # Add ORNs by searching processed_labels
+        orn_mask = classification_df['class'].astype(str).str.contains('ORN', case=False, na=False)
+        orns = classification_df[orn_mask].copy()
+        orns['neuron_type'] = 'ORN'
 
-        # Identify ORNs
-        orn_mask = neurons['class'].str.contains('ORN', case=False, na=False)
-        neurons.loc[orn_mask, 'neuron_type'] = 'ORN'
+        # Infer glomerulus for ORNs
+        if not orns.empty:
+            orns['glomerulus'] = infer_pn_glomerulus_labels(orns, processed_labels_df=labels_df)
+            classified = pd.concat([classified, orns], ignore_index=True)
 
-        # Merge with glomerulus labels
-        # Extract glomerulus from label field
-        labels_processed = labels.copy()
+        # Add all other neurons as "Other"
+        all_classified_ids = set(classified['root_id'])
+        other_mask = ~classification_df['root_id'].isin(all_classified_ids)
+        others = classification_df[other_mask].copy()
+        others['neuron_type'] = 'Other'
+        others['glomerulus'] = pd.NA
 
-        # Try to extract or find glomerulus column
-        if 'glomerulus' not in labels_processed.columns:
-            if 'label' in labels_processed.columns:
-                # Extract glomerulus name (handle various formats)
-                # Labels are stored as strings like "['ORN_DL5']" or "['DA1_adPN']"
-                # Patterns to match: DL5, DA1, DM1, DM2, VA1v, VC3, DC2, DP1l, etc.
-                labels_processed['glomerulus'] = labels_processed['label'].str.extract(
-                    r'\b(D[ALMR]\d+[a-z]?|V[ACL]\d+[a-z]?|DC\d+|DP\d+[a-z]?)\b',
-                    expand=False
-                )
-
-                # Also try to map OR names to glomeruli (e.g., or7a → DL5)
-                # For neurons where glomerulus wasn't extracted, check for OR names
-                mask_no_glom = labels_processed['glomerulus'].isna()
-                for or_name, glomerulus in OR_TO_GLOMERULUS.items():
-                    # Case-insensitive search for OR names like "or7a", "Or7a", "OR7a"
-                    or_mask = labels_processed['label'].str.contains(or_name, case=False, na=False)
-                    labels_processed.loc[mask_no_glom & or_mask, 'glomerulus'] = glomerulus
-
-            else:
-                # No label column - check what columns exist
-                logger.warning(f"No 'label' or 'glomerulus' column found in labels file. Available columns: {list(labels_processed.columns)}")
-                # Create empty glomerulus column to avoid errors
-                labels_processed['glomerulus'] = None
-
-        # Merge glomerulus info
-        if 'root_id' in labels_processed.columns and 'glomerulus' in labels_processed.columns:
-            neurons = neurons.merge(
-                labels_processed[['root_id', 'glomerulus']],
-                on='root_id',
-                how='left'
-            )
-        else:
-            # Can't merge - just add empty glomerulus column
-            logger.warning("Could not merge glomerulus labels - missing required columns")
-            neurons['glomerulus'] = None
-
-        # Merge full labels for LN refinement
-        if 'root_id' in labels_processed.columns and 'label' in labels_processed.columns:
-            neurons = neurons.merge(
-                labels_processed[['root_id', 'label']],
-                on='root_id',
-                how='left',
-                suffixes=('', '_full')
-            )
-
-            # Refine LN classification: Must have "LN" in label
-            # Use word boundary to match only complete "LN" token
-            ln_candidate_mask = (neurons['neuron_type'] == 'LN_candidate')
-            if 'label' in neurons.columns:
-                has_ln_in_label = neurons['label'].astype(str).str.contains(r'\bLN\b', case=False, na=False, regex=True)
-                # Keep only LN candidates that have "LN" in their label
-                neurons.loc[ln_candidate_mask & has_ln_in_label, 'neuron_type'] = 'LN'
-                # Others go back to Other
-                neurons.loc[ln_candidate_mask & ~has_ln_in_label, 'neuron_type'] = 'Other'
-        else:
-            # No labels available - keep all LN_candidates as LNs
-            neurons.loc[neurons['neuron_type'] == 'LN_candidate', 'neuron_type'] = 'LN'
+        # Combine everything
+        neurons = pd.concat([classified, others], ignore_index=True)
+        neurons = neurons.drop_duplicates(subset=['root_id'])
 
         # Log statistics
         type_counts = neurons['neuron_type'].value_counts()
@@ -603,7 +588,10 @@ class LNPNConnectivityAnalyzer:
             })
 
         convergence_df = pd.DataFrame(results)
-        convergence_df = convergence_df.sort_values('total_output_synapses', ascending=False)
+
+        # Only sort if we have data
+        if not convergence_df.empty and 'total_output_synapses' in convergence_df.columns:
+            convergence_df = convergence_df.sort_values('total_output_synapses', ascending=False)
 
         return convergence_df
 
