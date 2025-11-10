@@ -17,6 +17,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from door_integration.pgcn_door import PGCNDoorIntegration, DOOR_AVAILABLE
 
+# Get import error if available
+try:
+    from door_integration.pgcn_door import DOOR_IMPORT_ERROR
+except ImportError:
+    DOOR_IMPORT_ERROR = "Unknown import error"
+
 
 def main():
     """Run integration tests."""
@@ -25,6 +31,7 @@ def main():
         print("="*80)
         print("❌ DoOR TOOLKIT NOT AVAILABLE")
         print("="*80)
+        print(f"\nImport error: {DOOR_IMPORT_ERROR}")
         print("\nThe DoOR toolkit is required for this test.")
         print("\nTo install:")
         print("  1. Navigate to door-toolkit directory:")
@@ -35,6 +42,8 @@ def main():
         print("     python -c 'from door_toolkit.integration.encoder import DoOREncoder; print(\"✅ Success\")'")
         print("\n  4. Re-run this test:")
         print("     python scripts/test_door_integration.py")
+        print("\nFor detailed diagnostics, run:")
+        print("  python scripts/diagnose_door_install.py")
         print("="*80)
         return 1
 

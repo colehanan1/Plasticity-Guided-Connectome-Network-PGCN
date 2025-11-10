@@ -17,8 +17,9 @@ try:
     from door_toolkit.integration.encoder import DoOREncoder
     from door_toolkit.integration.integrator import DoORFlyWireIntegrator
     DOOR_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     DOOR_AVAILABLE = False
+    DOOR_IMPORT_ERROR = str(e)
 
 
 class PGCNDoorIntegration:
@@ -104,9 +105,13 @@ class PGCNDoorIntegration:
         self._integrator = None
 
         if not DOOR_AVAILABLE:
-            print("⚠️  DoOR toolkit not available. Install with:")
+            print("⚠️  DoOR toolkit not available.")
+            print(f"   Import error: {DOOR_IMPORT_ERROR}")
+            print("   To install:")
             print("    cd ~/Documents/cole/VSCode/door-python-toolkit")
             print("    pip install -e .")
+            print("   For troubleshooting:")
+            print("    python scripts/diagnose_door_install.py")
 
     @property
     def encoder(self) -> Optional['DoOREncoder']:
@@ -390,9 +395,12 @@ def test_integration():
     """Test PGCN-DoOR integration."""
     if not DOOR_AVAILABLE:
         print("❌ DoOR toolkit not available")
+        print(f"\nImport error: {DOOR_IMPORT_ERROR}")
         print("\nTo install:")
         print("  cd ~/Documents/cole/VSCode/door-python-toolkit")
         print("  pip install -e .")
+        print("\nFor troubleshooting:")
+        print("  python scripts/diagnose_door_install.py")
         return
 
     print("="*80)

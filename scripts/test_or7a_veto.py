@@ -34,9 +34,11 @@ try:
     from door_toolkit.integration.integrator import DoORFlyWireIntegrator
     DOOR_AVAILABLE = True
     print("✅ DoOR toolkit available")
-except ImportError:
+except ImportError as e:
     DOOR_AVAILABLE = False
     print("⚠️  DoOR toolkit not available - using hardcoded values")
+    print(f"   Import error: {e}")
+    print("   Run: python scripts/diagnose_door_install.py for troubleshooting")
 
 
 # Hardcoded DoOR data (fallback if toolkit unavailable)
