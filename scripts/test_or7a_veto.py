@@ -80,6 +80,18 @@ class Or7aHypothesisTester:
         self.cell_types = pd.read_csv(self.data_dir / "consolidated_cell_types.csv.gz")
         self.connections = pd.read_csv(self.data_dir / "connections_princeton.csv.gz")
 
+        # Standardize connection column names (match analyze_ln_pn_connectivity.py)
+        rename_map = {}
+        if 'pre_pt_root_id' in self.connections.columns:
+            rename_map['pre_pt_root_id'] = 'pre_root_id'
+        if 'post_pt_root_id' in self.connections.columns:
+            rename_map['post_pt_root_id'] = 'post_root_id'
+        if 'size' in self.connections.columns and 'syn_count' not in self.connections.columns:
+            rename_map['size'] = 'syn_count'
+
+        if rename_map:
+            self.connections = self.connections.rename(columns=rename_map)
+
         # Try to load optional files
         try:
             self.classification = pd.read_csv(self.data_dir / "classification.csv.gz")
@@ -208,19 +220,19 @@ class Or7aHypothesisTester:
 
         # Find DL5→LN connections
         dl5_to_ln = self.connections[
-            self.connections['pre_pt_root_id'].isin(dl5_pns) &
-            self.connections['post_pt_root_id'].isin(lns['root_id'])
+            self.connections['pre_root_id'].isin(dl5_pns) &
+            self.connections['post_root_id'].isin(lns['root_id'])
         ].copy()
 
         # Find LN→DM connections
         ln_to_dm = self.connections[
-            self.connections['pre_pt_root_id'].isin(lns['root_id']) &
-            self.connections['post_pt_root_id'].isin(dm_pns)
+            self.connections['pre_root_id'].isin(lns['root_id']) &
+            self.connections['post_root_id'].isin(dm_pns)
         ].copy()
 
         # Find LNs that connect DL5 to DM (DL5→LN→DM pathway)
-        dl5_lns = set(dl5_to_ln['post_pt_root_id'])
-        dm_lns = set(ln_to_dm['pre_pt_root_id'])
+        dl5_lns = set(dl5_to_ln['post_root_id'])
+        dm_lns = set(ln_to_dm['pre_root_id'])
         cross_glom_lns = dl5_lns & dm_lns
 
         num_lateral_lns = len(cross_glom_lns)
