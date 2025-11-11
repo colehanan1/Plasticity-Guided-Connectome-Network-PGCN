@@ -99,10 +99,12 @@ Each run saves:
 - **Descending Neurons (DNs):** 1,303 Brain→VNC command neurons
 
 #### New Additions
-- **CB0191 Neurons:** Variable (uncharacterized central processing)
+- **CB0191 Neurons:** 2 (uncharacterized central processing)
+  - Root IDs: 720575940626843194, 720575940634139799
 - **SEZ-NSC^CAPA Neurons:** 2 (nutrient-responsive neuroendocrine cells)
+  - Root IDs: 720575940618736797, 720575940620829878
 
-**TOTAL SYSTEM:** 40,567+ neurons (with new additions)
+**TOTAL SYSTEM:** 40,571 neurons (40,567 existing + 4 new)
 
 ### Available Experiments
 
