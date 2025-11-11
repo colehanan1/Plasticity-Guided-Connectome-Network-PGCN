@@ -121,7 +121,33 @@ class Or7aHypothesisTester:
         if DOOR_AVAILABLE:
             try:
                 encoder = DoOREncoder()
-                matrix = encoder.get_response_matrix()
+
+                # Try different possible attribute/method names
+                matrix = None
+                for attr_name in ['matrix', 'response_matrix', 'data', 'door_matrix', 'df']:
+                    if hasattr(encoder, attr_name):
+                        try:
+                            matrix = getattr(encoder, attr_name)
+                            if isinstance(matrix, pd.DataFrame) and len(matrix) > 0:
+                                break
+                        except:
+                            continue
+
+                # Try as method call if property didn't work
+                if matrix is None or not isinstance(matrix, pd.DataFrame):
+                    for method_name in ['get_matrix', 'get_response_matrix', 'get_data', 'to_dataframe']:
+                        if hasattr(encoder, method_name):
+                            try:
+                                method = getattr(encoder, method_name)
+                                if callable(method):
+                                    matrix = method()
+                                    if isinstance(matrix, pd.DataFrame) and len(matrix) > 0:
+                                        break
+                            except:
+                                continue
+
+                if matrix is None or not isinstance(matrix, pd.DataFrame):
+                    raise RuntimeError("Could not access DoOR response matrix")
 
                 # Extract relevant receptors and odorants
                 receptors = ['Or7a', 'Or67b', 'Or22a', 'Or35a']

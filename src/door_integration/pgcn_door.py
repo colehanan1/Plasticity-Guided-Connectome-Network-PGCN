@@ -152,7 +152,40 @@ class PGCNDoorIntegration:
         if self.use_cache and self._response_matrix is not None:
             return self._response_matrix
 
-        self._response_matrix = self.encoder.get_response_matrix()
+        # Try different possible attribute/method names for DoOREncoder
+        encoder = self.encoder
+        matrix = None
+
+        # Try as property/attribute first (most common)
+        for attr_name in ['matrix', 'response_matrix', 'data', 'door_matrix', 'df']:
+            if hasattr(encoder, attr_name):
+                try:
+                    matrix = getattr(encoder, attr_name)
+                    if isinstance(matrix, pd.DataFrame) and len(matrix) > 0:
+                        break
+                except:
+                    continue
+
+        # Try as method call if property didn't work
+        if matrix is None or not isinstance(matrix, pd.DataFrame):
+            for method_name in ['get_matrix', 'get_response_matrix', 'get_data', 'to_dataframe']:
+                if hasattr(encoder, method_name):
+                    try:
+                        method = getattr(encoder, method_name)
+                        if callable(method):
+                            matrix = method()
+                            if isinstance(matrix, pd.DataFrame) and len(matrix) > 0:
+                                break
+                    except:
+                        continue
+
+        if matrix is None or not isinstance(matrix, pd.DataFrame):
+            raise RuntimeError(
+                "Could not access DoOR response matrix. "
+                f"Available attributes: {[a for a in dir(encoder) if not a.startswith('_')]}"
+            )
+
+        self._response_matrix = matrix
         return self._response_matrix
 
     def get_receptor_profile(self, receptor: str) -> pd.Series:

@@ -132,8 +132,42 @@ try:
         print("✅ DoOREncoder created successfully")
 
         print("\nGetting response matrix...")
-        matrix = encoder.get_response_matrix()
+        import pandas as pd
+
+        # Try different possible attribute/method names
+        matrix = None
+        accessor_used = None
+
+        # Try as property/attribute first
+        for attr_name in ['matrix', 'response_matrix', 'data', 'door_matrix', 'df']:
+            if hasattr(encoder, attr_name):
+                try:
+                    matrix = getattr(encoder, attr_name)
+                    if isinstance(matrix, pd.DataFrame) and len(matrix) > 0:
+                        accessor_used = attr_name
+                        break
+                except:
+                    continue
+
+        # Try as method call if property didn't work
+        if matrix is None or not isinstance(matrix, pd.DataFrame):
+            for method_name in ['get_matrix', 'get_response_matrix', 'get_data', 'to_dataframe']:
+                if hasattr(encoder, method_name):
+                    try:
+                        method = getattr(encoder, method_name)
+                        if callable(method):
+                            matrix = method()
+                            if isinstance(matrix, pd.DataFrame) and len(matrix) > 0:
+                                accessor_used = method_name + "()"
+                                break
+                    except:
+                        continue
+
+        if matrix is None or not isinstance(matrix, pd.DataFrame):
+            raise RuntimeError("Could not access response matrix")
+
         print(f"✅ Response matrix loaded: {matrix.shape[0]} odorants × {matrix.shape[1]} receptors")
+        print(f"   Accessor: encoder.{accessor_used}")
 
         if 'Or7a' in matrix.columns and 'benzaldehyde' in matrix.index:
             response = matrix.loc['benzaldehyde', 'Or7a']
