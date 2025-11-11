@@ -188,6 +188,49 @@ class PGCNDoorIntegration:
         self._response_matrix = matrix
         return self._response_matrix
 
+    def encode_odorant(self, odorant: str) -> pd.Series:
+        """
+        Encode an odorant using DoOREncoder.encode() method.
+
+        This converts the odorant name to a response vector across all receptors.
+        The matrix uses InChIKeys as indices, so we must use encode() method.
+
+        Parameters
+        ----------
+        odorant : str
+            Odorant name (e.g., 'benzaldehyde', '1-hexanol')
+            Note: Use '1-hexanol' not 'hexanol'
+
+        Returns
+        -------
+        pd.Series
+            Receptor responses for this odorant (receptor → response)
+        """
+        if not DOOR_AVAILABLE:
+            raise RuntimeError("DoOR toolkit not available")
+
+        encoder = self.encoder
+        matrix = self.get_response_matrix()
+        receptor_names = list(matrix.columns)
+
+        # Normalize odorant name: 'hexanol' -> '1-hexanol'
+        if odorant == 'hexanol':
+            odorant = '1-hexanol'
+
+        if odorant not in encoder.odorant_names:
+            raise ValueError(f"Odorant '{odorant}' not found. Available: {encoder.odorant_names[:10]}...")
+
+        # Use encode() method - returns torch.Tensor
+        tensor = encoder.encode(odorant)
+
+        # Convert to pandas Series with receptor names
+        responses = pd.Series(
+            [float(tensor[i].item()) for i in range(len(receptor_names))],
+            index=receptor_names
+        )
+
+        return responses.dropna()
+
     def get_receptor_profile(self, receptor: str) -> pd.Series:
         """
         Get odorant response profile for a receptor.
@@ -228,7 +271,8 @@ class PGCNDoorIntegration:
         Parameters
         ----------
         odorant : str
-            Odorant name (e.g., 'benzaldehyde', 'hexanol')
+            Odorant name (e.g., 'benzaldehyde', '1-hexanol')
+            Note: Both 'hexanol' and '1-hexanol' are accepted
         threshold : float
             Minimum activation threshold (0-1)
 
@@ -243,12 +287,8 @@ class PGCNDoorIntegration:
         >>> print(benz)
         {'Or7a': 0.89, 'Or67b': 0.76, 'Or22a': 0.68}
         """
-        matrix = self.get_response_matrix()
-
-        if odorant not in matrix.index:
-            raise ValueError(f"Odorant '{odorant}' not found. Available: {list(matrix.index)}")
-
-        responses = matrix.loc[odorant]
+        # Use encode_odorant() instead of matrix lookup
+        responses = self.encode_odorant(odorant)
         activated = responses[responses >= threshold].dropna()
 
         return activated.to_dict()
@@ -270,6 +310,7 @@ class PGCNDoorIntegration:
             First odorant (numerator)
         odorant2 : str
             Second odorant (denominator)
+            Note: Both 'hexanol' and '1-hexanol' are accepted
 
         Returns
         -------
@@ -283,10 +324,12 @@ class PGCNDoorIntegration:
         >>> print(f"Or7a is {ratio:.1f}x more selective for benzaldehyde")
         Or7a is 3.6x more selective for benzaldehyde
         """
-        matrix = self.get_response_matrix()
+        # Use encode_odorant() instead of matrix lookup
+        responses1 = self.encode_odorant(odorant1)
+        responses2 = self.encode_odorant(odorant2)
 
-        response1 = matrix.loc[odorant1, receptor]
-        response2 = matrix.loc[odorant2, receptor]
+        response1 = responses1[receptor]
+        response2 = responses2[receptor]
 
         if response2 == 0:
             return float('inf') if response1 > 0 else 0

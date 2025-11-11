@@ -42,24 +42,29 @@ except ImportError as e:
 
 
 # Hardcoded DoOR data (fallback if toolkit unavailable)
+# Note: Using both '1-hexanol' and 'hexanol' keys for compatibility
 HARDCODED_DOOR_DATA = {
     'Or7a': {
         'benzaldehyde': 0.89,
         '2-heptanone': 0.02,
+        '1-hexanol': 0.25,
         'hexanol': 0.25,
     },
     'Or67b': {
         'benzaldehyde': 0.76,
+        '1-hexanol': 0.82,
         'hexanol': 0.82,
         '2-heptanone': 0.04,
     },
     'Or22a': {
         'benzaldehyde': 0.68,
+        '1-hexanol': 0.12,
         'hexanol': 0.12,
         '2-heptanone': 0.03,
     },
     'Or35a': {
         'benzaldehyde': 0.45,
+        '1-hexanol': 0.71,
         'hexanol': 0.71,
         '2-heptanone': 0.05,
     }
@@ -117,12 +122,12 @@ class Or7aHypothesisTester:
         self.door_data = self._load_door_data()
 
     def _load_door_data(self) -> Dict[str, Dict[str, float]]:
-        """Load DoOR response data."""
+        """Load DoOR response data using encoder.encode() method."""
         if DOOR_AVAILABLE:
             try:
                 encoder = DoOREncoder()
 
-                # Try different possible attribute/method names
+                # Get response matrix to map receptor indices
                 matrix = None
                 for attr_name in ['matrix', 'response_matrix', 'data', 'door_matrix', 'df']:
                     if hasattr(encoder, attr_name):
@@ -133,35 +138,39 @@ class Or7aHypothesisTester:
                         except:
                             continue
 
-                # Try as method call if property didn't work
-                if matrix is None or not isinstance(matrix, pd.DataFrame):
-                    for method_name in ['get_matrix', 'get_response_matrix', 'get_data', 'to_dataframe']:
-                        if hasattr(encoder, method_name):
-                            try:
-                                method = getattr(encoder, method_name)
-                                if callable(method):
-                                    matrix = method()
-                                    if isinstance(matrix, pd.DataFrame) and len(matrix) > 0:
-                                        break
-                            except:
-                                continue
-
                 if matrix is None or not isinstance(matrix, pd.DataFrame):
                     raise RuntimeError("Could not access DoOR response matrix")
 
-                # Extract relevant receptors and odorants
-                receptors = ['Or7a', 'Or67b', 'Or22a', 'Or35a']
-                odorants = ['benzaldehyde', 'hexanol', '2-heptanone']
+                # Get receptor names for index mapping
+                receptor_names = list(matrix.columns)
 
+                # Use correct odorant names (1-hexanol not hexanol)
+                receptors = ['Or7a', 'Or67b', 'Or22a', 'Or35a']
+                odorants = ['benzaldehyde', '1-hexanol', '2-heptanone']
+
+                # Use encoder.encode() method which returns torch.Tensor
                 door_data = {}
                 for receptor in receptors:
-                    if receptor in matrix.columns:
+                    if receptor in receptor_names:
+                        receptor_idx = receptor_names.index(receptor)
                         door_data[receptor] = {}
-                        for odorant in odorants:
-                            if odorant in matrix.index:
-                                door_data[receptor][odorant] = matrix.loc[odorant, receptor]
 
-                print(f"✅ Loaded DoOR data for {len(door_data)} receptors")
+                        for odorant in odorants:
+                            if odorant in encoder.odorant_names:
+                                # encode() returns torch.Tensor with shape (78,)
+                                try:
+                                    tensor = encoder.encode(odorant)
+                                    # Extract value for this receptor and convert to float
+                                    response = float(tensor[receptor_idx].item())
+
+                                    # Store with both '1-hexanol' and 'hexanol' keys for compatibility
+                                    door_data[receptor][odorant] = response
+                                    if odorant == '1-hexanol':
+                                        door_data[receptor]['hexanol'] = response
+                                except Exception as e:
+                                    print(f"⚠️  Could not encode {odorant}: {e}")
+
+                print(f"✅ Loaded DoOR data for {len(door_data)} receptors using encoder.encode()")
                 return door_data
             except Exception as e:
                 print(f"⚠️  DoOR load failed: {e}")
