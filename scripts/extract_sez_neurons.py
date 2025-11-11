@@ -541,9 +541,9 @@ def classify_sez_neurons_by_flow(
     """
     Classify SEZ neurons using 'flow' field (connectivity flow type).
 
-    Flow values (typical):
-    - 0, 1, 2: Intrinsic/local neurons
-    - 3, 4, 5: Ascending/projection neurons
+    Flow values can be either numeric or string:
+    - Numeric: 0, 1, 2 = Intrinsic/local neurons | 3, 4, 5 = Ascending/projection neurons
+    - String: 'intrinsic'/'local' = Local neurons | 'efferent'/'ascending'/'projection' = Projection neurons
 
     Args:
         second_order_ids: Array of second-order neuron root IDs
@@ -561,20 +561,51 @@ def classify_sez_neurons_by_flow(
     if 'flow' not in second_order_meta.columns:
         raise ValueError("'flow' column not found")
 
-    # SEZ-LNs: flow ∈ {0, 1, 2}
-    sez_lns = second_order_meta[
-        second_order_meta['flow'].isin([0, 1, 2])
-    ].copy()
+    # Detect if flow values are numeric or string
+    sample_values = second_order_meta['flow'].dropna().head(10)
+    is_numeric = pd.api.types.is_numeric_dtype(sample_values)
+
+    if not is_numeric:
+        # Handle STRING flow values
+        print("    Detected string flow values (using keyword matching)")
+
+        # SEZ-LNs: flow contains 'intrinsic' or 'local'
+        sez_lns = second_order_meta[
+            second_order_meta['flow'].astype(str).str.contains(
+                'intrinsic|local', case=False, na=False
+            )
+        ].copy()
+
+        # SEZ-PNs: flow contains 'efferent' or 'ascending' or 'projection'
+        sez_pns = second_order_meta[
+            second_order_meta['flow'].astype(str).str.contains(
+                'efferent|ascending|projection', case=False, na=False
+            )
+        ].copy()
+
+        print(f"  ✓ SEZ-LNs (intrinsic/local): {len(sez_lns)}")
+        print(f"  ✓ SEZ-PNs (efferent/ascending): {len(sez_pns)}")
+
+    else:
+        # Handle NUMERIC flow values
+        print("    Detected numeric flow values (using range matching)")
+
+        # SEZ-LNs: flow ∈ {0, 1, 2}
+        sez_lns = second_order_meta[
+            second_order_meta['flow'].isin([0, 1, 2])
+        ].copy()
+
+        # SEZ-PNs: flow ∈ {3, 4, 5}
+        sez_pns = second_order_meta[
+            second_order_meta['flow'].isin([3, 4, 5])
+        ].copy()
+
+        print(f"  ✓ SEZ-LNs (flow 0/1/2): {len(sez_lns)}")
+        print(f"  ✓ SEZ-PNs (flow 3/4/5): {len(sez_pns)}")
+
+    # Label cell types
     sez_lns['cell_type'] = 'SEZ_LN'
-
-    # SEZ-PNs: flow ∈ {3, 4, 5}
-    sez_pns = second_order_meta[
-        second_order_meta['flow'].isin([3, 4, 5])
-    ].copy()
     sez_pns['cell_type'] = 'SEZ_PN'
-
-    print(f"  ✓ SEZ-LNs (flow 0/1/2): {len(sez_lns)}")
-    print(f"  ✓ SEZ-PNs (flow 3/4/5): {len(sez_pns)}")
 
     return sez_pns, sez_lns
 
