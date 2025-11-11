@@ -321,6 +321,345 @@ def validate_sez_pn_count(n_sez_pns: int) -> None:
 
 
 # =============================================================================
+# MODULE 3B: Diagnostic and Robust Classification
+# =============================================================================
+
+
+def diagnose_unclassified_neurons(
+    second_order_ids: np.ndarray,
+    sez_pn_ids: np.ndarray,
+    classification: pd.DataFrame,
+    connections: pd.DataFrame,
+    neurons: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Diagnose classification labels for neurons that aren't SEZ-PNs.
+
+    This helps identify why SEZ-LN extraction is failing and what
+    alternative classification strategies should be used.
+
+    Args:
+        second_order_ids: All neurons receiving GRN input
+        sez_pn_ids: Neurons already classified as SEZ-PNs
+        classification: Classification metadata table
+        connections: Full connectivity table
+        neurons: Neurotransmitter predictions
+
+    Returns:
+        DataFrame with unclassified neuron metadata and diagnostics
+    """
+    print("\n" + "="*70)
+    print("🔍 DIAGNOSTIC: Investigating Unclassified Second-Order Neurons")
+    print("="*70)
+
+    # Identify unclassified neurons
+    unclassified_ids = [rid for rid in second_order_ids if rid not in sez_pn_ids]
+
+    print(f"\n📊 Classification Summary:")
+    print(f"  Total second-order neurons:  {len(second_order_ids)}")
+    print(f"  Classified as SEZ-PNs:       {len(sez_pn_ids)}")
+    print(f"  Unclassified (potential LNs): {len(unclassified_ids)}")
+    print(f"  Expected SEZ-LNs:            200-600 (Li et al. 2024)")
+
+    # Get metadata for unclassified neurons
+    unclassified_meta = classification[
+        classification['root_id'].isin(unclassified_ids)
+    ].copy()
+
+    print(f"  ✓ Retrieved metadata for {len(unclassified_meta)} neurons")
+
+    # === DIAGNOSTIC 1: super_class Distribution ===
+    print("\n" + "-"*70)
+    print("DIAGNOSTIC 1: super_class Distribution")
+    print("-"*70)
+
+    if 'super_class' in unclassified_meta.columns:
+        super_class_counts = unclassified_meta['super_class'].value_counts()
+        print("\n📈 super_class values (top 10):")
+        print(super_class_counts.head(10))
+
+        # Check for missing values
+        n_missing = unclassified_meta['super_class'].isna().sum()
+        if n_missing > 0:
+            print(f"\n⚠️  {n_missing} neurons have missing super_class")
+
+        # Check for 'intrinsic' keyword
+        n_intrinsic = unclassified_meta['super_class'].str.contains(
+            'intrinsic', case=False, na=False
+        ).sum()
+        print(f"\n🔍 Neurons with 'intrinsic' in super_class: {n_intrinsic}")
+
+        # Check alternative keywords
+        keywords = ['local', 'interneuron', 'inter', 'central', 'sensory']
+        print("\n🔍 Alternative keyword matches:")
+        for kw in keywords:
+            count = unclassified_meta['super_class'].str.contains(
+                kw, case=False, na=False
+            ).sum()
+            if count > 0:
+                print(f"  '{kw}': {count} neurons")
+
+    # === DIAGNOSTIC 2: class Distribution ===
+    print("\n" + "-"*70)
+    print("DIAGNOSTIC 2: class Distribution (top 10)")
+    print("-"*70)
+
+    if 'class' in unclassified_meta.columns:
+        class_counts = unclassified_meta['class'].value_counts().head(10)
+        print("\n📈 class values:")
+        print(class_counts)
+
+    # === DIAGNOSTIC 3: Alternative Fields ===
+    print("\n" + "-"*70)
+    print("DIAGNOSTIC 3: Alternative Classification Fields")
+    print("-"*70)
+
+    # Check flow (connectivity flow type)
+    if 'flow' in unclassified_meta.columns:
+        flow_counts = unclassified_meta['flow'].value_counts()
+        print("\n📈 'flow' distribution:")
+        print(flow_counts)
+        print("  Note: flow typically: 0,1,2=intrinsic/local | 3,4,5=ascending/projection")
+    else:
+        print("\n⚠️  'flow' column not available")
+
+    # Check hemibrain_type
+    if 'hemibrain_type' in unclassified_meta.columns:
+        hb_counts = unclassified_meta['hemibrain_type'].value_counts().head(10)
+        print("\n📈 'hemibrain_type' distribution (top 10):")
+        print(hb_counts)
+
+    # === DIAGNOSTIC 4: Neurotransmitter Distribution ===
+    print("\n" + "-"*70)
+    print("DIAGNOSTIC 4: Neurotransmitter Distribution")
+    print("-"*70)
+
+    nt_data = neurons[neurons['root_id'].isin(unclassified_ids)]
+    if 'nt_type' in nt_data.columns and len(nt_data) > 0:
+        nt_counts = nt_data['nt_type'].value_counts()
+        print("\n📈 Neurotransmitter types:")
+        print(nt_counts)
+    else:
+        print("\n⚠️  Neurotransmitter data not available")
+
+    # === RECOMMENDATION ===
+    print("\n" + "="*70)
+    print("💡 RECOMMENDATION")
+    print("="*70)
+
+    # Determine best strategy
+    if 'super_class' in unclassified_meta.columns:
+        top_super_class = unclassified_meta['super_class'].value_counts().head(1)
+        if len(top_super_class) > 0:
+            top_label = top_super_class.index[0]
+            top_count = top_super_class.values[0]
+
+            print(f"\nMost common super_class: '{top_label}' ({top_count} neurons)")
+
+            if pd.notna(top_label) and top_label != '':
+                print(f"\n✅ STRATEGY 1: Update keyword filter to include '{top_label}'")
+
+    if 'flow' in unclassified_meta.columns:
+        print(f"\n✅ STRATEGY 2: Use 'flow' field for classification")
+
+    print(f"\n✅ STRATEGY 3: Connectivity-based (most robust)")
+    print(f"   Define SEZ-LNs as neurons NOT projecting to higher brain")
+
+    return unclassified_meta
+
+
+def classify_sez_neurons_robust(
+    second_order_ids: np.ndarray,
+    classification: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Robust SEZ neuron classification using multiple keyword strategies.
+
+    Falls back through multiple classification methods until successful.
+
+    Args:
+        second_order_ids: Array of second-order neuron root IDs
+        classification: Hierarchical classification table
+
+    Returns:
+        Tuple of (sez_pns, sez_lns) DataFrames
+    """
+    print("  [Strategy 1: Keyword-based classification...]")
+
+    second_order_meta = classification[
+        classification['root_id'].isin(second_order_ids)
+    ].copy()
+
+    # Try original keywords first
+    sez_pns = second_order_meta[
+        second_order_meta['super_class'].str.contains(
+            'ascending|sensory', case=False, na=False
+        )
+    ].copy()
+
+    sez_lns = second_order_meta[
+        second_order_meta['super_class'].str.contains(
+            'intrinsic', case=False, na=False
+        )
+    ].copy()
+
+    # If no LNs found, try broader keywords
+    if len(sez_lns) == 0:
+        print("    'intrinsic' not found, trying broader keywords...")
+
+        # Try broader keywords for LNs
+        sez_lns = second_order_meta[
+            second_order_meta['super_class'].str.contains(
+                'intrinsic|local|interneuron|central',
+                case=False,
+                na=False
+            )
+        ].copy()
+
+        if len(sez_lns) > 0:
+            print(f"    ✓ Found {len(sez_lns)} SEZ-LNs using broader keywords")
+
+            # Refine PNs: exclude the LNs we just found
+            sez_pns = second_order_meta[
+                ~second_order_meta['root_id'].isin(sez_lns['root_id'])
+            ].copy()
+
+    # Label cell types
+    sez_pns['cell_type'] = 'SEZ_PN'
+    sez_lns['cell_type'] = 'SEZ_LN'
+
+    print(f"  ✓ SEZ-PNs: {len(sez_pns)}")
+    print(f"  ✓ SEZ-LNs: {len(sez_lns)}")
+
+    return sez_pns, sez_lns
+
+
+def classify_sez_neurons_by_flow(
+    second_order_ids: np.ndarray,
+    classification: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Classify SEZ neurons using 'flow' field (connectivity flow type).
+
+    Flow values (typical):
+    - 0, 1, 2: Intrinsic/local neurons
+    - 3, 4, 5: Ascending/projection neurons
+
+    Args:
+        second_order_ids: Array of second-order neuron root IDs
+        classification: Hierarchical classification table
+
+    Returns:
+        Tuple of (sez_pns, sez_lns) DataFrames
+    """
+    print("  [Strategy 2: Flow-based classification...]")
+
+    second_order_meta = classification[
+        classification['root_id'].isin(second_order_ids)
+    ].copy()
+
+    if 'flow' not in second_order_meta.columns:
+        raise ValueError("'flow' column not found")
+
+    # SEZ-LNs: flow ∈ {0, 1, 2}
+    sez_lns = second_order_meta[
+        second_order_meta['flow'].isin([0, 1, 2])
+    ].copy()
+    sez_lns['cell_type'] = 'SEZ_LN'
+
+    # SEZ-PNs: flow ∈ {3, 4, 5}
+    sez_pns = second_order_meta[
+        second_order_meta['flow'].isin([3, 4, 5])
+    ].copy()
+    sez_pns['cell_type'] = 'SEZ_PN'
+
+    print(f"  ✓ SEZ-LNs (flow 0/1/2): {len(sez_lns)}")
+    print(f"  ✓ SEZ-PNs (flow 3/4/5): {len(sez_pns)}")
+
+    return sez_pns, sez_lns
+
+
+def classify_sez_neurons_by_connectivity(
+    grn_ids: np.ndarray,
+    second_order_ids: np.ndarray,
+    classification: pd.DataFrame,
+    connections: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Classify SEZ neurons by analyzing their output connectivity (GOLD STANDARD).
+
+    Biological definition:
+    - SEZ-PNs: Project output beyond GRN→2nd circuit (to 3rd order neurons)
+    - SEZ-LNs: Output exclusively back to other 2nd order neurons or GRNs
+
+    This uses circuit structure, not potentially inconsistent labels.
+
+    Reference:
+        Li et al. (2024): "TPNs defined by axonal projections outside
+        the SEZ to lateral horn, mushroom body, and superior protocerebrum."
+
+    Args:
+        grn_ids: GRN root IDs (for reference)
+        second_order_ids: Second-order neuron root IDs
+        classification: Classification metadata
+        connections: Full connectivity table
+
+    Returns:
+        Tuple of (sez_pns, sez_lns) DataFrames
+    """
+    print("  [Strategy 3: Connectivity-based classification...]")
+
+    second_order_meta = classification[
+        classification['root_id'].isin(second_order_ids)
+    ].copy()
+
+    # Define the "taste circuit" = GRNs + second-order neurons
+    taste_circuit_ids = set(grn_ids) | set(second_order_ids)
+
+    # Get all output connections from second-order neurons
+    second_order_outputs = connections[
+        connections['pre_root_id'].isin(second_order_ids) &
+        (connections['syn_count'] >= 5)  # Significant connections
+    ]
+
+    print(f"    Found {len(second_order_outputs):,} output connections")
+
+    # SEZ-PNs: neurons projecting OUTSIDE the taste circuit (to 3rd order)
+    sez_pn_ids = second_order_outputs[
+        ~second_order_outputs['post_root_id'].isin(taste_circuit_ids)
+    ]['pre_root_id'].unique()
+
+    # SEZ-LNs: neurons staying WITHIN the taste circuit
+    sez_ln_ids = [rid for rid in second_order_ids if rid not in sez_pn_ids]
+
+    # Build DataFrames
+    sez_pns = second_order_meta[
+        second_order_meta['root_id'].isin(sez_pn_ids)
+    ].copy()
+    sez_pns['cell_type'] = 'SEZ_PN'
+
+    sez_lns = second_order_meta[
+        second_order_meta['root_id'].isin(sez_ln_ids)
+    ].copy()
+    sez_lns['cell_type'] = 'SEZ_LN'
+
+    print(f"  ✓ SEZ-PNs (project to 3rd order): {len(sez_pns)}")
+    print(f"  ✓ SEZ-LNs (stay in circuit): {len(sez_lns)}")
+
+    # Validate
+    if len(sez_pns) > 0 and len(sez_lns) > 0:
+        ratio = len(sez_lns) / len(sez_pns)
+        print(f"  ✓ SEZ-LN:SEZ-PN ratio: {ratio:.1f}:1")
+
+        if 2.0 <= ratio <= 5.0:
+            print(f"    ✅ Within expected range (2-5:1, Li et al. 2024)")
+        else:
+            print(f"    ⚠️  Outside expected range (2-5:1)")
+
+    return sez_pns, sez_lns
+
+
+# =============================================================================
 # MODULE 4: Neurotransmitter Filtering
 # =============================================================================
 
@@ -840,19 +1179,122 @@ def main() -> int:
         print(f"  Try reducing --min-synapses (current: {args.min_synapses})")
         return 1
 
-    # STAGE 3: Classify as projection vs local
+    # STAGE 3: Classify as projection vs local (with hierarchical fallback)
     print("\n" + "=" * 70)
     print("STAGE 3: CLASSIFY PROJECTION VS LOCAL NEURONS")
     print("=" * 70)
 
+    # First, run the original classification to get initial SEZ-PNs for diagnostic
+    print("\n[Running initial classification for diagnostic...]")
     try:
-        sez_pns, sez_lns = classify_sez_neurons(
+        sez_pns_initial, sez_lns_initial = classify_sez_neurons(
             second_order_ids, classification, cell_types
         )
     except Exception as e:
-        print(f"\n❌ ERROR: Failed to classify neurons")
-        print(f"  {e}")
-        return 1
+        print(f"  ⚠️  Initial classification failed: {e}")
+        sez_pns_initial = np.array([])
+        sez_lns_initial = np.array([])
+
+    # Run diagnostic if SEZ-LNs are missing or very few
+    if len(sez_lns_initial) < 50:
+        print(f"\n⚠️  Only {len(sez_lns_initial)} SEZ-LNs found - running diagnostics...")
+
+        try:
+            diagnose_unclassified_neurons(
+                second_order_ids,
+                sez_pns_initial['root_id'].values if len(sez_pns_initial) > 0 else np.array([]),
+                classification,
+                connections,
+                neurons
+            )
+        except Exception as e:
+            print(f"  ⚠️  Diagnostic failed: {e}")
+
+        # Try classification strategies in order of robustness
+        sez_pns = None
+        sez_lns = None
+        strategy_used = None
+
+        # Strategy 3: Connectivity-based (most robust)
+        print("\n" + "=" * 70)
+        print("[Attempting Strategy 3: Connectivity-based classification]")
+        print("=" * 70)
+        try:
+            sez_pns, sez_lns = classify_sez_neurons_by_connectivity(
+                grn_ids, second_order_ids, classification, connections
+            )
+            if len(sez_lns) > 0:
+                strategy_used = "Strategy 3: Connectivity-based"
+                print("\n✅ SUCCESS: Connectivity-based classification working!")
+        except Exception as e:
+            print(f"  ❌ Strategy 3 failed: {e}")
+
+        # Strategy 2: Flow-based (if Strategy 3 failed)
+        if sez_pns is None or len(sez_lns) == 0:
+            print("\n" + "=" * 70)
+            print("[Attempting Strategy 2: Flow-based classification]")
+            print("=" * 70)
+            try:
+                sez_pns, sez_lns = classify_sez_neurons_by_flow(
+                    second_order_ids, classification
+                )
+                if len(sez_lns) > 0:
+                    strategy_used = "Strategy 2: Flow-based"
+                    print("\n✅ SUCCESS: Flow-based classification working!")
+            except Exception as e:
+                print(f"  ❌ Strategy 2 failed: {e}")
+
+        # Strategy 1: Keyword matching (fallback)
+        if sez_pns is None or len(sez_lns) == 0:
+            print("\n" + "=" * 70)
+            print("[Attempting Strategy 1: Enhanced keyword-based classification]")
+            print("=" * 70)
+            try:
+                sez_pns, sez_lns = classify_sez_neurons_robust(
+                    second_order_ids, classification
+                )
+                if len(sez_lns) > 0:
+                    strategy_used = "Strategy 1: Enhanced keywords"
+                    print("\n✅ SUCCESS: Keyword-based classification working!")
+            except Exception as e:
+                print(f"  ❌ Strategy 1 failed: {e}")
+
+        # Check if any strategy succeeded
+        if sez_pns is None or len(sez_lns) == 0:
+            print("\n❌ CRITICAL ERROR: All classification strategies failed!")
+            print("   No SEZ-LNs could be extracted.")
+            print("   Please review diagnostic output above.")
+            return 1
+
+        # Report which strategy succeeded
+        print("\n" + "=" * 70)
+        print(f"✅ Classification successful using: {strategy_used}")
+        print("=" * 70)
+
+    else:
+        # Original classification worked fine
+        sez_pns = sez_pns_initial
+        sez_lns = sez_lns_initial
+        print(f"\n✅ Original classification successful!")
+
+    # Final validation
+    print(f"\n📊 Final Classification Results:")
+    print(f"  SEZ-PNs (projection neurons):  {len(sez_pns)}")
+    print(f"  SEZ-LNs (local interneurons):  {len(sez_lns)}")
+
+    if len(sez_pns) > 0 and len(sez_lns) > 0:
+        ratio = len(sez_lns) / len(sez_pns)
+        print(f"  SEZ-LN:SEZ-PN ratio:           {ratio:.1f}:1")
+
+        if 2.0 <= ratio <= 5.0:
+            print(f"    ✅ Ratio within expected range (2-5:1)")
+        elif ratio < 2.0:
+            print(f"    ⚠️  Ratio low - may have too many PNs or too few LNs")
+        else:
+            print(f"    ⚠️  Ratio high - may have too few PNs or too many LNs")
+
+        # Validate against Li et al. (2024)
+        validate_sez_pn_count(len(sez_pns))
 
     # STAGE 4: Filter cholinergic SEZ-LNs
     print("\n" + "=" * 70)
