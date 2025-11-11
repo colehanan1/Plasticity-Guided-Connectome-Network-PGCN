@@ -187,6 +187,33 @@ def generate_cell_type_summary(cache_dir: Path) -> Dict[str, Any]:
         "expected_count": 2,
     })
 
+    # NEW: SEZ Projection Neurons (Taste Input)
+    sez_pn_count = load_csv_count("sez_pn_all.csv")
+    cell_types.append({
+        "name": "SEZ Projection Neurons (SEZ-PNs)",
+        "count": sez_pn_count,
+        "role": "Taste-responsive input to lateral horn and mushroom body",
+        "neurotransmitter": "Mixed (excitatory)",
+        "connectivity": "GRN→SEZ-PN→LH/MB (taste-odor integration)",
+        "category": "New",
+        "reference": "Li et al. (2024) Scientific Reports 14:21120",
+        "expected_range": "100-200",
+    })
+
+    # NEW: SEZ Local Interneurons (Taste Processing)
+    sez_ln_count = load_csv_count("sez_ln_all.csv")
+    sez_ln_chol_count = load_csv_count("sez_ln_cholinergic.csv")
+    cell_types.append({
+        "name": "SEZ Local Interneurons (SEZ-LNs)",
+        "count": sez_ln_count,
+        "role": "Local taste processing and relay within SEZ",
+        "neurotransmitter": f"Mixed (Cholinergic: {sez_ln_chol_count})",
+        "connectivity": "GRN→SEZ-LN→SEZ-PN (feedforward relay circuits)",
+        "category": "New",
+        "reference": "Shen et al. (2025) Current Biology 35(9):1955-1970",
+        "expected_range": "200-600",
+    })
+
     total_neurons = sum(ct['count'] for ct in cell_types)
 
     return {
@@ -230,6 +257,11 @@ def print_formatted_summary(summary: Dict[str, Any]) -> None:
             # Add expected count warning for SEZ-NSC^CAPA
             if 'expected_count' in ct and ct['count'] != ct['expected_count']:
                 print(f" [WARNING: Expected {ct['expected_count']}]", end="")
+
+            # Add expected range validation for SEZ neurons
+            if 'expected_range' in ct:
+                print(f" [Expected: {ct['expected_range']}]", end="")
+
             print()
 
             print(f"   Role: {ct['role']}")
@@ -244,7 +276,11 @@ def print_formatted_summary(summary: Dict[str, Any]) -> None:
 
     print("\n" + "="*80)
     print(f"\n✓ Complete system: {summary['total_neurons']:,} neurons across {len(summary['cell_type_breakdown'])} cell types")
-    print("✓ Integration includes 2 new cell types: CB0191 and SEZ-NSC^CAPA")
+    print("✓ Integration includes 4 new cell types:")
+    print("  - CB0191 neurons (central processing)")
+    print("  - SEZ-NSC^CAPA neurons (nutrient signaling)")
+    print("  - SEZ Projection Neurons (taste input to MB/LH)")
+    print("  - SEZ Local Interneurons (taste processing)")
     print("\n" + "="*80)
 
 
