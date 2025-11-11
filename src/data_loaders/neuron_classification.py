@@ -20,6 +20,8 @@ __all__ = [
     "get_motor_neurons",
     "get_ascending_neurons",
     "get_descending_neurons",
+    "get_cb0191_neurons",
+    "get_sez_nsc_capa_neurons",
     "extract_neurotransmitter_info",
     "map_brain_regions",
     "infer_pn_glomerulus_labels",
@@ -66,6 +68,16 @@ _ASCENDING_KEYWORDS = (
 _DESCENDING_KEYWORDS = (
     "descending",
     "dn",
+)
+_CB0191_KEYWORDS = (
+    "cb0191",
+    "cb-0191",
+)
+_SEZ_NSC_CAPA_KEYWORDS = (
+    "capa",
+    "sez",
+    "subesophageal",
+    "neurosecretory",
 )
 
 
@@ -838,6 +850,273 @@ def get_descending_neurons(
     # Ensure at least key classification columns are retained even if merge fails
     if result.empty:
         return desc_neurons.loc[:, [column for column in ("root_id", "super_class", "class") if column in desc_neurons.columns]].reset_index(drop=True)
+
+    return result
+
+
+def get_cb0191_neurons(
+    cell_types_df: pd.DataFrame,
+    classification_df: pd.DataFrame,
+    *,
+    names_df: pd.DataFrame | None = None,
+    processed_labels_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Return CB0191 adult brain-intrinsic neuron annotations.
+
+    Biological Context
+    ------------------
+    CB0191 neurons are uncharacterized putative embryonic-born neurons with soma
+    near the inferior posterior slope (IPS). They are predicted to be cholinergic
+    and have synaptic connections in LAL (lateral accessory lobe), vest, IPS, and
+    wedge regions.
+
+    Classification:
+    - Ontology ID: FBbt_20004012
+    - Super-category: Adult brain-intrinsic neuron
+    - Soma location: Near inferior posterior slope (IPS)
+    - Predicted neurotransmitter: Acetylcholine (cholinergic)
+
+    Synaptic Profile:
+    - Postsynaptic sites: Ipsilateral LAL, vest, IPS, wedge
+    - Presynaptic sites: Ipsilateral LAL, vest, IPS
+    - Functional role: Uncharacterized (putative central processing/integration)
+
+    Search Strategy:
+    Uses hybrid search across multiple fields following EXTRACTION_FIXES.md best
+    practices to find CB0191 annotations in both structured classification fields
+    and community labels. Checks cell_type, cell_type_aliases, class, sub_class,
+    and processed_labels for "CB0191" patterns.
+
+    Reference: Schlegel et al. (2023), FlyWire v783, FBbt_20004012
+
+    Parameters
+    ----------
+    cell_types_df : pd.DataFrame
+        Cell type annotations from FlyWire.
+    classification_df : pd.DataFrame
+        Hierarchical classification metadata.
+    names_df : pd.DataFrame, optional
+        Names metadata with group/region annotations.
+    processed_labels_df : pd.DataFrame, optional
+        Processed labels for community annotations.
+
+    Returns
+    -------
+    pd.DataFrame
+        CB0191 neuron annotations with merged metadata (columns: root_id,
+        cell_type, super_class, class, sub_class).
+    """
+    merged = _merge_classification(cell_types_df, classification_df)
+
+    if names_df is not None and not names_df.empty:
+        validate_dataframe_columns(names_df, ["root_id"], frame_name="names")
+        name_subset = names_df.loc[:, [column for column in ("root_id", "group") if column in names_df.columns]]
+        name_subset = name_subset.drop_duplicates(subset=["root_id"])
+        merged = merged.merge(name_subset, on="root_id", how="left")
+
+    # Hybrid search strategy: check multiple fields with OR logic
+    keyword_mask = (
+        _keyword_mask(merged.get("cell_type"), _CB0191_KEYWORDS)
+        | _keyword_mask(merged.get("cell_type_aliases"), _CB0191_KEYWORDS)
+        | _keyword_mask(merged.get("class"), _CB0191_KEYWORDS)
+        | _keyword_mask(merged.get("sub_class"), _CB0191_KEYWORDS)
+    )
+
+    # Also check processed_labels for CB0191 annotations
+    label_lookup = _build_processed_label_lookup(processed_labels_df)
+
+    def _labels_cb0191(labels: Iterable[str]) -> bool:
+        return any(re.search(r"\bCB[_-]?0191\b", label, flags=re.IGNORECASE) for label in labels)
+
+    if label_lookup:
+        processed_mask = _labels_to_mask(merged["root_id"], label_lookup, _labels_cb0191)
+    else:
+        processed_mask = pd.Series(False, index=merged.index, dtype=bool)
+
+    mask = keyword_mask | processed_mask
+    result = merged.loc[mask].drop_duplicates(subset=["root_id"]).reset_index(drop=True)
+
+    # Debug output if no neurons found
+    if len(result) == 0:
+        print("WARNING: No CB0191 neurons found. Check classification fields.")
+        print("  Searching for 'CB0191' in available fields...")
+
+        # Check each field for any matches
+        for field in ["cell_type", "cell_type_aliases", "class", "sub_class"]:
+            field_series = merged.get(field)
+            if field_series is not None:
+                matches = field_series.astype(str).str.contains("cb0191|cb-0191", case=False, na=False).sum()
+                if matches > 0:
+                    print(f"  Found {matches} potential matches in {field}")
+                    sample_vals = field_series[field_series.astype(str).str.contains("cb0191|cb-0191", case=False, na=False)].unique()[:3]
+                    print(f"    Sample values: {sample_vals}")
+
+        if processed_labels_df is not None and "processed_labels" in processed_labels_df.columns:
+            label_matches = processed_labels_df["processed_labels"].astype(str).str.contains("cb0191|cb-0191", case=False, na=False).sum()
+            if label_matches > 0:
+                print(f"  Found {label_matches} potential matches in processed_labels")
+    else:
+        print(f"Found {len(result)} CB0191 neurons")
+
+    return result
+
+
+def get_sez_nsc_capa_neurons(
+    cell_types_df: pd.DataFrame,
+    classification_df: pd.DataFrame,
+    *,
+    names_df: pd.DataFrame | None = None,
+    neurons_df: pd.DataFrame | None = None,
+    processed_labels_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Return SEZ-NSC^CAPA (Subesophageal Zone Neurosecretory Cells expressing CAPA).
+
+    Biological Context
+    ------------------
+    These are 2 large neurosecretory cells per brain that release CAPA and pyrokinin
+    hormones to regulate post-feeding physiology, intestinal motility, and energy
+    homeostasis. They receive olfactory and gustatory sensory inputs.
+
+    Classification:
+    - Full name: Subesophageal Zone Neurosecretory Cells expressing Capability peptide
+    - Cell count: 2 cells per brain (bilateral pair)
+    - Neuropeptide identity: CAPA (homolog of mammalian neuromedin U)
+    - Additional neuropeptide: Pyrokinin (function unknown)
+
+    Functional Role:
+    - Primary: Nutrient-responsive hormonal regulation
+    - Targets: Visceral muscle, enteroendocrine cells, corpora cardiaca (via CapaR receptor)
+    - Physiological effects:
+        * Intestinal motility regulation
+        * Fluid/waste excretion control
+        * Energy homeostasis via AKH (adipokinetic hormone) inhibition
+        * Post-feeding physiology modulation
+
+    Connectivity Profile:
+    - Inputs: Sensory neurons (20 total to SEZ), GABAergic olfactory projection neurons
+    - Strong connections: From SEZ and lateral horn regions
+    - Morphology: ~2× larger than other NSC types; high release capacity
+    - Axonal projection: Exit brain via nervii corpora cardiaca (NCC)
+
+    Search Strategy:
+    1. Primary: class == "endocrine" OR super_class == "endocrine"
+    2. Filter by neuropeptide identity: "CAPA" in processed_labels or names
+    3. Filter by anatomical location: SEZ (subesophageal zone) in region annotations
+    4. Expected count: 2 neurons (bilateral pair)
+
+    References:
+    - Zandawala et al. (2024) eLife, FlyWire connectome
+    - Anatomical nomenclature: Table 1, SEZ-NSC^CAPA classification
+
+    Parameters
+    ----------
+    cell_types_df : pd.DataFrame
+        Cell type annotations from FlyWire.
+    classification_df : pd.DataFrame
+        Hierarchical classification metadata.
+    names_df : pd.DataFrame, optional
+        Names metadata with anatomical region filtering.
+    neurons_df : pd.DataFrame, optional
+        Neurotransmitter predictions (not used, but kept for API consistency).
+    processed_labels_df : pd.DataFrame, optional
+        Processed labels for neuropeptide annotations.
+
+    Returns
+    -------
+    pd.DataFrame
+        SEZ-NSC^CAPA neuron annotations with merged metadata (columns: root_id,
+        cell_type, super_class, class, neuropeptide, soma_region).
+    """
+    merged = _merge_classification(cell_types_df, classification_df)
+
+    if names_df is not None and not names_df.empty:
+        validate_dataframe_columns(names_df, ["root_id"], frame_name="names")
+        name_subset = names_df.loc[:, [column for column in ("root_id", "group") if column in names_df.columns]]
+        name_subset = name_subset.drop_duplicates(subset=["root_id"])
+        merged = merged.merge(name_subset, on="root_id", how="left")
+
+    # Strategy 1: Filter by endocrine super_class or class
+    super_class_series = merged.get("super_class")
+    if super_class_series is not None:
+        endocrine_super_mask = super_class_series.astype(str).str.contains("endocrine", case=False, na=False)
+    else:
+        endocrine_super_mask = pd.Series(False, index=merged.index, dtype=bool)
+
+    class_series = merged.get("class")
+    if class_series is not None:
+        endocrine_class_mask = class_series.astype(str).str.contains("endocrine", case=False, na=False)
+    else:
+        endocrine_class_mask = pd.Series(False, index=merged.index, dtype=bool)
+
+    endocrine_mask = endocrine_super_mask | endocrine_class_mask
+
+    # Strategy 2: Search for CAPA in processed_labels and cell_type fields
+    capa_mask = (
+        _keyword_mask(merged.get("cell_type"), ("capa",))
+        | _keyword_mask(merged.get("cell_type_aliases"), ("capa",))
+    )
+
+    label_lookup = _build_processed_label_lookup(processed_labels_df)
+
+    def _labels_capa(labels: Iterable[str]) -> bool:
+        return any(re.search(r"\bCAPA\b", label, flags=re.IGNORECASE) for label in labels)
+
+    if label_lookup:
+        processed_capa_mask = _labels_to_mask(merged["root_id"], label_lookup, _labels_capa)
+    else:
+        processed_capa_mask = pd.Series(False, index=merged.index, dtype=bool)
+
+    # Strategy 3: Filter by SEZ (subesophageal zone) anatomical location
+    sez_mask = (
+        _keyword_mask(merged.get("cell_type"), ("sez",))
+        | _keyword_mask(merged.get("cell_type_aliases"), ("sez", "subesophageal"))
+        | _keyword_mask(merged.get("group"), ("sez",))
+    )
+
+    def _labels_sez(labels: Iterable[str]) -> bool:
+        return any(re.search(r"\bSEZ\b|subesophageal", label, flags=re.IGNORECASE) for label in labels)
+
+    if label_lookup:
+        processed_sez_mask = _labels_to_mask(merged["root_id"], label_lookup, _labels_sez)
+    else:
+        processed_sez_mask = pd.Series(False, index=merged.index, dtype=bool)
+
+    # Combine filters: (endocrine) AND (CAPA) for specificity
+    # OR also accept SEZ + CAPA combination
+    mask = (endocrine_mask & (capa_mask | processed_capa_mask)) | ((sez_mask | processed_sez_mask) & (capa_mask | processed_capa_mask))
+
+    result = merged.loc[mask].drop_duplicates(subset=["root_id"]).reset_index(drop=True)
+
+    # Validation: Expected count is 2 neurons
+    expected_count = 2
+    actual_count = len(result)
+
+    if actual_count == 0:
+        print("WARNING: No SEZ-NSC^CAPA neurons found! Check endocrine classification.")
+        print("  Searching for CAPA neurons in endocrine cells...")
+
+        # Debug: show endocrine cells
+        if endocrine_mask.any():
+            endocrine_cells = merged[endocrine_mask]
+            print(f"  Found {len(endocrine_cells)} endocrine cells total")
+
+            # Check for CAPA in any field
+            for field in ["cell_type", "cell_type_aliases"]:
+                field_series = endocrine_cells.get(field)
+                if field_series is not None:
+                    capa_matches = field_series.astype(str).str.contains("capa", case=False, na=False).sum()
+                    if capa_matches > 0:
+                        print(f"  Found {capa_matches} CAPA mentions in endocrine {field}")
+        else:
+            print("  No endocrine cells found in classification")
+            if super_class_series is not None:
+                unique_vals = super_class_series.dropna().unique()[:10]
+                print(f"  Sample super_class values: {unique_vals}")
+    elif actual_count != expected_count:
+        print(f"WARNING: Expected {expected_count} SEZ-NSC^CAPA neurons, found {actual_count}")
+        print("  This may indicate data quality issues or variant nomenclature")
+    else:
+        print(f"✓ Found {actual_count} SEZ-NSC^CAPA neurons (expected count)")
 
     return result
 

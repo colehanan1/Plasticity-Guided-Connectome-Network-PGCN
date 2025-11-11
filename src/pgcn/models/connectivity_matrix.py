@@ -153,6 +153,8 @@ class ConnectivityMatrix:
     motor_ids: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.int64))
     an_ids: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.int64))
     dn_ids: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.int64))
+    cb0191_ids: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.int64))
+    sez_nsc_capa_ids: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.int64))
     
     # Connectivity matrices (sparse CSR format) - Extended components (OPTIONAL)
     # Antennal lobe: PN ↔ LN interactions
@@ -171,7 +173,17 @@ class ConnectivityMatrix:
     # Behavioral state modulation
     an_to_mbon: Optional[sp.csr_matrix] = None
     an_to_dan: Optional[sp.csr_matrix] = None
-    
+
+    # CB0191: Uncharacterized central processing neurons
+    pn_to_cb0191: Optional[sp.csr_matrix] = None
+    cb0191_to_kc: Optional[sp.csr_matrix] = None
+    cb0191_to_mbon: Optional[sp.csr_matrix] = None
+
+    # SEZ-NSC^CAPA: Neurosecretory cells for nutrient-responsive hormonal regulation
+    pn_to_sez_nsc_capa: Optional[sp.csr_matrix] = None
+    sez_nsc_capa_to_mbon: Optional[sp.csr_matrix] = None
+    sensory_to_sez_nsc_capa: Optional[sp.csr_matrix] = None
+
     # Metadata dictionaries - Core circuit (OPTIONAL)
     pn_glomeruli: Dict[int, str] = field(default_factory=dict)
     kc_subtypes: Dict[int, str] = field(default_factory=dict)
@@ -184,6 +196,8 @@ class ConnectivityMatrix:
     motor_targets: Dict[int, str] = field(default_factory=dict)
     an_modalities: Dict[int, str] = field(default_factory=dict)
     dn_behaviors: Dict[int, str] = field(default_factory=dict)
+    cb0191_metadata: Dict[int, str] = field(default_factory=dict)
+    sez_nsc_capa_metadata: Dict[int, str] = field(default_factory=dict)
 
 
     def __post_init__(self) -> None:
@@ -276,6 +290,16 @@ class ConnectivityMatrix:
     def n_dn(self) -> int:
         """Number of descending neurons."""
         return len(self.dn_ids)
+
+    @property
+    def n_cb0191(self) -> int:
+        """Number of CB0191 neurons."""
+        return len(self.cb0191_ids)
+
+    @property
+    def n_sez_nsc_capa(self) -> int:
+        """Number of SEZ-NSC^CAPA neurons."""
+        return len(self.sez_nsc_capa_ids)
 
     def slice_kc_subtypes(self, subtypes: List[str]) -> "ConnectivityMatrix":
         """Return new ConnectivityMatrix with only specified KC subtypes.
@@ -580,6 +604,7 @@ class ConnectivityMatrix:
             f"  Core: PNs: {self.n_pn}, KCs: {self.n_kc}, MBONs: {self.n_mbon}, DANs: {self.n_dan}\n"
             f"  Extended: LNs: {self.n_ln}, LH: {self.n_lh}, Motor: {self.n_motor}, "
             f"ANs: {self.n_an}, DNs: {self.n_dn}\n"
+            f"  New: CB0191: {self.n_cb0191}, SEZ-NSC^CAPA: {self.n_sez_nsc_capa}\n"
             f"  PN→KC: {self.pn_to_kc.shape} ({self.pn_to_kc.nnz} synapses, "
             f"{self.pn_to_kc_sparsity():.1%} sparse)\n"
             f"  KC→MBON: {self.kc_to_mbon.shape} ({self.kc_to_mbon.nnz} synapses, "

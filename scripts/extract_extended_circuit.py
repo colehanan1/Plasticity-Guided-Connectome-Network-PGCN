@@ -30,6 +30,8 @@ from data_loaders.neuron_classification import (
     get_motor_neurons,
     get_ascending_neurons,
     get_descending_neurons,
+    get_cb0191_neurons,
+    get_sez_nsc_capa_neurons,
 )
 
 DEFAULT_DATA_FILES: Dict[str, str] = {
@@ -328,6 +330,59 @@ def extract_extended_circuit(dataset_dir: Path, output_dir: Path) -> None:
 
         print(f"  Total DNs: {len(dn_neurons):,}")
 
+    # Extract CB0191 Neurons
+    print("\n=== EXTRACTING CB0191 NEURONS ===")
+    cb0191_neurons = get_cb0191_neurons(
+        cell_types,
+        classification,
+        names_df=names,
+        processed_labels_df=processed_labels,
+    )
+
+    if len(cb0191_neurons) == 0:
+        print("WARNING: No CB0191 neurons found! Check classification fields.")
+        print("  Checking for 'CB0191' in cell_types fields...")
+        if "cell_type" in cell_types.columns:
+            cb0191_check = cell_types[cell_types["cell_type"].str.contains("cb0191|cb-0191", case=False, na=False)]
+            print(f"  Found {len(cb0191_check)} entries with 'CB0191' in cell_type")
+        if processed_labels is not None and "processed_labels" in processed_labels.columns:
+            cb0191_labels = processed_labels[processed_labels["processed_labels"].astype(str).str.contains("cb0191|cb-0191", case=False, na=False)]
+            print(f"  Found {len(cb0191_labels)} entries with 'CB0191' in processed_labels")
+    else:
+        cb0191_columns = ("root_id", "cell_type", "super_class", "class", "sub_class")
+        _write_subset(cb0191_neurons, cb0191_columns, output_dir / "cb0191_neurons.csv", "CB0191 neurons")
+        print(f"  Total CB0191: {len(cb0191_neurons):,}")
+
+    # Extract SEZ-NSC^CAPA Neurons
+    print("\n=== EXTRACTING SEZ-NSC^CAPA NEURONS ===")
+    sez_nsc_capa = get_sez_nsc_capa_neurons(
+        cell_types,
+        classification,
+        names_df=names,
+        neurons_df=neurons,
+        processed_labels_df=processed_labels,
+    )
+
+    if len(sez_nsc_capa) == 0:
+        print("WARNING: No SEZ-NSC^CAPA neurons found! Check endocrine classification.")
+        print("  Checking for endocrine cells...")
+        if "super_class" in classification.columns:
+            endocrine_check = classification[classification["super_class"].str.contains("endocrine", case=False, na=False)]
+            print(f"  Found {len(endocrine_check)} endocrine cells in classification")
+            if len(endocrine_check) > 0 and "cell_type" in endocrine_check.columns:
+                capa_in_endocrine = endocrine_check[endocrine_check["cell_type"].astype(str).str.contains("capa", case=False, na=False)]
+                print(f"  Found {len(capa_in_endocrine)} with 'CAPA' in cell_type")
+    else:
+        sez_columns = ("root_id", "cell_type", "super_class", "class", "group")
+        _write_subset(sez_nsc_capa, sez_columns, output_dir / "sez_nsc_capa.csv", "SEZ-NSC^CAPA neurons")
+
+        expected_count = 2
+        actual_count = len(sez_nsc_capa)
+        if actual_count != expected_count:
+            print(f"  WARNING: Expected {expected_count} SEZ-NSC^CAPA neurons, found {actual_count}")
+        else:
+            print(f"  ✓ SEZ-NSC^CAPA: {actual_count} neurons (expected count)")
+
     # Summary
     print("\n=== SUMMARY ===")
     print("Extended olfactory learning circuit components extracted:")
@@ -336,6 +391,8 @@ def extract_extended_circuit(dataset_dir: Path, output_dir: Path) -> None:
     print(f"✅ Motor Neurons: {len(motor_all):,} ({len(motor_proboscis):,} proboscis)")
     print(f"✅ Ascending Neurons (AN): {len(an_neurons):,}")
     print(f"✅ Descending Neurons (DN): {len(dn_neurons):,}")
+    print(f"✅ CB0191 Neurons: {len(cb0191_neurons):,}")
+    print(f"✅ SEZ-NSC^CAPA Neurons: {len(sez_nsc_capa):,}")
     print(f"\nAll CSVs saved to: {output_dir.resolve()}")
     print("\nNext steps:")
     print("1. Run scripts/extract_circuit.py for core PN/KC/MBON/DAN extraction")

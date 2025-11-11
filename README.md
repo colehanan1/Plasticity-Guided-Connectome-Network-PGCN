@@ -91,11 +91,18 @@ Each run saves:
 - **Mushroom Body Output Neurons (MBONs):** 44 decision neurons
 - **Dopaminergic Neurons (DANs):** 231 reward/punishment neurons
 
-#### Enhanced Components (NEW)
+#### Enhanced Components
 - **Local Interneurons (LNs):** 3,829 modulatory neurons (VETO GATE mechanism)
 - **Lateral Horn (LH):** 1,162 innate response neurons
 - **Motor Neurons:** 66 proboscis extension neurons (behavioral output)
-- **Brain-VNC Interface:** 3,229 ascending/descending command neurons
+- **Ascending Neurons (ANs):** 1,926 VNC→Brain command neurons
+- **Descending Neurons (DNs):** 1,303 Brain→VNC command neurons
+
+#### New Additions
+- **CB0191 Neurons:** Variable (uncharacterized central processing)
+- **SEZ-NSC^CAPA Neurons:** 2 (nutrient-responsive neuroendocrine cells)
+
+**TOTAL SYSTEM:** 40,567+ neurons (with new additions)
 
 ### Available Experiments
 
