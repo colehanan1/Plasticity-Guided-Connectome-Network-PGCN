@@ -60,10 +60,10 @@ def test_taste_circuit_instantiation():
         )
 
         print(f"  ✓ TasteCircuit instantiated successfully")
-        print(f"    - {taste_circuit.n_grn} GRNs")
-        print(f"    - {taste_circuit.n_sez_pn} SEZ-PNs")
-        print(f"    - {taste_circuit.n_ach_ln} ACh-LNs")
-        print(f"    - {taste_circuit.n_gaba_ln} GABA-LNs")
+        print(f"    - {taste_circuit.n_grns} GRNs")
+        print(f"    - {taste_circuit.n_sez_pns} SEZ-PNs")
+        print(f"    - {taste_circuit.n_ach_lns} ACh-LNs")
+        print(f"    - {taste_circuit.n_gaba_lns} GABA-LNs")
 
         return True, taste_circuit
     except Exception as e:

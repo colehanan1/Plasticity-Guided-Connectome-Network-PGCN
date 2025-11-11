@@ -229,29 +229,29 @@ class TasteCircuit(nn.Module):
         self.register_buffer("W_ach_to_pn", torch.from_numpy(W_ach_to_pn.astype(np.float32)))
 
     def forward(
-        self, sugar_input: torch.Tensor, odor_context: Optional[torch.Tensor] = None
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        self, sugar_input, odor_context: Optional[torch.Tensor] = None
+    ) -> dict:
         """Forward pass through taste circuit.
 
         Parameters
         ----------
-        sugar_input : torch.Tensor
-            Sugar GRN activation, shape (batch, n_grns)
-            Values should be in [0, 1] range
+        sugar_input : float or torch.Tensor
+            Sugar reward strength (scalar) or GRN activation (batch, n_grns).
+            Scalar values will be broadcast to all GRNs.
+            Values should be in [0, 1] range.
         odor_context : torch.Tensor, optional
             Optional odor context for gating, shape (batch, context_dim)
             Currently unused but reserved for future context-dependent gating
 
         Returns
         -------
-        sez_pn_output : torch.Tensor
-            SEZ-PN projection neuron activity, shape (batch, n_sez_pns)
-        ach_ln_output : torch.Tensor
-            ACh-LN excitatory relay activity, shape (batch, n_ach_lns)
-        gaba_ln_output : torch.Tensor
-            GABA-LN inhibitory gate activity, shape (batch, n_gaba_lns)
-        veto_signal : torch.Tensor
-            Scalar veto strength per sample, shape (batch,)
+        dict
+            Dictionary with keys:
+            - 'sez_pn_activity': SEZ-PN projection neuron activity, shape (batch, n_sez_pns)
+            - 'ach_ln_activity': ACh-LN excitatory relay activity, shape (batch, n_ach_lns)
+            - 'gaba_ln_activity': GABA-LN inhibitory gate activity, shape (batch, n_gaba_lns)
+            - 'veto_signal': Scalar veto strength per sample, shape (batch,)
+            - 'grn_activity': GRN activity, shape (batch, n_grns)
 
         Notes
         -----
@@ -259,6 +259,17 @@ class TasteCircuit(nn.Module):
         by the learnable gaba_gain parameter. High veto signal suppresses
         downstream reward processing.
         """
+        # Handle scalar float input (convert to batched tensor)
+        if isinstance(sugar_input, (int, float)):
+            # Broadcast scalar to all GRNs
+            sugar_input = torch.ones(1, self.n_grns) * float(sugar_input)
+        elif not isinstance(sugar_input, torch.Tensor):
+            sugar_input = torch.tensor(sugar_input, dtype=torch.float32)
+
+        # Ensure 2D (add batch dimension if needed)
+        if sugar_input.ndim == 1:
+            sugar_input = sugar_input.unsqueeze(0)
+
         batch_size = sugar_input.shape[0]
 
         # [1] Sugar GRN activation
@@ -302,9 +313,17 @@ class TasteCircuit(nn.Module):
 
         # [8] Compute veto strength (for analysis and neuromodulation)
         # Higher GABA activity → stronger veto
-        veto_signal = self.gaba_gain * gaba_ln_activity.sum(dim=1)  # (batch,)
+        # Normalize by mean activation to get veto in [0, 1] range
+        gaba_mean_activity = gaba_ln_activity.mean(dim=1)  # (batch,)
+        veto_signal = torch.sigmoid(self.gaba_gain * gaba_mean_activity)  # (batch,)
 
-        return sez_pn_output, ach_ln_activity, gaba_ln_activity, veto_signal
+        return {
+            'sez_pn_activity': sez_pn_output,
+            'ach_ln_activity': ach_ln_activity,
+            'gaba_ln_activity': gaba_ln_activity,
+            'veto_signal': veto_signal,
+            'grn_activity': grn_activity,
+        }
 
     def get_synapse_statistics(self) -> dict:
         """Get statistics about connectivity and synapse weights.
