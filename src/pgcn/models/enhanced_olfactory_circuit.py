@@ -215,12 +215,12 @@ class EnhancedOlfactoryCircuit(nn.Module):
 
             # Initialize SEZ-PN → KC integration weights
             # These are learnable random connections from SEZ-PNs to KCs
-            n_sez_pn = self.taste_circuit.n_sez_pn
+            n_sez_pns = self.taste_circuit.n_sez_pns
             n_kc = connectivity.n_kc
 
             # Random sparse connectivity (similar to PN→KC)
             self.sez_pn_to_kc = nn.Parameter(
-                torch.randn(n_sez_pn, n_kc) * 0.1,
+                torch.randn(n_sez_pns, n_kc) * 0.1,
                 requires_grad=True
             )
         else:

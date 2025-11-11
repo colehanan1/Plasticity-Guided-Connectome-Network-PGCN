@@ -177,7 +177,11 @@ def run_condition(
     for trial in range(n_trials):
         # Forward pass through taste circuit
         with torch.no_grad():
-            sez_pn, ach_ln, gaba_ln, veto_signal = taste_circuit(modulated_sugar)
+            taste_output = taste_circuit(modulated_sugar)
+            sez_pn = taste_output['sez_pn_activity']
+            ach_ln = taste_output['ach_ln_activity']
+            gaba_ln = taste_output['gaba_ln_activity']
+            veto_signal = taste_output['veto_signal']
 
         # Compute RPE (gated by veto)
         actual_reward = 1.0  # Sugar is present
