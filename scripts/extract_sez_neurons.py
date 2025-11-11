@@ -104,14 +104,10 @@ def load_grn_root_ids(grn_file: Path) -> np.ndarray:
     if len(grn_ids) == 0:
         raise ValueError(f"GRN file is empty: {grn_file}")
 
-    # Validate count
-    expected_count = 343
+    # Validate count (343 for all gustatory, fewer for sugar/water only)
     actual_count = len(grn_ids)
 
-    if actual_count != expected_count:
-        print(f"  ⚠ WARNING: Expected {expected_count} GRNs, found {actual_count}")
-    else:
-        print(f"  ✓ Loaded {actual_count} validated GRN root IDs")
+    print(f"  ✓ Loaded {actual_count} validated GRN root IDs")
 
     return grn_ids
 
@@ -763,6 +759,12 @@ def main() -> int:
         help="Minimum synapses for GRN → second-order connections",
     )
     parser.add_argument(
+        "--grn-file",
+        type=str,
+        default="root_ids_class_gustatory_sub_class_sugar_water.txt",
+        help="GRN root ID file to use (default: sugar/water only)",
+    )
+    parser.add_argument(
         "--skip-validation",
         action="store_true",
         help="Skip Li et al. (2024) clustering validation",
@@ -804,7 +806,8 @@ def main() -> int:
     print("STAGE 1: LOAD VALIDATED GRN ROOT IDS")
     print("=" * 70)
 
-    grn_file = args.dataset_dir / "root_ids_class_gustatory.txt"
+    grn_file = args.dataset_dir / args.grn_file
+    print(f"  Using GRN file: {args.grn_file}")
 
     try:
         if grn_file.exists():
