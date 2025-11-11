@@ -1241,41 +1241,49 @@ def main() -> int:
         except Exception as e:
             print(f"  ⚠️  Diagnostic failed: {e}")
 
-        # Try classification strategies in order of robustness
+        # Try classification strategies in order of reliability
+        # PRIORITY: Flow > Keywords > Connectivity
         sez_pns = None
         sez_lns = None
         strategy_used = None
 
-        # Strategy 3: Connectivity-based (most robust)
+        # ===================================================================
+        # STRATEGY 2: Flow-based classification (PRIMARY - Most Reliable)
+        # ===================================================================
         print("\n" + "=" * 70)
-        print("[Attempting Strategy 3: Connectivity-based classification]")
+        print("[Attempting Strategy 2: Flow-based classification]")
         print("=" * 70)
         try:
-            sez_pns, sez_lns = classify_sez_neurons_by_connectivity(
-                grn_ids, second_order_ids, classification, connections
+            sez_pns, sez_lns = classify_sez_neurons_by_flow(
+                second_order_ids, classification
             )
-            if len(sez_lns) > 0:
-                strategy_used = "Strategy 3: Connectivity-based"
-                print("\n✅ SUCCESS: Connectivity-based classification working!")
-        except Exception as e:
-            print(f"  ❌ Strategy 3 failed: {e}")
 
-        # Strategy 2: Flow-based (if Strategy 3 failed)
-        if sez_pns is None or len(sez_lns) == 0:
-            print("\n" + "=" * 70)
-            print("[Attempting Strategy 2: Flow-based classification]")
-            print("=" * 70)
-            try:
-                sez_pns, sez_lns = classify_sez_neurons_by_flow(
-                    second_order_ids, classification
-                )
-                if len(sez_lns) > 0:
+            # Validate results
+            if len(sez_lns) > 0 and len(sez_pns) > 0:
+                ratio = len(sez_lns) / len(sez_pns)
+                print(f"  ✓ SEZ-LN:SEZ-PN ratio: {ratio:.1f}:1")
+
+                if 0.5 <= ratio <= 5.0:
+                    print(f"    ✅ Within acceptable range (0.5-5:1)")
                     strategy_used = "Strategy 2: Flow-based"
                     print("\n✅ SUCCESS: Flow-based classification working!")
-            except Exception as e:
-                print(f"  ❌ Strategy 2 failed: {e}")
+                else:
+                    print(f"    ⚠️  Ratio outside typical range - trying fallback strategies")
+                    sez_pns = None
+                    sez_lns = None
+            elif len(sez_lns) == 0:
+                print(f"    ⚠️  No SEZ-LNs found - trying fallback strategies")
+                sez_pns = None
+                sez_lns = None
+        except Exception as e:
+            print(f"  ❌ Strategy 2 failed: {e}")
+            print(f"     Falling back to alternative strategies...")
+            sez_pns = None
+            sez_lns = None
 
-        # Strategy 1: Keyword matching (fallback)
+        # ===================================================================
+        # STRATEGY 1: Keyword-based classification (FALLBACK)
+        # ===================================================================
         if sez_pns is None or len(sez_lns) == 0:
             print("\n" + "=" * 70)
             print("[Attempting Strategy 1: Enhanced keyword-based classification]")
@@ -1284,13 +1292,46 @@ def main() -> int:
                 sez_pns, sez_lns = classify_sez_neurons_robust(
                     second_order_ids, classification
                 )
+
                 if len(sez_lns) > 0:
+                    ratio = len(sez_lns) / len(sez_pns) if len(sez_pns) > 0 else 0
+                    print(f"  ✓ SEZ-LN:SEZ-PN ratio: {ratio:.1f}:1")
                     strategy_used = "Strategy 1: Enhanced keywords"
                     print("\n✅ SUCCESS: Keyword-based classification working!")
+                else:
+                    print(f"    ⚠️  No SEZ-LNs found - trying last resort")
+                    sez_pns = None
+                    sez_lns = None
             except Exception as e:
                 print(f"  ❌ Strategy 1 failed: {e}")
+                print(f"     Falling back to connectivity-based (last resort)...")
+                sez_pns = None
+                sez_lns = None
 
-        # Check if any strategy succeeded
+        # ===================================================================
+        # STRATEGY 3: Connectivity-based (LAST RESORT)
+        # ===================================================================
+        if sez_pns is None or len(sez_lns) == 0:
+            print("\n" + "=" * 70)
+            print("[Attempting Strategy 3: Connectivity-based classification]")
+            print("=" * 70)
+            print("  ⚠️  NOTE: This strategy may mis-classify intrinsic neurons")
+            try:
+                sez_pns, sez_lns = classify_sez_neurons_by_connectivity(
+                    grn_ids, second_order_ids, classification, connections
+                )
+
+                if len(sez_lns) > 0:
+                    ratio = len(sez_lns) / len(sez_pns) if len(sez_pns) > 0 else 0
+                    print(f"  ✓ SEZ-LN:SEZ-PN ratio: {ratio:.1f}:1")
+                    strategy_used = "Strategy 3: Connectivity-based"
+                    print("\n⚠️  Using connectivity-based (last resort - verify results)")
+            except Exception as e:
+                print(f"  ❌ Strategy 3 failed: {e}")
+
+        # ===================================================================
+        # FINAL VALIDATION
+        # ===================================================================
         if sez_pns is None or len(sez_lns) == 0:
             print("\n❌ CRITICAL ERROR: All classification strategies failed!")
             print("   No SEZ-LNs could be extracted.")
@@ -1317,15 +1358,32 @@ def main() -> int:
         ratio = len(sez_lns) / len(sez_pns)
         print(f"  SEZ-LN:SEZ-PN ratio:           {ratio:.1f}:1")
 
-        if 2.0 <= ratio <= 5.0:
-            print(f"    ✅ Ratio within expected range (2-5:1)")
-        elif ratio < 2.0:
-            print(f"    ⚠️  Ratio low - may have too many PNs or too few LNs")
+        # Provide contextual feedback on ratio
+        if ratio < 0.1:
+            print(f"    ❌ Ratio very low ({ratio:.1f}:1) - classification likely failed")
+        elif 0.1 <= ratio < 0.5:
+            print(f"    ⚠️  Ratio low ({ratio:.1f}:1) - check if using taste subset")
+        elif 0.5 <= ratio < 2.0:
+            print(f"    ⚠️  Ratio moderate ({ratio:.1f}:1) - acceptable for taste subsets")
+            print(f"       (Full taste circuits typically show 2-5:1)")
+        elif 2.0 <= ratio <= 5.0:
+            print(f"    ✅ Ratio within Li et al. (2024) range (2-5:1)")
         else:
-            print(f"    ⚠️  Ratio high - may have too few PNs or too many LNs")
+            print(f"    ⚠️  Ratio high ({ratio:.1f}:1) - may have too many LNs")
 
         # Validate against Li et al. (2024)
         validate_sez_pn_count(len(sez_pns))
+
+    # Check for zero counts
+    if len(sez_lns) == 0:
+        print("\n❌ CRITICAL WARNING: 0 SEZ-LNs classified!")
+        print("   This indicates classification logic failure.")
+        print("   Review diagnostic output above.")
+
+    if len(sez_pns) == 0:
+        print("\n❌ CRITICAL ERROR: 0 SEZ-PNs classified!")
+        print("   Cannot proceed with validation.")
+        return 1
 
     # STAGE 4: Filter cholinergic SEZ-LNs
     print("\n" + "=" * 70)
