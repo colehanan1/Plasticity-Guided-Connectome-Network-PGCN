@@ -64,15 +64,15 @@ except ImportError as e:
     print(f"   Error: {e}")
     print(f"\n   Expected structure:")
     print(f"   door_toolkit/")
+    print(f"   ├── encoder.py (DoOREncoder)")
     print(f"   └── integration/")
     print(f"       ├── __init__.py")
-    print(f"       ├── encoder.py")
-    print(f"       └── integrator.py")
+    print(f"       └── integrator.py (DoORFlyWireIntegrator)")
 
 # Test 4: Try importing DoOREncoder
 print("\n[4/5] Trying to import DoOREncoder...")
 try:
-    from door_toolkit.integration.encoder import DoOREncoder
+    from door_toolkit.encoder import DoOREncoder
     print(f"✅ DoOREncoder imported successfully")
     print(f"   Class: {DoOREncoder}")
 except ImportError as e:
@@ -83,7 +83,7 @@ except ImportError as e:
     print(f"\n   Trying alternative import paths...")
 
     alternatives = [
-        "door_toolkit.encoder.DoOREncoder",
+        "door_toolkit.integration.encoder.DoOREncoder",
         "door_toolkit.door_encoder.DoOREncoder",
         "door_toolkit.core.encoder.DoOREncoder",
     ]
@@ -113,7 +113,7 @@ print("SUMMARY")
 print("="*80)
 
 try:
-    from door_toolkit.integration.encoder import DoOREncoder
+    from door_toolkit.encoder import DoOREncoder
     from door_toolkit.integration.integrator import DoORFlyWireIntegrator
 
     print("\n✅ DoOR toolkit is properly installed and importable!")
@@ -141,12 +141,13 @@ try:
     except Exception as e:
         print(f"⚠️  Warning: Could not test functionality: {e}")
 
-except ImportError:
+except ImportError as e:
     print("\n❌ DoOR toolkit is NOT properly installed")
+    print(f"\nImport error: {e}")
     print("\nPlease check the error messages above and:")
     print("  1. Verify door-toolkit directory structure")
     print("  2. Re-install: cd ~/Documents/cole/VSCode/door-python-toolkit && pip install -e .")
-    print("  3. Check for __init__.py files in integration/ directory")
+    print("  3. Ensure encoder.py exists at door_toolkit/encoder.py")
     print("  4. Verify Python version compatibility")
 
 print("\n" + "="*80)
