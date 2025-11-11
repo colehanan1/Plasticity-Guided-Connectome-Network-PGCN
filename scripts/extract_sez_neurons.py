@@ -758,7 +758,7 @@ def main() -> int:
     print("=" * 70)
 
     try:
-        loader = FlyWireLocalDataLoader(data_dir=args.dataset_dir)
+        loader = FlyWireLocalDataLoader(dataset_dir=args.dataset_dir)
         classification = loader.load_classification()
         cell_types = loader.load_cell_types()
         connections = loader.load_connections(min_synapses=1)  # Load all connections
