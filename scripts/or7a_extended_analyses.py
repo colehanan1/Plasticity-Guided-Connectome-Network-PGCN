@@ -183,11 +183,51 @@ def analysis_6_kc_overlap_weighted(connections, labels, dl5_pns, dm_pns, output_
     if 'post_class' in pn_kc.columns:
         pn_kc = pn_kc[pn_kc['post_class'].str.contains('KC', na=False, case=False)]
 
-    # Merge with glomerulus labels
+    # Add glomerulus labels using PN sets
+    # Create a mapping from PN root_id to glomerulus
+    pn_glom_map = {}
+    for pn_id in dl5_pns:
+        pn_glom_map[pn_id] = 'DL5'
+    for pn_id in dm_pns:
+        # Try to determine which DM glomerulus
+        # For now, mark all as DM (we'll differentiate later if needed)
+        pn_glom_map[pn_id] = 'DM'  # Generic DM for overlap calculation
+
+    # Add glomerulus column
+    pn_kc['glomerulus'] = pn_kc['pre_root_id'].map(pn_glom_map)
+
+    # Optionally refine with actual glomerulus labels if available
     if labels is not None:
-        pn_kc = pn_kc.merge(labels[['root_id', 'glomerulus']],
-                            left_on='pre_root_id', right_on='root_id',
-                            how='left', suffixes=('', '_label'))
+        glom_col = None
+        if 'glomerulus' in labels.columns:
+            glom_col = 'glomerulus'
+        else:
+            # Try alternate column names
+            for col_name in ['label', 'cell_type', 'type', 'glom']:
+                if col_name in labels.columns:
+                    glom_col = col_name
+                    break
+
+        if glom_col:
+            # Merge to get specific DM glomerulus (DM1, DM2, etc.)
+            labels_subset = labels[['root_id', glom_col]].copy()
+            if glom_col != 'glomerulus':
+                labels_subset = labels_subset.rename(columns={glom_col: 'glomerulus_specific'})
+            else:
+                labels_subset = labels_subset.rename(columns={'glomerulus': 'glomerulus_specific'})
+
+            pn_kc = pn_kc.merge(labels_subset,
+                                left_on='pre_root_id', right_on='root_id',
+                                how='left', suffixes=('', '_label'))
+
+            # Update DM glomeruli with specific labels
+            mask = pn_kc['glomerulus'] == 'DM'
+            if 'glomerulus_specific' in pn_kc.columns:
+                # Only update if the specific label is DM1-4
+                dm_mask = mask & pn_kc['glomerulus_specific'].str.contains('DM', na=False)
+                pn_kc.loc[dm_mask, 'glomerulus'] = pn_kc.loc[dm_mask, 'glomerulus_specific']
+
+            print(f"   Refined glomerulus labels using '{glom_col}' column")
 
     print(f"\nAnalyzing {len(pn_kc):,} PN→KC connections")
 
@@ -202,8 +242,10 @@ def analysis_6_kc_overlap_weighted(connections, labels, dl5_pns, dm_pns, output_
             pn_kc_filtered['glomerulus'] == 'DL5'
         ]['post_root_id'])
 
+        # Handle both generic 'DM' and specific 'DM1-4' labels
         dm_kcs = set(pn_kc_filtered[
-            pn_kc_filtered['glomerulus'].isin(['DM1','DM2','DM3','DM4'])
+            (pn_kc_filtered['glomerulus'].isin(['DM1','DM2','DM3','DM4'])) |
+            (pn_kc_filtered['glomerulus'] == 'DM')
         ]['post_root_id'])
 
         if len(dl5_kcs) == 0:

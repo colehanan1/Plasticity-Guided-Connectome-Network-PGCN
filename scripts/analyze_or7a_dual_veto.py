@@ -2,13 +2,16 @@
 """
 Or7a Dual Veto Mechanism - Advanced Analysis Suite
 
-Extends test_or7a_veto.py with 4 in-depth mechanistic analyses:
+Extends test_or7a_veto.py with 7 in-depth mechanistic analyses:
 1. Neurotransmitter classification of DL5→DM pathway LNs
 2. Multi-hop pathway quantification (2-hop indirect paths)
 3. Kenyon Cell overlap analysis (DL5 vs DM pathways)
 4. Dose-response prediction model (DoOR-based)
+5. Serotonergic pathway characterization (extended)
+6. Synapse-weighted KC overlap refinement (extended)
+7. DP1m hub detailed analysis (extended)
 
-Author: PGCN Project
+Author: Cole Hanan / PGCN Project
 Date: 2025-11-11
 """
 
@@ -28,8 +31,9 @@ import subprocess
 
 warnings.filterwarnings('ignore')
 
-# Add src to path
+# Add src and scripts to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent))  # Add scripts directory
 
 from data_loaders.neuron_classification import (
     get_pn_neurons,
@@ -46,6 +50,7 @@ try:
         generate_supplementary_figures
     )
     EXTENDED_ANALYSES_AVAILABLE = True
+    print("✅ Extended analyses module loaded")
 except ImportError as e:
     print(f"⚠️  Extended analyses module not found: {e}")
     print("   Make sure or7a_extended_analyses.py is in scripts/ directory")
@@ -55,10 +60,10 @@ except ImportError as e:
 DOOR_AVAILABLE = False
 DOOR_ERROR = None
 
-# Try multiple import variations
+# Try multiple import variations (door_toolkit is the correct package name)
 import_attempts = [
-    ("from door import DoOREncoder", "door"),
     ("from door_toolkit import DoOREncoder", "door_toolkit"),
+    ("from door import DoOREncoder", "door"),
     ("from door.encoder import DoOREncoder", "door"),
 ]
 
