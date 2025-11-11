@@ -81,10 +81,23 @@ def load_grn_root_ids(grn_file: Path) -> np.ndarray:
             f"This file should contain 343 validated GRN root IDs (one per line)."
         )
 
-    # Load root IDs (plain text, one per line)
+    # Load root IDs (plain text, one per line OR comma-separated)
     try:
-        grn_ids = pd.read_csv(grn_file, header=None, names=["root_id"])
-        grn_ids = grn_ids["root_id"].values
+        # First try reading as newline-separated
+        with open(grn_file, 'r') as f:
+            content = f.read().strip()
+
+        # Check if it's comma-separated (all on one line)
+        if ',' in content and '\n' not in content:
+            grn_ids = np.array([int(x.strip()) for x in content.split(',') if x.strip()])
+        # Check if it's space-separated on one line
+        elif ' ' in content and '\n' not in content:
+            grn_ids = np.array([int(x.strip()) for x in content.split() if x.strip()])
+        # Otherwise read as newline-separated
+        else:
+            grn_ids = pd.read_csv(grn_file, header=None, names=["root_id"])
+            grn_ids = grn_ids["root_id"].values
+
     except Exception as e:
         raise ValueError(f"Failed to parse GRN file {grn_file}: {e}")
 
@@ -104,35 +117,48 @@ def load_grn_root_ids(grn_file: Path) -> np.ndarray:
 
 
 def extract_grn_from_classification(
-    classification: pd.DataFrame, output_file: Path
+    classification: pd.DataFrame,
+    cell_types: pd.DataFrame,
+    output_file: Path
 ) -> np.ndarray:
     """
     Extract GRN root IDs from classification table (fallback method).
 
     This is used only if root_ids_class_gustatory.txt does not exist.
+    Searches both classification hierarchy AND cell_type annotations.
 
     Args:
         classification: FlyWire classification table
+        cell_types: Consolidated cell types table
         output_file: Where to save extracted GRN IDs
 
     Returns:
         Array of GRN root IDs
     """
-    print("  [Extracting GRNs from classification table...]")
+    print("  [Extracting GRNs from classification and cell_type tables...]")
 
-    # Search for gustatory neurons in classification hierarchy
-    grn_mask = (
+    # Method 1: Search classification hierarchy (class/sub_class)
+    grn_mask_class = (
         classification["super_class"].str.contains("sensory", case=False, na=False)
         & (
             classification["class"].str.contains("gustatory", case=False, na=False)
             | classification["sub_class"].str.contains("gustatory", case=False, na=False)
         )
     )
+    grn_from_class = classification[grn_mask_class]["root_id"].unique()
+    print(f"  ✓ Found {len(grn_from_class)} GRNs from classification.class/sub_class")
 
-    grn_neurons = classification[grn_mask]
-    grn_ids = grn_neurons["root_id"].unique()
+    # Method 2: Search cell_type column
+    grn_mask_celltype = cell_types["cell_type"].str.contains(
+        "gustatory", case=False, na=False
+    )
+    grn_from_celltype = cell_types[grn_mask_celltype]["root_id"].unique()
+    print(f"  ✓ Found {len(grn_from_celltype)} GRNs from cell_type")
 
-    print(f"  ✓ Extracted {len(grn_ids)} GRN root IDs from classification")
+    # Combine both methods (union)
+    grn_ids = np.unique(np.concatenate([grn_from_class, grn_from_celltype]))
+
+    print(f"  ✓ Total unique GRN root IDs: {len(grn_ids)}")
 
     # Save to file
     output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -785,7 +811,7 @@ def main() -> int:
             grn_ids = load_grn_root_ids(grn_file)
         else:
             print("  ⚠ GRN file not found, extracting from classification...")
-            grn_ids = extract_grn_from_classification(classification, grn_file)
+            grn_ids = extract_grn_from_classification(classification, cell_types, grn_file)
     except Exception as e:
         print(f"\n❌ ERROR: Failed to load GRN root IDs")
         print(f"  {e}")
