@@ -30,6 +30,8 @@ from data_loaders.neuron_classification import (
     get_motor_neurons,
     get_ascending_neurons,
     get_descending_neurons,
+    get_cb0191_neurons,
+    get_sez_nsc_capa_neurons,
 )
 
 DEFAULT_DATA_FILES: Dict[str, str] = {
@@ -328,6 +330,44 @@ def extract_extended_circuit(dataset_dir: Path, output_dir: Path) -> None:
 
         print(f"  Total DNs: {len(dn_neurons):,}")
 
+    # Extract CB0191 Neurons (FROM ROOT IDS)
+    print("\n=== EXTRACTING CB0191 NEURONS (FROM ROOT IDS) ===")
+    cb0191_root_id_file = dataset_dir / "root_ids_cell_type_CB0191.txt"
+    cb0191_neurons = get_cb0191_neurons(
+        cell_types,
+        classification,
+        root_id_file=cb0191_root_id_file,
+    )
+
+    if len(cb0191_neurons) == 0:
+        print("  ERROR: No CB0191 neurons loaded! Check root ID file.")
+    else:
+        cb0191_columns = [col for col in ("root_id", "cell_type", "super_class", "class", "sub_class") if col in cb0191_neurons.columns]
+        _write_subset(cb0191_neurons, cb0191_columns, output_dir / "cb0191_neurons.csv", "CB0191 neurons")
+        print(f"  ✓ Total CB0191: {len(cb0191_neurons):,} neurons")
+
+    # Extract SEZ-NSC^CAPA Neurons (FROM ROOT IDS)
+    print("\n=== EXTRACTING SEZ-NSC^CAPA NEURONS (FROM ROOT IDS) ===")
+    sez_root_id_file = dataset_dir / "root_ids_cell_type_SEZ_NSC_CAPA.txt"
+    sez_nsc_capa = get_sez_nsc_capa_neurons(
+        cell_types,
+        classification,
+        root_id_file=sez_root_id_file,
+    )
+
+    if len(sez_nsc_capa) == 0:
+        print("  ERROR: No SEZ-NSC^CAPA neurons loaded! Check root ID file.")
+    else:
+        sez_columns = [col for col in ("root_id", "cell_type", "super_class", "class", "neuropeptide") if col in sez_nsc_capa.columns]
+        _write_subset(sez_nsc_capa, sez_columns, output_dir / "sez_nsc_capa.csv", "SEZ-NSC^CAPA neurons")
+
+        expected_count = 2
+        actual_count = len(sez_nsc_capa)
+        if actual_count != expected_count:
+            print(f"  WARNING: Expected {expected_count} SEZ-NSC^CAPA neurons, found {actual_count}")
+        else:
+            print(f"  ✓ SEZ-NSC^CAPA: {actual_count} neurons (bilateral pair)")
+
     # Summary
     print("\n=== SUMMARY ===")
     print("Extended olfactory learning circuit components extracted:")
@@ -336,6 +376,8 @@ def extract_extended_circuit(dataset_dir: Path, output_dir: Path) -> None:
     print(f"✅ Motor Neurons: {len(motor_all):,} ({len(motor_proboscis):,} proboscis)")
     print(f"✅ Ascending Neurons (AN): {len(an_neurons):,}")
     print(f"✅ Descending Neurons (DN): {len(dn_neurons):,}")
+    print(f"✅ CB0191 Neurons: {len(cb0191_neurons):,}")
+    print(f"✅ SEZ-NSC^CAPA Neurons: {len(sez_nsc_capa):,}")
     print(f"\nAll CSVs saved to: {output_dir.resolve()}")
     print("\nNext steps:")
     print("1. Run scripts/extract_circuit.py for core PN/KC/MBON/DAN extraction")

@@ -297,6 +297,8 @@ class CircuitLoader:
                 motor_ids,
                 an_ids,
                 dn_ids,
+                cb0191_ids,
+                sez_nsc_capa_ids,
                 pn_to_ln,
                 ln_to_pn,
                 ln_to_kc,
@@ -306,11 +308,19 @@ class CircuitLoader:
                 dn_to_motor,
                 an_to_mbon,
                 an_to_dan,
+                pn_to_cb0191,
+                cb0191_to_kc,
+                cb0191_to_mbon,
+                pn_to_sez_nsc_capa,
+                sez_nsc_capa_to_mbon,
+                sensory_to_sez_nsc_capa,
                 ln_neurotransmitters,
                 lh_cell_types,
                 motor_targets,
                 an_modalities,
                 dn_behaviors,
+                cb0191_metadata,
+                sez_nsc_capa_metadata,
             ) = self._load_extended_components(
                 edges, dan_edges, pn_id_to_idx, kc_id_to_idx, mbon_id_to_idx, dan_id_to_idx, normalize_weights
             )
@@ -321,6 +331,8 @@ class CircuitLoader:
             motor_ids = np.array([], dtype=np.int64)
             an_ids = np.array([], dtype=np.int64)
             dn_ids = np.array([], dtype=np.int64)
+            cb0191_ids = np.array([], dtype=np.int64)
+            sez_nsc_capa_ids = np.array([], dtype=np.int64)
             pn_to_ln = None
             ln_to_pn = None
             ln_to_kc = None
@@ -330,11 +342,19 @@ class CircuitLoader:
             dn_to_motor = None
             an_to_mbon = None
             an_to_dan = None
+            pn_to_cb0191 = None
+            cb0191_to_kc = None
+            cb0191_to_mbon = None
+            pn_to_sez_nsc_capa = None
+            sez_nsc_capa_to_mbon = None
+            sensory_to_sez_nsc_capa = None
             ln_neurotransmitters = {}
             lh_cell_types = {}
             motor_targets = {}
             an_modalities = {}
             dn_behaviors = {}
+            cb0191_metadata = {}
+            sez_nsc_capa_metadata = {}
 
         # Construct ConnectivityMatrix
         conn_matrix = ConnectivityMatrix(
@@ -347,6 +367,8 @@ class CircuitLoader:
             motor_ids=motor_ids,
             an_ids=an_ids,
             dn_ids=dn_ids,
+            cb0191_ids=cb0191_ids,
+            sez_nsc_capa_ids=sez_nsc_capa_ids,
             pn_to_kc=pn_to_kc,
             kc_to_mbon=kc_to_mbon,
             dan_to_kc=dan_to_kc,
@@ -360,6 +382,12 @@ class CircuitLoader:
             dn_to_motor=dn_to_motor,
             an_to_mbon=an_to_mbon,
             an_to_dan=an_to_dan,
+            pn_to_cb0191=pn_to_cb0191,
+            cb0191_to_kc=cb0191_to_kc,
+            cb0191_to_mbon=cb0191_to_mbon,
+            pn_to_sez_nsc_capa=pn_to_sez_nsc_capa,
+            sez_nsc_capa_to_mbon=sez_nsc_capa_to_mbon,
+            sensory_to_sez_nsc_capa=sensory_to_sez_nsc_capa,
             pn_glomeruli=pn_glomeruli,
             kc_subtypes=kc_subtypes,
             mbon_neuropils=mbon_neuropils,
@@ -369,6 +397,8 @@ class CircuitLoader:
             motor_targets=motor_targets,
             an_modalities=an_modalities,
             dn_behaviors=dn_behaviors,
+            cb0191_metadata=cb0191_metadata,
+            sez_nsc_capa_metadata=sez_nsc_capa_metadata,
         )
 
         # Validate before returning
@@ -832,12 +862,43 @@ class CircuitLoader:
             dn_ids = np.array([], dtype=np.int64)
             dn_behaviors = {}
 
+        # Load CB0191 neurons
+        cb0191_path = self.cache_dir / "cb0191_neurons.csv"
+        if cb0191_path.exists():
+            cb0191_df = pd.read_csv(cb0191_path)
+            cb0191_ids = cb0191_df["root_id"].values
+            cb0191_metadata = dict(zip(cb0191_df["root_id"], cb0191_df.get("cell_type", pd.Series(dtype=str))))
+            print(f"  Loaded {len(cb0191_ids)} CB0191 neurons")
+        else:
+            cb0191_ids = np.array([], dtype=np.int64)
+            cb0191_metadata = {}
+            print(f"  WARNING: {cb0191_path} not found. Run extract_extended_circuit.py first.")
+
+        # Load SEZ-NSC^CAPA neurons
+        sez_path = self.cache_dir / "sez_nsc_capa.csv"
+        if sez_path.exists():
+            sez_df = pd.read_csv(sez_path)
+            sez_nsc_capa_ids = sez_df["root_id"].values
+            sez_nsc_capa_metadata = dict(zip(sez_df["root_id"], sez_df.get("cell_type", pd.Series(dtype=str))))
+            expected_count = 2
+            actual_count = len(sez_nsc_capa_ids)
+            if actual_count != expected_count:
+                print(f"  WARNING: Expected {expected_count} SEZ-NSC^CAPA, found {actual_count}")
+            else:
+                print(f"  ✓ Loaded {actual_count} SEZ-NSC^CAPA neurons (expected count)")
+        else:
+            sez_nsc_capa_ids = np.array([], dtype=np.int64)
+            sez_nsc_capa_metadata = {}
+            print(f"  WARNING: {sez_path} not found. Run extract_extended_circuit.py first.")
+
         # Build ID→index mappings for extended components
         ln_id_to_idx = {nid: idx for idx, nid in enumerate(ln_ids)}
         lh_id_to_idx = {nid: idx for idx, nid in enumerate(lh_ids)}
         motor_id_to_idx = {nid: idx for idx, nid in enumerate(motor_ids)}
         an_id_to_idx = {nid: idx for idx, nid in enumerate(an_ids)}
         dn_id_to_idx = {nid: idx for idx, nid in enumerate(dn_ids)}
+        cb0191_id_to_idx = {nid: idx for idx, nid in enumerate(cb0191_ids)}
+        sez_nsc_capa_id_to_idx = {nid: idx for idx, nid in enumerate(sez_nsc_capa_ids)}
 
         # Build connectivity matrices for extended components
         # PN → LN (antennal lobe lateral connections)
@@ -885,12 +946,40 @@ class CircuitLoader:
             dan_edges, "AN", "DAN", an_id_to_idx, dan_id_to_idx, len(dan_id_to_idx), len(an_ids), normalize
         ) if len(an_ids) > 0 else None
 
+        # CB0191 connectivity
+        pn_to_cb0191 = self._build_sparse_matrix_extended(
+            edges, "PN", "CB0191", pn_id_to_idx, cb0191_id_to_idx, len(cb0191_ids), len(pn_id_to_idx), normalize
+        ) if len(cb0191_ids) > 0 else None
+
+        cb0191_to_kc = self._build_sparse_matrix_extended(
+            edges, "CB0191", "KC", cb0191_id_to_idx, kc_id_to_idx, len(kc_id_to_idx), len(cb0191_ids), normalize
+        ) if len(cb0191_ids) > 0 else None
+
+        cb0191_to_mbon = self._build_sparse_matrix_extended(
+            edges, "CB0191", "MBON", cb0191_id_to_idx, mbon_id_to_idx, len(mbon_id_to_idx), len(cb0191_ids), normalize
+        ) if len(cb0191_ids) > 0 else None
+
+        # SEZ-NSC^CAPA connectivity
+        pn_to_sez_nsc_capa = self._build_sparse_matrix_extended(
+            edges, "PN", "SEZ_NSC_CAPA", pn_id_to_idx, sez_nsc_capa_id_to_idx, len(sez_nsc_capa_ids), len(pn_id_to_idx), normalize
+        ) if len(sez_nsc_capa_ids) > 0 else None
+
+        sez_nsc_capa_to_mbon = self._build_sparse_matrix_extended(
+            edges, "SEZ_NSC_CAPA", "MBON", sez_nsc_capa_id_to_idx, mbon_id_to_idx, len(mbon_id_to_idx), len(sez_nsc_capa_ids), normalize
+        ) if len(sez_nsc_capa_ids) > 0 else None
+
+        # Note: sensory_to_sez_nsc_capa would require loading sensory neurons separately
+        # For now, set to None (can be added in future if needed)
+        sensory_to_sez_nsc_capa = None
+
         return (
             ln_ids,
             lh_ids,
             motor_ids,
             an_ids,
             dn_ids,
+            cb0191_ids,
+            sez_nsc_capa_ids,
             pn_to_ln,
             ln_to_pn,
             ln_to_kc,
@@ -900,11 +989,19 @@ class CircuitLoader:
             dn_to_motor,
             an_to_mbon,
             an_to_dan,
+            pn_to_cb0191,
+            cb0191_to_kc,
+            cb0191_to_mbon,
+            pn_to_sez_nsc_capa,
+            sez_nsc_capa_to_mbon,
+            sensory_to_sez_nsc_capa,
             ln_neurotransmitters,
             lh_cell_types,
             motor_targets,
             an_modalities,
             dn_behaviors,
+            cb0191_metadata,
+            sez_nsc_capa_metadata,
         )
 
     def _build_sparse_matrix_extended(

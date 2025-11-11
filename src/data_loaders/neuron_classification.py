@@ -20,6 +20,8 @@ __all__ = [
     "get_motor_neurons",
     "get_ascending_neurons",
     "get_descending_neurons",
+    "get_cb0191_neurons",
+    "get_sez_nsc_capa_neurons",
     "extract_neurotransmitter_info",
     "map_brain_regions",
     "infer_pn_glomerulus_labels",
@@ -66,6 +68,16 @@ _ASCENDING_KEYWORDS = (
 _DESCENDING_KEYWORDS = (
     "descending",
     "dn",
+)
+_CB0191_KEYWORDS = (
+    "cb0191",
+    "cb-0191",
+)
+_SEZ_NSC_CAPA_KEYWORDS = (
+    "capa",
+    "sez",
+    "subesophageal",
+    "neurosecretory",
 )
 
 
@@ -840,6 +852,184 @@ def get_descending_neurons(
         return desc_neurons.loc[:, [column for column in ("root_id", "super_class", "class") if column in desc_neurons.columns]].reset_index(drop=True)
 
     return result
+
+
+def get_cb0191_neurons(
+    cell_types_df: pd.DataFrame,
+    classification_df: pd.DataFrame,
+    *,
+    root_id_file: Path | None = None,
+    **kwargs  # Accept other args for API compatibility but ignore them
+) -> pd.DataFrame:
+    """
+    Extract CB0191 neurons using pre-identified FlyWire root IDs.
+
+    CB0191 neurons are uncharacterized adult brain-intrinsic neurons with soma
+    near the inferior posterior slope. They are cholinergic with connections
+    in LAL, vest, IPS, and wedge.
+
+    This function loads specific root IDs from a text file rather than searching
+    the classification data, as the neurons have been pre-identified by the user.
+
+    Args:
+        cell_types_df: Consolidated cell types table (used for metadata enrichment)
+        classification_df: Hierarchical classification table (used for metadata enrichment)
+        root_id_file: Path to text file with comma-separated root IDs
+                      Default: data/flywire/root_ids_cell_type_CB0191.txt
+        **kwargs: Additional arguments (ignored, for API compatibility)
+
+    Returns:
+        DataFrame with CB0191 neurons containing:
+        - root_id: FlyWire neuron identifier
+        - cell_type: "CB0191"
+        - Additional metadata from cell_types table (if available)
+
+    Expected neuron count: 2
+    Root IDs: 720575940626843194, 720575940634139799
+
+    Reference: FlyWire v783, Schlegel et al. (2023), FBbt_20004012
+    """
+    from pathlib import Path
+
+    # Default path if not provided
+    if root_id_file is None:
+        root_id_file = Path("data/flywire/root_ids_cell_type_CB0191.txt")
+
+    # Load root IDs from file
+    if not root_id_file.exists():
+        print(f"ERROR: Root ID file not found: {root_id_file}")
+        print("Expected file: data/flywire/root_ids_cell_type_CB0191.txt")
+        return pd.DataFrame(columns=['root_id', 'cell_type'])
+
+    # Read comma-separated root IDs
+    with open(root_id_file, 'r') as f:
+        content = f.read().strip()
+        root_ids = [int(rid.strip()) for rid in content.split(',') if rid.strip()]
+
+    print(f"  Loaded {len(root_ids)} CB0191 root IDs from {root_id_file.name}")
+    print(f"  Root IDs: {root_ids}")
+
+    # Create base DataFrame
+    neurons_df = pd.DataFrame({
+        'root_id': root_ids,
+        'cell_type': 'CB0191'
+    })
+
+    # Enrich with metadata from cell_types table if available
+    if 'root_id' in cell_types_df.columns:
+        metadata = cell_types_df[cell_types_df['root_id'].isin(root_ids)].copy()
+        if len(metadata) > 0:
+            meta_cols = ['root_id']
+            for col in ['super_class', 'class', 'sub_class', 'side', 'flow']:
+                if col in metadata.columns:
+                    meta_cols.append(col)
+            if len(meta_cols) > 1:
+                neurons_df = neurons_df.merge(
+                    metadata[meta_cols],
+                    on='root_id',
+                    how='left'
+                )
+                print(f"  Enriched with metadata from cell_types table")
+
+    # Validate expected count
+    expected_count = 2
+    if len(neurons_df) != expected_count:
+        print(f"  WARNING: Expected {expected_count} CB0191 neurons, found {len(neurons_df)}")
+    else:
+        print(f"  ✓ Found expected {expected_count} CB0191 neurons")
+
+    return neurons_df
+
+
+def get_sez_nsc_capa_neurons(
+    cell_types_df: pd.DataFrame,
+    classification_df: pd.DataFrame,
+    *,
+    root_id_file: Path | None = None,
+    **kwargs  # Accept other args for API compatibility
+) -> pd.DataFrame:
+    """
+    Extract SEZ-NSC^CAPA neurons using pre-identified FlyWire root IDs.
+
+    These are 2 large neurosecretory cells per brain that release CAPA and pyrokinin
+    hormones to regulate post-feeding physiology, intestinal motility, and energy
+    homeostasis. They receive olfactory and gustatory sensory inputs.
+
+    This function loads specific root IDs from a text file rather than searching
+    the classification data, as the neurons have been pre-identified.
+
+    Args:
+        cell_types_df: Consolidated cell types table (used for metadata enrichment)
+        classification_df: Hierarchical classification table (used for metadata enrichment)
+        root_id_file: Path to text file with comma-separated root IDs
+                      Default: data/flywire/root_ids_cell_type_SEZ_NSC_CAPA.txt
+        **kwargs: Additional arguments (ignored, for API compatibility)
+
+    Returns:
+        DataFrame with SEZ-NSC^CAPA neurons containing:
+        - root_id: FlyWire neuron identifier
+        - cell_type: "SEZ_NSC_CAPA"
+        - neuropeptide: "CAPA/Pyrokinin"
+        - Additional metadata from cell_types table (if available)
+
+    Expected neuron count: 2 (bilateral pair)
+    Root IDs: 720575940618736797, 720575940620829878
+
+    References:
+    - Zandawala et al. (2024) eLife, FlyWire connectome
+    - Anatomical nomenclature: SEZ-NSC^CAPA classification
+    """
+    from pathlib import Path
+
+    # Default path if not provided
+    if root_id_file is None:
+        root_id_file = Path("data/flywire/root_ids_cell_type_SEZ_NSC_CAPA.txt")
+
+    # Load root IDs from file
+    if not root_id_file.exists():
+        print(f"ERROR: Root ID file not found: {root_id_file}")
+        print("Expected file: data/flywire/root_ids_cell_type_SEZ_NSC_CAPA.txt")
+        return pd.DataFrame(columns=['root_id', 'cell_type', 'neuropeptide'])
+
+    # Read comma-separated root IDs
+    with open(root_id_file, 'r') as f:
+        content = f.read().strip()
+        root_ids = [int(rid.strip()) for rid in content.split(',') if rid.strip()]
+
+    print(f"  Loaded {len(root_ids)} SEZ-NSC^CAPA root IDs from {root_id_file.name}")
+    print(f"  Root IDs: {root_ids}")
+
+    # Create base DataFrame with neuropeptide annotation
+    neurons_df = pd.DataFrame({
+        'root_id': root_ids,
+        'cell_type': 'SEZ_NSC_CAPA',
+        'neuropeptide': 'CAPA/Pyrokinin',
+        'super_class': 'endocrine'  # Known classification
+    })
+
+    # Enrich with metadata from cell_types table if available
+    if 'root_id' in cell_types_df.columns:
+        metadata = cell_types_df[cell_types_df['root_id'].isin(root_ids)].copy()
+        if len(metadata) > 0:
+            # Merge without overwriting neuropeptide column
+            meta_cols = [c for c in ['root_id', 'class', 'sub_class', 'side', 'flow']
+                        if c in metadata.columns]
+            if len(meta_cols) > 1:  # More than just root_id
+                neurons_df = neurons_df.merge(
+                    metadata[meta_cols],
+                    on='root_id',
+                    how='left'
+                )
+                print(f"  Enriched with metadata from cell_types table")
+
+    # Validate expected count
+    expected_count = 2
+    if len(neurons_df) != expected_count:
+        print(f"  WARNING: Expected {expected_count} SEZ-NSC^CAPA neurons, found {len(neurons_df)}")
+    else:
+        print(f"  ✓ Found expected {expected_count} SEZ-NSC^CAPA neurons (bilateral pair)")
+
+    return neurons_df
 
 
 def infer_pn_glomerulus_labels(
