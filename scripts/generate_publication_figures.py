@@ -30,7 +30,7 @@ warnings.filterwarnings('ignore')
 # Set publication style
 plt.style.use('seaborn-v0_8-paper')
 sns.set_palette("colorblind")
-plt.rcParams['font.family'] = 'Arial'
+plt.rcParams['font.family'] = 'DejaVu Sans'  # Use DejaVu Sans (universally available on Linux)
 plt.rcParams['font.size'] = 10
 plt.rcParams['axes.linewidth'] = 1.5
 plt.rcParams['figure.dpi'] = 300
