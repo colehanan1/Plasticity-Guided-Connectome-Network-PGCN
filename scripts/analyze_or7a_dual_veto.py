@@ -37,19 +37,68 @@ from data_loaders.neuron_classification import (
     infer_pn_glomerulus_labels,
 )
 
-# Try to import DoOR toolkit
+# Import extended analyses
 try:
-    from door import DoOREncoder
-    DOOR_AVAILABLE = True
-except ImportError:
-    DOOR_AVAILABLE = False
+    from or7a_extended_analyses import (
+        analysis_5_serotonin_pathways,
+        analysis_6_kc_overlap_weighted,
+        analysis_7_dp1m_hub,
+        generate_supplementary_figures
+    )
+    EXTENDED_ANALYSES_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️  Extended analyses module not found: {e}")
+    print("   Make sure or7a_extended_analyses.py is in scripts/ directory")
+    EXTENDED_ANALYSES_AVAILABLE = False
+
+# Try to import DoOR toolkit with better error handling
+DOOR_AVAILABLE = False
+DOOR_ERROR = None
+
+# Try multiple import variations
+import_attempts = [
+    ("from door import DoOREncoder", "door"),
+    ("from door_toolkit import DoOREncoder", "door_toolkit"),
+    ("from door.encoder import DoOREncoder", "door"),
+]
+
+for import_statement, module_name in import_attempts:
+    try:
+        exec(import_statement, globals())
+        DOOR_AVAILABLE = True
+        print(f"✅ DoOR toolkit loaded successfully using: {import_statement}")
+
+        # Verify DoOREncoder is accessible
+        if 'DoOREncoder' in globals():
+            # Try to instantiate to verify it works
+            test_encoder = DoOREncoder()
+            print(f"   DoOR module location: {sys.modules[module_name].__file__}")
+            del test_encoder
+        break
+    except ImportError as e:
+        DOOR_ERROR = str(e)
+        continue
+    except Exception as e:
+        DOOR_ERROR = f"{type(e).__name__}: {e}"
+        continue
+
+if not DOOR_AVAILABLE:
     print("⚠️  DoOR toolkit not available - Analysis 4 will be skipped")
+    if DOOR_ERROR:
+        print(f"   Last error: {DOOR_ERROR}")
+    print("   Install with: pip install door-python-toolkit")
+    print("   Or run: python scripts/debug_door_import.py for diagnostics")
 
 # Color schemes (colorblind-safe)
 NT_COLORS = {
     'gaba': '#D55E00',           # Orange-red (inhibitory)
+    'GABA': '#D55E00',           # Orange-red (inhibitory)
     'acetylcholine': '#0173B2',  # Blue (excitatory)
+    'ACH': '#0173B2',            # Blue (excitatory)
     'glutamate': '#029E73',      # Green (excitatory)
+    'GLUT': '#029E73',           # Green (excitatory)
+    'serotonin': '#E69F00',      # Yellow-orange (modulatory)
+    'SER': '#E69F00',            # Yellow-orange (modulatory)
     'unknown': '#CCCCCC'         # Gray
 }
 
@@ -1137,15 +1186,51 @@ class Or7aDualVetoAnalyzer:
         # Get cross-glomerular LNs
         cross_ln_ids, dl5_pns, dm_pns, all_lns = self.get_cross_glomerular_lns()
 
+        # Store for extended analyses
+        self.results['cross_ln_ids'] = cross_ln_ids
+        self.results['dl5_pns'] = dl5_pns
+        self.results['dm_pns'] = dm_pns
+        self.results['all_lns'] = all_lns
+
         # Run analyses
         print("\n" + "="*80)
-        print("RUNNING ANALYSES")
+        print("RUNNING CORE ANALYSES (1-4)")
         print("="*80)
 
         self.results['analysis1'] = self.analysis_1_neurotransmitter(cross_ln_ids, all_lns)
         self.results['analysis2'] = self.analysis_2_multihop()
         self.results['analysis3'] = self.analysis_3_kc_overlap(dl5_pns, dm_pns)
         self.results['analysis4'] = self.analysis_4_dose_response()
+
+        # Run extended analyses (5-7)
+        if EXTENDED_ANALYSES_AVAILABLE:
+            print("\n" + "="*80)
+            print("RUNNING EXTENDED ANALYSES (5-7)")
+            print("="*80)
+
+            self.results['analysis5'] = analysis_5_serotonin_pathways(
+                self.neurons,
+                self.connections,
+                cross_ln_ids,
+                self.output_dir
+            )
+
+            self.results['analysis6'] = analysis_6_kc_overlap_weighted(
+                self.connections,
+                self.labels,
+                dl5_pns,
+                dm_pns,
+                self.output_dir
+            )
+
+            if self.ln_cross is not None:
+                self.results['analysis7'] = analysis_7_dp1m_hub(
+                    self.ln_cross,
+                    self.output_dir
+                )
+            else:
+                print("\n⚠️  Analysis 7 skipped - ln_cross not available")
+                self.results['analysis7'] = None
 
         # Generate figures
         print("\n" + "="*80)
@@ -1157,25 +1242,47 @@ class Or7aDualVetoAnalyzer:
         self.generate_figure_3(self.results['analysis3'])
         self.generate_figure_4(self.results['analysis4'])
 
+        # Generate supplementary figures
+        if EXTENDED_ANALYSES_AVAILABLE:
+            generate_supplementary_figures(self.results, self.output_dir)
+
         # Write summary
         self.write_summary_report()
 
         print("\n" + "="*80)
-        print("✅ COMPREHENSIVE ANALYSIS COMPLETE")
+        if EXTENDED_ANALYSES_AVAILABLE:
+            print("✅ COMPREHENSIVE ANALYSIS COMPLETE (with extended analyses)")
+        else:
+            print("✅ COMPREHENSIVE ANALYSIS COMPLETE")
         print("="*80)
         print(f"\nAll results saved to: {self.output_dir}")
         print("\nGenerated files:")
-        print("  CSV files:")
+        print("  Core CSV files:")
         print("    - analysis1_neurotransmitter_stats.csv")
         print("    - analysis2_multihop_pathways.csv")
         print("    - analysis3_kc_overlap_stats.csv")
         print("    - analysis3_shared_kcs.csv")
         print("    - analysis4_dose_response_predictions.csv (if DoOR available)")
-        print("  Figures:")
+
+        if EXTENDED_ANALYSES_AVAILABLE:
+            print("  Extended CSV files:")
+            print("    - analysis5_serotonin_pathways.csv")
+            print("    - analysis6_kc_overlap_weighted.csv")
+            print("    - analysis7_dp1m_inputs.csv")
+            print("    - analysis7_dp1m_outputs.csv")
+
+        print("  Main Figures:")
         print("    - fig1_neurotransmitter_analysis.png/.pdf")
         print("    - fig2_multihop_pathways.png/.pdf")
         print("    - fig3_kc_overlap_analysis.png/.pdf")
         print("    - fig4_dose_response_model.png/.pdf (if DoOR available)")
+
+        if EXTENDED_ANALYSES_AVAILABLE:
+            print("  Supplementary Figures:")
+            print("    - suppfig1_nt_pathway_targeting.png/.pdf")
+            print("    - suppfig2_kc_overlap_threshold.png/.pdf")
+            print("    - suppfig3_dp1m_hub_network.png/.pdf")
+
         print("  Report:")
         print("    - comprehensive_analysis_summary.txt")
 
