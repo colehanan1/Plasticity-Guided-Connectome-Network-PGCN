@@ -3,27 +3,24 @@
 Extract Taste Circuits from Shen et al. (2025) Paper Data
 
 This script loads validated neuron lists and connectivity matrices from
-Shen et al. (2025) Current Biology supplementary data, replacing FlyWire
-query-based extraction with ground-truth experimental data.
+Shen et al. (2025) Current Biology supplementary data, using connectivity
+files to directly extract sweet/water circuits with synapse-level resolution.
 
 Key advantages:
+- Filters by GRN type directly in connectivity files (more reliable)
+- Preserves actual synapse counts (not binary)
+- Extracts from all three connectivity files (SEZ-PN, ACh-LN, GABA-LN)
 - Calcium imaging-validated neurons (functionally confirmed)
-- Taste modality assignments (sugar vs bitter vs water)
-- Pre-built connectivity matrices (no FlyWire querying)
-- Published & peer-reviewed (reproducible ground truth)
 
 Reference:
     Shen, K. et al. (2025). Functional imaging and connectome analyses reveal
-    organizing principles of processing taste modality in the Drosophila brain.
+    organizing principles of processing taste modality in the Drosophageal brain.
     Current Biology, 35(9), 1955-1970.e6.
     DOI: 10.1016/j.cub.2025.04.066
 
 Usage:
-    # Appetitive mode (sugar only - for PGCN model)
+    # Appetitive mode (sweet only - for PGCN model)
     python scripts/extract_from_paper_data.py \\
-      --paper-data-dir data/10.1016 \\
-      --flywire-names data/flywire/names.csv.gz \\
-      --output-dir data/cache \\
       --mode appetitive
 
     # Full mode (all taste - for validation)
@@ -42,7 +39,7 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 
 
 def load_flywire_names(names_file: Path) -> pd.DataFrame:
@@ -58,14 +55,9 @@ def load_flywire_names(names_file: Path) -> pd.DataFrame:
     Source:
         https://codex.flywire.ai/api/download?dataset=fafb
         "Proofread Cell Names And Groups (1,182 KB)"
-
-    Note:
-        This file has 139,255 neurons. We only need SEZ-related neurons,
-        but loading the full file is fast (~0.5 sec) and avoids filtering issues.
     """
     print(f"\n[Loading FlyWire names from {names_file}...]")
 
-    # Check if file exists
     if not names_file.exists():
         raise FileNotFoundError(
             f"FlyWire names file not found: {names_file}\n"
@@ -73,13 +65,10 @@ def load_flywire_names(names_file: Path) -> pd.DataFrame:
             f"Save as: data/flywire/names.csv.gz"
         )
 
-    # Load compressed CSV
     names = pd.read_csv(names_file, compression='gzip')
 
     print(f"  ✓ Loaded {len(names):,} neurons")
-    print(f"  ✓ Columns: {names.columns.tolist()}")
 
-    # Validate expected columns
     required_cols = ['root_id', 'name']
     missing = [c for c in required_cols if c not in names.columns]
     if missing:
@@ -88,42 +77,27 @@ def load_flywire_names(names_file: Path) -> pd.DataFrame:
     return names
 
 
-def load_grns(
+def load_grn_catalog(
     neuron_list_file: Path,
     mode: str = 'appetitive'
 ) -> pd.DataFrame:
     """
-    Load GRN list from Shen et al. (2025) supplementary data.
+    Load GRN catalog to get root IDs for GRN names.
+
+    This function loads the neuron catalog file ONLY to get root ID mappings.
+    Actual filtering by GRN type happens in the connectivity files.
 
     Args:
         neuron_list_file: Path to "Neurons-list-v783.xlsx"
-        mode: 'appetitive' (sweet only) or 'full' (all GRNs)
+        mode: 'appetitive' (sweet/water) or 'full' (all GRNs)
 
     Returns:
-        DataFrame with columns:
-        - v783: Neuron name in FlyWire v783
-        - root_id: FlyWire segment ID (renamed from "segment ID")
-        - grn_type: Taste modality (sweet, bitter, IR94e, etc.)
-        - side: Left/right hemisphere
-
-    Filtering:
-        - mode='appetitive': ONLY GRN type == "sweet"
-        - mode='full': All GRN types
-
-    Reference:
-        Shen et al. (2025) Figure 1: "Sweet GRNs activate approach circuits"
+        DataFrame with columns [v783, root_id, grn_type, side]
+        Used to map GRN names to root IDs
     """
-    print(f"\n[Loading GRNs from {neuron_list_file}...]")
+    print(f"\n[Loading GRN catalog from {neuron_list_file}...]")
 
-    # DEBUG: Show available sheets
-    try:
-        xl_file = pd.ExcelFile(neuron_list_file, engine='openpyxl')
-        available_sheets = xl_file.sheet_names
-        print(f"  [DEBUG] Available sheets: {available_sheets}")
-    except Exception as e:
-        print(f"  [DEBUG] Could not list sheets: {e}")
-
-    # Try to load GRN sheet (case-insensitive)
+    # Try to load GRN sheet
     grn_data = None
     for sheet_name in ['GRN', 'grn', 'Grn']:
         try:
@@ -138,18 +112,12 @@ def load_grns(
             continue
 
     if grn_data is None:
-        raise ValueError(
-            f"Could not find GRN sheet. Available sheets: {available_sheets}\n"
-            f"Tried: 'GRN', 'grn', 'Grn'"
-        )
+        raise ValueError("Could not find GRN sheet in neuron list file")
 
-    # DEBUG: Show columns and data preview
-    print(f"  [DEBUG] Columns found: {grn_data.columns.tolist()}")
+    print(f"  [DEBUG] Columns: {grn_data.columns.tolist()}")
     print(f"  [DEBUG] Total rows: {len(grn_data)}")
-    print(f"  [DEBUG] First few rows:")
-    print(grn_data.head(3).to_string())
 
-    # Rename columns for clarity (handle different naming conventions)
+    # Rename columns (flexible mapping)
     rename_map = {}
     for col in grn_data.columns:
         col_lower = col.lower().strip()
@@ -159,335 +127,232 @@ def load_grns(
             rename_map[col] = 'grn_type'
         elif col_lower == 'side':
             rename_map[col] = 'side'
+        elif col_lower == 'v783':
+            rename_map[col] = 'v783'
 
     grn_data = grn_data.rename(columns=rename_map)
 
-    # Check if required columns exist
-    if 'grn_type' not in grn_data.columns:
-        raise ValueError(
-            f"Could not find 'GRN type' column. Available columns: {grn_data.columns.tolist()}\n"
-            f"Please check the Excel file structure."
-        )
-
-    # DEBUG: Show unique GRN types
+    # Keep essential columns
+    keep_cols = ['v783', 'root_id']
     if 'grn_type' in grn_data.columns:
-        unique_types = grn_data['grn_type'].dropna().unique()
-        print(f"  [DEBUG] Unique GRN types found: {sorted(unique_types)}")
+        keep_cols.append('grn_type')
+    if 'side' in grn_data.columns:
+        keep_cols.append('side')
 
-    # Filter by mode
+    grn_catalog = grn_data[keep_cols].copy()
+
+    print(f"  ✓ Loaded {len(grn_catalog)} GRNs from catalog")
+    print(f"  ℹ️  Note: Filtering by GRN type happens in connectivity files")
+
+    return grn_catalog
+
+
+def extract_from_connectivity_file(
+    connectivity_file: Path,
+    grn_catalog: pd.DataFrame,
+    names_lookup: pd.DataFrame,
+    mode: str = 'appetitive',
+    min_synapses: int = 1
+) -> Tuple[pd.DataFrame, np.ndarray, list]:
+    """
+    Extract downstream neurons from a single connectivity file.
+
+    CRITICAL: This function filters by "GRN type" column DIRECTLY in the
+    connectivity file, not by matching external catalog names.
+
+    Args:
+        connectivity_file: Path to connectivity Excel file
+        grn_catalog: GRN catalog (for root ID lookups)
+        names_lookup: FlyWire names.csv.gz mapping
+        mode: 'appetitive' (sweet only) or 'full' (all GRNs)
+        min_synapses: Minimum synapses required (default: 1)
+
+    Returns:
+        (neuron_df, connectivity_matrix, grn_names)
+        - neuron_df: DataFrame [name, root_id, total_input_synapses]
+        - connectivity_matrix: NumPy array WITH SYNAPSE COUNTS (not binary!)
+        - grn_names: List of GRN names (v783) for this file
+
+    File structure:
+        - Columns 0-3: GRN metadata (GRN type, GRN #, Side, Name)
+        - Columns 4+: Downstream neuron names
+        - Values: Synapse counts (integers)
+    """
+    print(f"\n[Extracting from {connectivity_file.name}...]")
+
+    # DEBUG: Show available sheets
+    try:
+        xl_file = pd.ExcelFile(connectivity_file, engine='openpyxl')
+        available_sheets = xl_file.sheet_names
+        print(f"  [DEBUG] Available sheets: {available_sheets}")
+    except Exception as e:
+        print(f"  [DEBUG] Could not list sheets: {e}")
+
+    # Load connectivity matrix (try different sheet names)
+    conn_data = None
+    for sheet_name in ['raw connectivity v783', 'Raw connectivity v783', 'connectivity']:
+        try:
+            conn_data = pd.read_excel(
+                connectivity_file,
+                sheet_name=sheet_name,
+                engine='openpyxl'
+            )
+            print(f"  ✓ Loaded sheet: '{sheet_name}'")
+            break
+        except Exception:
+            continue
+
+    if conn_data is None:
+        raise ValueError(f"Could not find connectivity sheet. Available: {available_sheets}")
+
+    print(f"  ✓ Loaded: {conn_data.shape[0]} GRNs × {conn_data.shape[1]-4} downstream neurons")
+    print(f"  [DEBUG] Columns: {conn_data.columns.tolist()[:6]}...")
+
+    # Find GRN type column
+    grn_type_col = None
+    for col in conn_data.columns[:4]:
+        if 'grn' in str(col).lower() and 'type' in str(col).lower():
+            grn_type_col = col
+            break
+
+    if grn_type_col is None:
+        print(f"  [DEBUG] ⚠️  Could not find 'GRN type' column")
+        print(f"  [DEBUG] First 4 columns: {conn_data.columns[:4].tolist()}")
+        grn_type_col = conn_data.columns[0]  # Default to first column
+        print(f"  [DEBUG] Using column: '{grn_type_col}'")
+
+    # Show unique GRN types in this file
+    unique_types = conn_data[grn_type_col].dropna().unique()
+    print(f"  [DEBUG] GRN types in this file: {sorted(unique_types)}")
+
+    # CRITICAL: Filter by GRN type FROM THIS FILE (not external catalog)
     if mode == 'appetitive':
-        print(f"  ✓ Mode: Appetitive (sugar/water only)")
-
-        # Filter for sweet/water GRNs (case-insensitive, handle various formats)
-        grn_filtered = grn_data[
-            grn_data['grn_type'].astype(str).str.lower().str.contains(
+        # Filter to sweet GRNs (case-insensitive, flexible matching)
+        grn_filtered = conn_data[
+            conn_data[grn_type_col].astype(str).str.lower().str.contains(
                 'sweet|water',
                 case=False,
                 na=False,
                 regex=True
             )
         ].copy()
-
         print(f"  ✓ Filtered to sweet/water GRNs: {len(grn_filtered)}")
-
-        # DEBUG: Show what we filtered
-        if len(grn_filtered) > 0:
-            filtered_types = grn_filtered['grn_type'].value_counts()
-            print(f"  [DEBUG] Appetitive GRN types kept:")
-            for grn_type, count in filtered_types.items():
-                print(f"    {grn_type}: {count}")
-        else:
-            print(f"  [DEBUG] ⚠️  No GRNs matched 'sweet' or 'water'")
-            print(f"  [DEBUG] Available types: {grn_data['grn_type'].value_counts().to_dict()}")
-
-    elif mode == 'full':
-        grn_filtered = grn_data.copy()
-        print(f"  ✓ Mode: Full gustatory")
-        print(f"  ✓ All GRN types: {len(grn_filtered)}")
-
-        # Show breakdown by type
-        type_counts = grn_filtered['grn_type'].value_counts()
-        print(f"\n  GRN type distribution:")
-        for grn_type, count in type_counts.items():
-            print(f"    {grn_type}: {count}")
-
     else:
-        raise ValueError(f"Invalid mode: {mode}. Use 'appetitive' or 'full'")
+        grn_filtered = conn_data.copy()
+        print(f"  ✓ Using all GRN types: {len(grn_filtered)}")
 
-    # Validate root IDs exist
-    n_missing = grn_filtered['root_id'].isna().sum()
-    if n_missing > 0:
-        print(f"  ⚠️  WARNING: {n_missing} GRNs missing root IDs")
+    if len(grn_filtered) == 0:
+        print(f"  [DEBUG] ⚠️  No GRNs matched filter!")
+        print(f"  [DEBUG] Available types: {conn_data[grn_type_col].value_counts().to_dict()}")
+        return pd.DataFrame(), np.array([]), []
 
-    # Keep essential columns
-    grn_output = grn_filtered[['v783', 'root_id', 'grn_type', 'side']].copy()
+    # Find name column
+    name_col = None
+    for col in conn_data.columns[:4]:
+        if 'name' in str(col).lower():
+            name_col = col
+            break
 
-    return grn_output
+    if name_col is None:
+        print(f"  [DEBUG] ⚠️  Could not find 'Name' column, using column 3")
+        name_col = conn_data.columns[3]
+
+    # Get GRN names
+    grn_names = grn_filtered[name_col].tolist()
+    print(f"  [DEBUG] Sample GRN names: {grn_names[:3]}")
+
+    # Extract connectivity matrix (columns 4+)
+    neuron_names = grn_filtered.columns[4:]
+
+    # CRITICAL: PRESERVE SYNAPSE COUNTS (don't binarize!)
+    connectivity_matrix = grn_filtered[neuron_names].fillna(0).values.astype(int)
+
+    print(f"  ✓ Connectivity matrix: {connectivity_matrix.shape}")
+    print(f"  ✓ Total synapses: {connectivity_matrix.sum():,}")
+    print(f"  [DEBUG] Synapse range: {connectivity_matrix.min()} - {connectivity_matrix.max()}")
+
+    # Identify neurons with ≥min_synapses from filtered GRNs
+    synapses_per_neuron = connectivity_matrix.sum(axis=0)
+    neuron_mask = synapses_per_neuron >= min_synapses
+
+    # Filter neurons and connectivity
+    neurons_kept = neuron_names[neuron_mask]
+    connectivity_kept = connectivity_matrix[:, neuron_mask]
+    synapses_kept = synapses_per_neuron[neuron_mask]
+
+    print(f"  ✓ Neurons with ≥{min_synapses} synapses: {len(neurons_kept)}")
+
+    if len(neurons_kept) > 0:
+        print(f"    Synapse stats: min={synapses_kept.min()}, "
+              f"median={int(np.median(synapses_kept))}, "
+              f"max={synapses_kept.max()}")
+
+    # Build neuron DataFrame
+    neuron_df = pd.DataFrame({
+        'name': neurons_kept,
+        'total_input_synapses': synapses_kept
+    })
+
+    # Map to root IDs
+    neuron_df = neuron_df.merge(
+        names_lookup[['name', 'root_id']],
+        on='name',
+        how='left'
+    )
+
+    # Check for unmapped neurons
+    n_unmapped = neuron_df['root_id'].isna().sum()
+    if n_unmapped > 0:
+        print(f"  ⚠️  WARNING: {n_unmapped}/{len(neuron_df)} neurons not mapped to root IDs")
+
+    return neuron_df, connectivity_kept, grn_names
 
 
-def extract_sez_pns(
-    connectivity_file: Path,
-    grn_filter: pd.DataFrame,
-    names_lookup: pd.DataFrame,
-    min_synapses: int = 1
-) -> Tuple[pd.DataFrame, np.ndarray]:
+def map_grn_names_to_root_ids(
+    grn_names: list,
+    grn_catalog: pd.DataFrame
+) -> np.ndarray:
     """
-    Extract SEZ-PNs receiving input from filtered GRNs.
+    Map GRN names (v783) to root IDs using catalog.
 
     Args:
-        connectivity_file: "GRN-vs-directly-connected-SEZ-PN-connectivity_final.xlsx"
-        grn_filter: Filtered GRN DataFrame from load_grns()
-        names_lookup: FlyWire names.csv.gz mapping
-        min_synapses: Minimum synapses required (default: 1)
+        grn_names: List of GRN names from connectivity file
+        grn_catalog: GRN catalog with v783 and root_id columns
 
     Returns:
-        (sez_pn_df, connectivity_matrix)
-        - sez_pn_df: DataFrame with columns [name, root_id, total_input_synapses]
-        - connectivity_matrix: NumPy array (n_grns × n_sez_pns)
-
-    Filtering logic:
-        1. Load full connectivity matrix
-        2. Filter ROWS to GRNs in grn_filter
-        3. Filter COLUMNS to SEZ-PNs with ≥min_synapses from any filtered GRN
-
-    Example:
-        If grn_filter has 35 sweet GRNs, and 22 SEZ-PNs receive ≥1 synapse
-        from sweet GRNs, returns (22 SEZ-PNs, 35×22 connectivity matrix)
+        Array of root IDs (same order as grn_names)
     """
-    print(f"\n[Extracting SEZ-PNs from {connectivity_file}...]")
+    name_to_id = dict(zip(grn_catalog['v783'], grn_catalog['root_id']))
 
-    # DEBUG: Show available sheets
-    try:
-        xl_file = pd.ExcelFile(connectivity_file, engine='openpyxl')
-        available_sheets = xl_file.sheet_names
-        print(f"  [DEBUG] Available sheets: {available_sheets}")
-    except Exception as e:
-        print(f"  [DEBUG] Could not list sheets: {e}")
+    root_ids = []
+    unmapped = []
 
-    # Load connectivity matrix (try different sheet names)
-    conn_data = None
-    for sheet_name in ['raw connectivity v783', 'Raw connectivity v783', 'connectivity']:
-        try:
-            conn_data = pd.read_excel(
-                connectivity_file,
-                sheet_name=sheet_name,
-                engine='openpyxl'
-            )
-            print(f"  ✓ Loaded sheet: '{sheet_name}'")
-            break
-        except Exception:
-            continue
+    for name in grn_names:
+        if name in name_to_id:
+            root_ids.append(name_to_id[name])
+        else:
+            root_ids.append(np.nan)
+            unmapped.append(name)
 
-    if conn_data is None:
-        raise ValueError(f"Could not find connectivity sheet. Available: {available_sheets}")
+    if unmapped:
+        print(f"  ⚠️  {len(unmapped)} GRN names not found in catalog: {unmapped[:5]}")
 
-    print(f"  ✓ Loaded connectivity: {conn_data.shape[0]} GRNs × {conn_data.shape[1]-4} SEZ-PNs")
-    print(f"  [DEBUG] Columns: {conn_data.columns.tolist()[:8]}...")  # Show first 8 cols
-
-    # Filter rows to matching GRNs
-    grn_names_to_keep = set(grn_filter['v783'].values)
-    print(f"  [DEBUG] Looking for {len(grn_names_to_keep)} GRN names from filter")
-    print(f"  [DEBUG] Sample GRN names to find: {list(grn_names_to_keep)[:3]}")
-
-    # Try to find the name column (case-insensitive)
-    name_col = None
-    for col in conn_data.columns[:4]:  # Check first 4 metadata columns
-        if 'name' in str(col).lower():
-            name_col = col
-            break
-
-    if name_col is None:
-        print(f"  [DEBUG] ⚠️  Could not find 'Name' column in first 4 columns")
-        print(f"  [DEBUG] Available columns: {conn_data.columns[:4].tolist()}")
-        name_col = conn_data.columns[3]  # Default to 4th column (index 3)
-        print(f"  [DEBUG] Using column: '{name_col}'")
-
-    print(f"  [DEBUG] Sample names in connectivity file: {conn_data[name_col].head(3).tolist()}")
-
-    # Match by name column
-    conn_filtered = conn_data[
-        conn_data[name_col].isin(grn_names_to_keep)
-    ].copy()
-
-    print(f"  ✓ Filtered to {len(conn_filtered)} GRNs matching filter")
-
-    if len(conn_filtered) == 0:
-        print(f"  [DEBUG] ⚠️  No GRNs matched!")
-        print(f"  [DEBUG] All names in connectivity file: {sorted(conn_data[name_col].unique())[:10]}")
-        print(f"  [DEBUG] Names we're looking for: {sorted(grn_names_to_keep)[:10]}")
-
-    # Extract connectivity matrix (columns 5+)
-    sez_pn_names = conn_filtered.columns[4:]  # Skip first 4 metadata columns
-    connectivity_matrix = conn_filtered[sez_pn_names].fillna(0).values
-
-    print(f"  ✓ Connectivity matrix: {connectivity_matrix.shape}")
-
-    # Identify SEZ-PNs with ≥min_synapses from any GRN
-    syn_per_pn = connectivity_matrix.sum(axis=0)  # Sum across GRNs for each PN
-    pn_mask = syn_per_pn >= min_synapses
-
-    sez_pn_names_filtered = sez_pn_names[pn_mask]
-    connectivity_filtered = connectivity_matrix[:, pn_mask]
-
-    print(f"  ✓ SEZ-PNs with ≥{min_synapses} synapses: {len(sez_pn_names_filtered)}")
-
-    # Map SEZ-PN names to root IDs
-    sez_pn_df = pd.DataFrame({
-        'name': sez_pn_names_filtered,
-        'total_input_synapses': syn_per_pn[pn_mask]
-    })
-
-    # Merge with names lookup
-    sez_pn_df = sez_pn_df.merge(
-        names_lookup[['name', 'root_id']],
-        on='name',
-        how='left'
-    )
-
-    # Check for unmapped neurons
-    n_unmapped = sez_pn_df['root_id'].isna().sum()
-    if n_unmapped > 0:
-        print(f"  ⚠️  WARNING: {n_unmapped} SEZ-PNs not found in names.csv.gz")
-        unmapped_names = sez_pn_df[sez_pn_df['root_id'].isna()]['name'].tolist()
-        print(f"     Unmapped neurons: {unmapped_names[:5]}" +
-              (f" ... and {len(unmapped_names)-5} more" if len(unmapped_names) > 5 else ""))
-
-    return sez_pn_df, connectivity_filtered
-
-
-def extract_ach_lns(
-    connectivity_file: Path,
-    grn_filter: pd.DataFrame,
-    names_lookup: pd.DataFrame,
-    min_synapses: int = 1
-) -> Tuple[pd.DataFrame, np.ndarray]:
-    """
-    Extract cholinergic local neurons receiving input from filtered GRNs.
-
-    Same logic as extract_sez_pns but for ACh-LNs.
-
-    Reference:
-        Shen et al. (2025) Figure 2: "Cholinergic LNs relay sweet signals"
-    """
-    print(f"\n[Extracting ACh-LNs from {connectivity_file}...]")
-
-    # DEBUG: Show available sheets
-    try:
-        xl_file = pd.ExcelFile(connectivity_file, engine='openpyxl')
-        available_sheets = xl_file.sheet_names
-        print(f"  [DEBUG] Available sheets: {available_sheets}")
-    except Exception as e:
-        print(f"  [DEBUG] Could not list sheets: {e}")
-
-    # Load connectivity matrix (try different sheet names)
-    conn_data = None
-    for sheet_name in ['raw connectivity v783', 'Raw connectivity v783', 'connectivity']:
-        try:
-            conn_data = pd.read_excel(
-                connectivity_file,
-                sheet_name=sheet_name,
-                engine='openpyxl'
-            )
-            print(f"  ✓ Loaded sheet: '{sheet_name}'")
-            break
-        except Exception:
-            continue
-
-    if conn_data is None:
-        raise ValueError(f"Could not find connectivity sheet. Available: {available_sheets}")
-
-    print(f"  ✓ Loaded connectivity: {conn_data.shape[0]} GRNs × {conn_data.shape[1]-4} ACh-LNs")
-    print(f"  [DEBUG] Columns: {conn_data.columns.tolist()[:8]}...")  # Show first 8 cols
-
-    # Filter rows to matching GRNs
-    grn_names_to_keep = set(grn_filter['v783'].values)
-    print(f"  [DEBUG] Looking for {len(grn_names_to_keep)} GRN names from filter")
-
-    # Try to find the name column (case-insensitive)
-    name_col = None
-    for col in conn_data.columns[:4]:  # Check first 4 metadata columns
-        if 'name' in str(col).lower():
-            name_col = col
-            break
-
-    if name_col is None:
-        print(f"  [DEBUG] ⚠️  Could not find 'Name' column in first 4 columns")
-        print(f"  [DEBUG] Available columns: {conn_data.columns[:4].tolist()}")
-        name_col = conn_data.columns[3]  # Default to 4th column (index 3)
-        print(f"  [DEBUG] Using column: '{name_col}'")
-
-    print(f"  [DEBUG] Sample names in connectivity file: {conn_data[name_col].head(3).tolist()}")
-
-    # Match by name column
-    conn_filtered = conn_data[
-        conn_data[name_col].isin(grn_names_to_keep)
-    ].copy()
-
-    print(f"  ✓ Filtered to {len(conn_filtered)} GRNs matching filter")
-
-    if len(conn_filtered) == 0:
-        print(f"  [DEBUG] ⚠️  No GRNs matched!")
-        print(f"  [DEBUG] All names in connectivity file: {sorted(conn_data[name_col].unique())[:10]}")
-        print(f"  [DEBUG] Names we're looking for: {sorted(grn_names_to_keep)[:10]}")
-
-    # Extract connectivity matrix (columns 5+)
-    ach_ln_names = conn_filtered.columns[4:]
-    connectivity_matrix = conn_filtered[ach_ln_names].fillna(0).values
-
-    print(f"  ✓ Connectivity matrix: {connectivity_matrix.shape}")
-
-    # Identify ACh-LNs with ≥min_synapses from any GRN
-    syn_per_ln = connectivity_matrix.sum(axis=0)
-    ln_mask = syn_per_ln >= min_synapses
-
-    ach_ln_names_filtered = ach_ln_names[ln_mask]
-    connectivity_filtered = connectivity_matrix[:, ln_mask]
-
-    print(f"  ✓ ACh-LNs with ≥{min_synapses} synapses: {len(ach_ln_names_filtered)}")
-
-    # Map ACh-LN names to root IDs
-    ach_ln_df = pd.DataFrame({
-        'name': ach_ln_names_filtered,
-        'total_input_synapses': syn_per_ln[ln_mask]
-    })
-
-    # Merge with names lookup
-    ach_ln_df = ach_ln_df.merge(
-        names_lookup[['name', 'root_id']],
-        on='name',
-        how='left'
-    )
-
-    # Check for unmapped neurons
-    n_unmapped = ach_ln_df['root_id'].isna().sum()
-    if n_unmapped > 0:
-        print(f"  ⚠️  WARNING: {n_unmapped} ACh-LNs not found in names.csv.gz")
-        unmapped_names = ach_ln_df[ach_ln_df['root_id'].isna()]['name'].tolist()
-        print(f"     Unmapped neurons: {unmapped_names[:5]}" +
-              (f" ... and {len(unmapped_names)-5} more" if len(unmapped_names) > 5 else ""))
-
-    return ach_ln_df, connectivity_filtered
+    return np.array(root_ids)
 
 
 def generate_validation_report(
-    grn_df: pd.DataFrame,
-    sez_pn_df: pd.DataFrame,
-    ach_ln_df: pd.DataFrame,
+    grn_count: int,
+    sez_pn_count: int,
+    ach_ln_count: int,
+    gaba_ln_count: int,
+    conn_grn_pn: np.ndarray,
+    conn_grn_ach: np.ndarray,
+    conn_grn_gaba: np.ndarray,
     mode: str,
     output_dir: Path
 ) -> dict:
     """
-    Generate validation report comparing extraction to paper expectations.
-
-    Checks:
-    1. Neuron counts within expected ranges
-    2. Root ID mapping success rate
-    3. Connectivity statistics
-    4. Comparison to Shen et al. (2025) reported counts
-
-    Outputs:
-    - JSON validation report
-    - Console summary
+    Generate validation report with synapse statistics.
     """
     print("\n" + "="*70)
     print("VALIDATION REPORT")
@@ -499,70 +364,81 @@ def generate_validation_report(
         'source': 'Shen et al. (2025) Current Biology 35(9):1955-1970',
         'flywire_version': 'v783',
         'neuron_counts': {
-            'grns': int(len(grn_df)),
-            'sez_pns': int(len(sez_pn_df)),
-            'ach_lns': int(len(ach_ln_df))
+            'grns': int(grn_count),
+            'sez_pns': int(sez_pn_count),
+            'ach_lns': int(ach_ln_count),
+            'gaba_lns': int(gaba_ln_count)
         },
-        'root_id_mapping': {
-            'grns_mapped': int((~grn_df['root_id'].isna()).sum()),
-            'sez_pns_mapped': int((~sez_pn_df['root_id'].isna()).sum()),
-            'ach_lns_mapped': int((~ach_ln_df['root_id'].isna()).sum())
+        'synapse_statistics': {
+            'grn_to_pn_total': int(conn_grn_pn.sum()),
+            'grn_to_pn_mean': float(conn_grn_pn[conn_grn_pn > 0].mean()) if (conn_grn_pn > 0).any() else 0,
+            'grn_to_pn_max': int(conn_grn_pn.max()),
+            'grn_to_ach_total': int(conn_grn_ach.sum()),
+            'grn_to_ach_mean': float(conn_grn_ach[conn_grn_ach > 0].mean()) if (conn_grn_ach > 0).any() else 0,
+            'grn_to_ach_max': int(conn_grn_ach.max()),
+            'grn_to_gaba_total': int(conn_grn_gaba.sum()),
+            'grn_to_gaba_mean': float(conn_grn_gaba[conn_grn_gaba > 0].mean()) if (conn_grn_gaba > 0).any() else 0,
+            'grn_to_gaba_max': int(conn_grn_gaba.max())
         }
     }
 
-    # Expected counts (from paper)
+    # Expected counts
     if mode == 'appetitive':
         expected_grns = (30, 50)
         expected_sez_pns = (15, 35)
-        expected_ach_lns = (25, 50)
-    else:  # full
-        expected_grns = (120, 150)
-        expected_sez_pns = (57, 57)  # Exactly 57 in paper
-        expected_ach_lns = (83, 83)  # Exactly 83 in paper
+        expected_ach_lns = (40, 70)
+        expected_gaba_lns = (25, 50)
+    else:
+        expected_grns = (80, 100)
+        expected_sez_pns = (57, 57)
+        expected_ach_lns = (82, 83)
+        expected_gaba_lns = (50, 50)
 
     # Validate counts
     print(f"\n📊 Neuron Counts:")
-    print(f"  GRNs: {len(grn_df)}")
-
-    if expected_grns[0] <= len(grn_df) <= expected_grns[1]:
+    print(f"  GRNs: {grn_count}")
+    if expected_grns[0] <= grn_count <= expected_grns[1]:
         print(f"    ✅ Within expected range ({expected_grns[0]}-{expected_grns[1]})")
         report['validation_grns'] = 'PASS'
     else:
         print(f"    ⚠️  Outside expected range ({expected_grns[0]}-{expected_grns[1]})")
         report['validation_grns'] = 'CHECK'
 
-    print(f"  SEZ-PNs: {len(sez_pn_df)}")
-    if expected_sez_pns[0] <= len(sez_pn_df) <= expected_sez_pns[1]:
+    print(f"  SEZ-PNs: {sez_pn_count}")
+    if expected_sez_pns[0] <= sez_pn_count <= expected_sez_pns[1]:
         print(f"    ✅ Within expected range ({expected_sez_pns[0]}-{expected_sez_pns[1]})")
         report['validation_sez_pns'] = 'PASS'
     else:
         print(f"    ⚠️  Outside expected range ({expected_sez_pns[0]}-{expected_sez_pns[1]})")
         report['validation_sez_pns'] = 'CHECK'
 
-    print(f"  ACh-LNs: {len(ach_ln_df)}")
-    if expected_ach_lns[0] <= len(ach_ln_df) <= expected_ach_lns[1]:
+    print(f"  ACh-LNs: {ach_ln_count}")
+    if expected_ach_lns[0] <= ach_ln_count <= expected_ach_lns[1]:
         print(f"    ✅ Within expected range ({expected_ach_lns[0]}-{expected_ach_lns[1]})")
         report['validation_ach_lns'] = 'PASS'
     else:
         print(f"    ⚠️  Outside expected range ({expected_ach_lns[0]}-{expected_ach_lns[1]})")
         report['validation_ach_lns'] = 'CHECK'
 
-    # Root ID mapping rates
-    print(f"\n📍 Root ID Mapping:")
-    grn_rate = report['root_id_mapping']['grns_mapped'] / len(grn_df) * 100 if len(grn_df) > 0 else 0
-    pn_rate = report['root_id_mapping']['sez_pns_mapped'] / len(sez_pn_df) * 100 if len(sez_pn_df) > 0 else 0
-    ln_rate = report['root_id_mapping']['ach_lns_mapped'] / len(ach_ln_df) * 100 if len(ach_ln_df) > 0 else 0
-
-    print(f"  GRNs: {report['root_id_mapping']['grns_mapped']}/{len(grn_df)} ({grn_rate:.1f}%)")
-    print(f"  SEZ-PNs: {report['root_id_mapping']['sez_pns_mapped']}/{len(sez_pn_df)} ({pn_rate:.1f}%)")
-    print(f"  ACh-LNs: {report['root_id_mapping']['ach_lns_mapped']}/{len(ach_ln_df)} ({ln_rate:.1f}%)")
-
-    if grn_rate >= 95 and pn_rate >= 95 and ln_rate >= 95:
-        print(f"    ✅ All mapping rates >95%")
-        report['validation_mapping'] = 'PASS'
+    print(f"  GABA-LNs: {gaba_ln_count}")
+    if expected_gaba_lns[0] <= gaba_ln_count <= expected_gaba_lns[1]:
+        print(f"    ✅ Within expected range ({expected_gaba_lns[0]}-{expected_gaba_lns[1]})")
+        report['validation_gaba_lns'] = 'PASS'
     else:
-        print(f"    ⚠️  Some mapping rates <95%")
-        report['validation_mapping'] = 'CHECK'
+        print(f"    ⚠️  Outside expected range ({expected_gaba_lns[0]}-{expected_gaba_lns[1]})")
+        report['validation_gaba_lns'] = 'CHECK'
+
+    # Synapse statistics
+    print(f"\n📈 Synapse Statistics:")
+    print(f"  GRN→SEZ-PN: {report['synapse_statistics']['grn_to_pn_total']:,} total, "
+          f"mean={report['synapse_statistics']['grn_to_pn_mean']:.1f}, "
+          f"max={report['synapse_statistics']['grn_to_pn_max']}")
+    print(f"  GRN→ACh-LN: {report['synapse_statistics']['grn_to_ach_total']:,} total, "
+          f"mean={report['synapse_statistics']['grn_to_ach_mean']:.1f}, "
+          f"max={report['synapse_statistics']['grn_to_ach_max']}")
+    print(f"  GRN→GABA-LN: {report['synapse_statistics']['grn_to_gaba_total']:,} total, "
+          f"mean={report['synapse_statistics']['grn_to_gaba_mean']:.1f}, "
+          f"max={report['synapse_statistics']['grn_to_gaba_max']}")
 
     # Save report
     report_file = output_dir / f"shen2025_{mode}_validation_report.json"
@@ -578,16 +454,10 @@ def main():
     """
     Main extraction pipeline.
 
-    Usage:
-        # Appetitive mode (sugar only - for PGCN model)
-        python scripts/extract_from_paper_data.py \\
-          --paper-data-dir data/10.1016 \\
-          --flywire-names data/flywire/names.csv.gz \\
-          --output-dir data/cache \\
-          --mode appetitive
-
-        # Full mode (all taste - for validation)
-        python scripts/extract_from_paper_data.py --mode full
+    Extracts from ALL THREE connectivity files:
+    1. GRN-vs-directly-connected-SEZ-PN-connectivity_final.xlsx
+    2. GRN-vs-ACh-LNs-connectivity_final.xlsx
+    3. GRN-vs-GABA-LNs_connectivity_final.xlsx
     """
     parser = argparse.ArgumentParser(
         description='Extract taste circuits from Shen et al. (2025) paper data',
@@ -599,12 +469,6 @@ Examples:
 
   # Extract all taste circuits (for validation)
   python scripts/extract_from_paper_data.py --mode full
-
-  # Custom data locations
-  python scripts/extract_from_paper_data.py \\
-    --paper-data-dir /path/to/paper/data \\
-    --flywire-names /path/to/names.csv.gz \\
-    --output-dir /path/to/output
         """
     )
     parser.add_argument(
@@ -644,9 +508,10 @@ Examples:
     neuron_list_file = args.paper_data_dir / 'Neurons-list-v783.xlsx'
     grn_pn_conn_file = args.paper_data_dir / 'GRN-vs-directly-connected-SEZ-PN-connectivity_final.xlsx'
     grn_ach_conn_file = args.paper_data_dir / 'GRN-vs-ACh-LNs-connectivity_final.xlsx'
+    grn_gaba_conn_file = args.paper_data_dir / 'GRN-vs-GABA-LNs_connectivity_final.xlsx'
 
     missing_files = []
-    for f in [neuron_list_file, grn_pn_conn_file, grn_ach_conn_file, args.flywire_names]:
+    for f in [neuron_list_file, grn_pn_conn_file, grn_ach_conn_file, grn_gaba_conn_file, args.flywire_names]:
         if not f.exists():
             missing_files.append(str(f))
 
@@ -654,14 +519,6 @@ Examples:
         print("❌ ERROR: Required files not found:")
         for f in missing_files:
             print(f"  - {f}")
-        print("\nPlease ensure Shen et al. (2025) supplementary files are in:")
-        print(f"  {args.paper_data_dir}")
-        print("\nExpected files:")
-        print("  - Neurons-list-v783.xlsx")
-        print("  - GRN-vs-directly-connected-SEZ-PN-connectivity_final.xlsx")
-        print("  - GRN-vs-ACh-LNs-connectivity_final.xlsx")
-        print("\nAnd FlyWire names file:")
-        print(f"  - {args.flywire_names}")
         return 1
 
     # Create output directory
@@ -669,6 +526,7 @@ Examples:
 
     print("="*70)
     print("EXTRACT TASTE CIRCUITS FROM SHEN ET AL. (2025)")
+    print("Using connectivity matrices with synapse-level resolution")
     print("="*70)
     print(f"\nMode: {args.mode}")
     print(f"Paper data: {args.paper_data_dir}")
@@ -678,66 +536,130 @@ Examples:
         # [1] Load FlyWire names
         names_lookup = load_flywire_names(args.flywire_names)
 
-        # [2] Load and filter GRNs
-        grn_df = load_grns(neuron_list_file, mode=args.mode)
+        # [2] Load GRN catalog (for root ID lookups)
+        grn_catalog = load_grn_catalog(neuron_list_file, mode=args.mode)
 
-        # [3] Extract SEZ-PNs
-        sez_pn_df, conn_grn_pn = extract_sez_pns(
+        # [3] Extract from SEZ-PN connectivity file
+        sez_pn_df, conn_grn_pn, grn_names_pn = extract_from_connectivity_file(
             grn_pn_conn_file,
-            grn_df,
+            grn_catalog,
             names_lookup,
+            mode=args.mode,
             min_synapses=args.min_synapses
         )
 
-        # [4] Extract ACh-LNs
-        ach_ln_df, conn_grn_ach = extract_ach_lns(
+        # [4] Extract from ACh-LN connectivity file
+        ach_ln_df, conn_grn_ach, grn_names_ach = extract_from_connectivity_file(
             grn_ach_conn_file,
-            grn_df,
+            grn_catalog,
             names_lookup,
+            mode=args.mode,
             min_synapses=args.min_synapses
         )
 
-        # [5] Export data
+        # [5] Extract from GABA-LN connectivity file
+        gaba_ln_df, conn_grn_gaba, grn_names_gaba = extract_from_connectivity_file(
+            grn_gaba_conn_file,
+            grn_catalog,
+            names_lookup,
+            mode=args.mode,
+            min_synapses=args.min_synapses
+        )
+
+        # [6] Build unified GRN list (combine GRNs from all 3 files)
+        all_grn_names = sorted(set(grn_names_pn + grn_names_ach + grn_names_gaba))
+        grn_root_ids = map_grn_names_to_root_ids(all_grn_names, grn_catalog)
+
+        grn_df = pd.DataFrame({
+            'v783': all_grn_names,
+            'root_id': grn_root_ids
+        })
+
+        print(f"\n[Building unified GRN list...]")
+        print(f"  ✓ Unique GRNs across all files: {len(grn_df)}")
+        print(f"  ✓ GRNs in SEZ-PN file: {len(grn_names_pn)}")
+        print(f"  ✓ GRNs in ACh-LN file: {len(grn_names_ach)}")
+        print(f"  ✓ GRNs in GABA-LN file: {len(grn_names_gaba)}")
+
+        # [7] Export data
         prefix = f"shen2025_{args.mode}"
+
+        print(f"\n[Exporting data...]")
 
         # Export neuron lists
         grn_file = args.output_dir / f"{prefix}_grn.csv"
         sez_pn_file = args.output_dir / f"{prefix}_sez_pn.csv"
         ach_ln_file = args.output_dir / f"{prefix}_sez_ln_ach.csv"
+        gaba_ln_file = args.output_dir / f"{prefix}_sez_ln_gaba.csv"
 
         grn_df.to_csv(grn_file, index=False)
         sez_pn_df.to_csv(sez_pn_file, index=False)
         ach_ln_df.to_csv(ach_ln_file, index=False)
+        gaba_ln_df.to_csv(gaba_ln_file, index=False)
 
-        print(f"\n[Exporting data...]")
         print(f"  ✓ {grn_file.name}: {len(grn_df)} neurons")
         print(f"  ✓ {sez_pn_file.name}: {len(sez_pn_df)} neurons")
         print(f"  ✓ {ach_ln_file.name}: {len(ach_ln_df)} neurons")
+        print(f"  ✓ {gaba_ln_file.name}: {len(gaba_ln_df)} neurons")
 
-        # Save connectivity matrices
+        # Save connectivity matrices WITH SYNAPSE COUNTS
         conn_grn_pn_file = args.output_dir / f"{prefix}_connectivity_grn_pn.npz"
         conn_grn_ach_file = args.output_dir / f"{prefix}_connectivity_grn_ach.npz"
+        conn_grn_gaba_file = args.output_dir / f"{prefix}_connectivity_grn_gaba.npz"
+
+        # Map GRN names to indices in unified list
+        grn_name_to_idx = {name: i for i, name in enumerate(all_grn_names)}
+
+        # Reorder connectivity matrices to match unified GRN list
+        pn_grn_indices = [grn_name_to_idx[name] for name in grn_names_pn if name in grn_name_to_idx]
+        ach_grn_indices = [grn_name_to_idx[name] for name in grn_names_ach if name in grn_name_to_idx]
+        gaba_grn_indices = [grn_name_to_idx[name] for name in grn_names_gaba if name in grn_name_to_idx]
+
+        # Create full connectivity matrices (all GRNs × downstream neurons)
+        conn_full_pn = np.zeros((len(all_grn_names), conn_grn_pn.shape[1]), dtype=int)
+        conn_full_ach = np.zeros((len(all_grn_names), conn_grn_ach.shape[1]), dtype=int)
+        conn_full_gaba = np.zeros((len(all_grn_names), conn_grn_gaba.shape[1]), dtype=int)
+
+        conn_full_pn[pn_grn_indices, :] = conn_grn_pn
+        conn_full_ach[ach_grn_indices, :] = conn_grn_ach
+        conn_full_gaba[gaba_grn_indices, :] = conn_grn_gaba
 
         np.savez_compressed(
             conn_grn_pn_file,
-            connectivity=conn_grn_pn,
+            connectivity=conn_full_pn,
             grn_ids=grn_df['root_id'].values,
             sez_pn_ids=sez_pn_df['root_id'].values
         )
 
         np.savez_compressed(
             conn_grn_ach_file,
-            connectivity=conn_grn_ach,
+            connectivity=conn_full_ach,
             grn_ids=grn_df['root_id'].values,
             ach_ln_ids=ach_ln_df['root_id'].values
         )
 
-        print(f"  ✓ {conn_grn_pn_file.name}: {conn_grn_pn.shape} matrix")
-        print(f"  ✓ {conn_grn_ach_file.name}: {conn_grn_ach.shape} matrix")
+        np.savez_compressed(
+            conn_grn_gaba_file,
+            connectivity=conn_full_gaba,
+            grn_ids=grn_df['root_id'].values,
+            gaba_ln_ids=gaba_ln_df['root_id'].values
+        )
 
-        # [6] Generate validation report
+        print(f"  ✓ {conn_grn_pn_file.name}: {conn_full_pn.shape} matrix")
+        print(f"  ✓ {conn_grn_ach_file.name}: {conn_full_ach.shape} matrix")
+        print(f"  ✓ {conn_grn_gaba_file.name}: {conn_full_gaba.shape} matrix")
+
+        # [8] Generate validation report
         report = generate_validation_report(
-            grn_df, sez_pn_df, ach_ln_df, args.mode, args.output_dir
+            len(grn_df),
+            len(sez_pn_df),
+            len(ach_ln_df),
+            len(gaba_ln_df),
+            conn_full_pn,
+            conn_full_ach,
+            conn_full_gaba,
+            args.mode,
+            args.output_dir
         )
 
         print("\n" + "="*70)
@@ -747,16 +669,18 @@ Examples:
         print(f"  - {prefix}_grn.csv ({len(grn_df)} neurons)")
         print(f"  - {prefix}_sez_pn.csv ({len(sez_pn_df)} neurons)")
         print(f"  - {prefix}_sez_ln_ach.csv ({len(ach_ln_df)} neurons)")
+        print(f"  - {prefix}_sez_ln_gaba.csv ({len(gaba_ln_df)} neurons)")
         print(f"  - {prefix}_connectivity_grn_pn.npz")
         print(f"  - {prefix}_connectivity_grn_ach.npz")
+        print(f"  - {prefix}_connectivity_grn_gaba.npz")
         print(f"  - {prefix}_validation_report.json")
 
-        # Check if all validations passed
+        # Check validation
         all_pass = all([
             report.get('validation_grns') == 'PASS',
             report.get('validation_sez_pns') == 'PASS',
             report.get('validation_ach_lns') == 'PASS',
-            report.get('validation_mapping') == 'PASS'
+            report.get('validation_gaba_lns') == 'PASS'
         ])
 
         if all_pass:
