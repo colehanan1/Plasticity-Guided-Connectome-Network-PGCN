@@ -115,27 +115,90 @@ def load_grns(
     """
     print(f"\n[Loading GRNs from {neuron_list_file}...]")
 
-    # Load GRN sheet
-    grn_data = pd.read_excel(
-        neuron_list_file,
-        sheet_name='GRN',
-        engine='openpyxl'
-    )
+    # DEBUG: Show available sheets
+    try:
+        xl_file = pd.ExcelFile(neuron_list_file, engine='openpyxl')
+        available_sheets = xl_file.sheet_names
+        print(f"  [DEBUG] Available sheets: {available_sheets}")
+    except Exception as e:
+        print(f"  [DEBUG] Could not list sheets: {e}")
 
-    # Rename columns for clarity
-    grn_data = grn_data.rename(columns={
-        'segment ID': 'root_id',
-        'GRN type': 'grn_type',
-        'Side': 'side'
-    })
+    # Try to load GRN sheet (case-insensitive)
+    grn_data = None
+    for sheet_name in ['GRN', 'grn', 'Grn']:
+        try:
+            grn_data = pd.read_excel(
+                neuron_list_file,
+                sheet_name=sheet_name,
+                engine='openpyxl'
+            )
+            print(f"  ✓ Loaded sheet: '{sheet_name}'")
+            break
+        except Exception:
+            continue
+
+    if grn_data is None:
+        raise ValueError(
+            f"Could not find GRN sheet. Available sheets: {available_sheets}\n"
+            f"Tried: 'GRN', 'grn', 'Grn'"
+        )
+
+    # DEBUG: Show columns and data preview
+    print(f"  [DEBUG] Columns found: {grn_data.columns.tolist()}")
+    print(f"  [DEBUG] Total rows: {len(grn_data)}")
+    print(f"  [DEBUG] First few rows:")
+    print(grn_data.head(3).to_string())
+
+    # Rename columns for clarity (handle different naming conventions)
+    rename_map = {}
+    for col in grn_data.columns:
+        col_lower = col.lower().strip()
+        if 'segment' in col_lower and 'id' in col_lower:
+            rename_map[col] = 'root_id'
+        elif col_lower in ['grn type', 'grn_type', 'type']:
+            rename_map[col] = 'grn_type'
+        elif col_lower == 'side':
+            rename_map[col] = 'side'
+
+    grn_data = grn_data.rename(columns=rename_map)
+
+    # Check if required columns exist
+    if 'grn_type' not in grn_data.columns:
+        raise ValueError(
+            f"Could not find 'GRN type' column. Available columns: {grn_data.columns.tolist()}\n"
+            f"Please check the Excel file structure."
+        )
+
+    # DEBUG: Show unique GRN types
+    if 'grn_type' in grn_data.columns:
+        unique_types = grn_data['grn_type'].dropna().unique()
+        print(f"  [DEBUG] Unique GRN types found: {sorted(unique_types)}")
 
     # Filter by mode
     if mode == 'appetitive':
+        print(f"  ✓ Mode: Appetitive (sugar/water only)")
+
+        # Filter for sweet/water GRNs (case-insensitive, handle various formats)
         grn_filtered = grn_data[
-            grn_data['grn_type'].str.lower() == 'sweet'
+            grn_data['grn_type'].astype(str).str.lower().str.contains(
+                'sweet|water',
+                case=False,
+                na=False,
+                regex=True
+            )
         ].copy()
-        print(f"  ✓ Mode: Appetitive (sugar only)")
-        print(f"  ✓ Filtered to sweet GRNs: {len(grn_filtered)}")
+
+        print(f"  ✓ Filtered to sweet/water GRNs: {len(grn_filtered)}")
+
+        # DEBUG: Show what we filtered
+        if len(grn_filtered) > 0:
+            filtered_types = grn_filtered['grn_type'].value_counts()
+            print(f"  [DEBUG] Appetitive GRN types kept:")
+            for grn_type, count in filtered_types.items():
+                print(f"    {grn_type}: {count}")
+        else:
+            print(f"  [DEBUG] ⚠️  No GRNs matched 'sweet' or 'water'")
+            print(f"  [DEBUG] Available types: {grn_data['grn_type'].value_counts().to_dict()}")
 
     elif mode == 'full':
         grn_filtered = grn_data.copy()
@@ -193,24 +256,65 @@ def extract_sez_pns(
     """
     print(f"\n[Extracting SEZ-PNs from {connectivity_file}...]")
 
-    # Load connectivity matrix
-    conn_data = pd.read_excel(
-        connectivity_file,
-        sheet_name='raw connectivity v783',
-        engine='openpyxl'
-    )
+    # DEBUG: Show available sheets
+    try:
+        xl_file = pd.ExcelFile(connectivity_file, engine='openpyxl')
+        available_sheets = xl_file.sheet_names
+        print(f"  [DEBUG] Available sheets: {available_sheets}")
+    except Exception as e:
+        print(f"  [DEBUG] Could not list sheets: {e}")
+
+    # Load connectivity matrix (try different sheet names)
+    conn_data = None
+    for sheet_name in ['raw connectivity v783', 'Raw connectivity v783', 'connectivity']:
+        try:
+            conn_data = pd.read_excel(
+                connectivity_file,
+                sheet_name=sheet_name,
+                engine='openpyxl'
+            )
+            print(f"  ✓ Loaded sheet: '{sheet_name}'")
+            break
+        except Exception:
+            continue
+
+    if conn_data is None:
+        raise ValueError(f"Could not find connectivity sheet. Available: {available_sheets}")
 
     print(f"  ✓ Loaded connectivity: {conn_data.shape[0]} GRNs × {conn_data.shape[1]-4} SEZ-PNs")
+    print(f"  [DEBUG] Columns: {conn_data.columns.tolist()[:8]}...")  # Show first 8 cols
 
     # Filter rows to matching GRNs
     grn_names_to_keep = set(grn_filter['v783'].values)
+    print(f"  [DEBUG] Looking for {len(grn_names_to_keep)} GRN names from filter")
+    print(f"  [DEBUG] Sample GRN names to find: {list(grn_names_to_keep)[:3]}")
 
-    # Match by "Name" column (v783 name)
+    # Try to find the name column (case-insensitive)
+    name_col = None
+    for col in conn_data.columns[:4]:  # Check first 4 metadata columns
+        if 'name' in str(col).lower():
+            name_col = col
+            break
+
+    if name_col is None:
+        print(f"  [DEBUG] ⚠️  Could not find 'Name' column in first 4 columns")
+        print(f"  [DEBUG] Available columns: {conn_data.columns[:4].tolist()}")
+        name_col = conn_data.columns[3]  # Default to 4th column (index 3)
+        print(f"  [DEBUG] Using column: '{name_col}'")
+
+    print(f"  [DEBUG] Sample names in connectivity file: {conn_data[name_col].head(3).tolist()}")
+
+    # Match by name column
     conn_filtered = conn_data[
-        conn_data['Name'].isin(grn_names_to_keep)
+        conn_data[name_col].isin(grn_names_to_keep)
     ].copy()
 
     print(f"  ✓ Filtered to {len(conn_filtered)} GRNs matching filter")
+
+    if len(conn_filtered) == 0:
+        print(f"  [DEBUG] ⚠️  No GRNs matched!")
+        print(f"  [DEBUG] All names in connectivity file: {sorted(conn_data[name_col].unique())[:10]}")
+        print(f"  [DEBUG] Names we're looking for: {sorted(grn_names_to_keep)[:10]}")
 
     # Extract connectivity matrix (columns 5+)
     sez_pn_names = conn_filtered.columns[4:]  # Skip first 4 metadata columns
@@ -267,23 +371,64 @@ def extract_ach_lns(
     """
     print(f"\n[Extracting ACh-LNs from {connectivity_file}...]")
 
-    # Load connectivity matrix
-    conn_data = pd.read_excel(
-        connectivity_file,
-        sheet_name='raw connectivity v783',
-        engine='openpyxl'
-    )
+    # DEBUG: Show available sheets
+    try:
+        xl_file = pd.ExcelFile(connectivity_file, engine='openpyxl')
+        available_sheets = xl_file.sheet_names
+        print(f"  [DEBUG] Available sheets: {available_sheets}")
+    except Exception as e:
+        print(f"  [DEBUG] Could not list sheets: {e}")
+
+    # Load connectivity matrix (try different sheet names)
+    conn_data = None
+    for sheet_name in ['raw connectivity v783', 'Raw connectivity v783', 'connectivity']:
+        try:
+            conn_data = pd.read_excel(
+                connectivity_file,
+                sheet_name=sheet_name,
+                engine='openpyxl'
+            )
+            print(f"  ✓ Loaded sheet: '{sheet_name}'")
+            break
+        except Exception:
+            continue
+
+    if conn_data is None:
+        raise ValueError(f"Could not find connectivity sheet. Available: {available_sheets}")
 
     print(f"  ✓ Loaded connectivity: {conn_data.shape[0]} GRNs × {conn_data.shape[1]-4} ACh-LNs")
+    print(f"  [DEBUG] Columns: {conn_data.columns.tolist()[:8]}...")  # Show first 8 cols
 
     # Filter rows to matching GRNs
     grn_names_to_keep = set(grn_filter['v783'].values)
+    print(f"  [DEBUG] Looking for {len(grn_names_to_keep)} GRN names from filter")
 
+    # Try to find the name column (case-insensitive)
+    name_col = None
+    for col in conn_data.columns[:4]:  # Check first 4 metadata columns
+        if 'name' in str(col).lower():
+            name_col = col
+            break
+
+    if name_col is None:
+        print(f"  [DEBUG] ⚠️  Could not find 'Name' column in first 4 columns")
+        print(f"  [DEBUG] Available columns: {conn_data.columns[:4].tolist()}")
+        name_col = conn_data.columns[3]  # Default to 4th column (index 3)
+        print(f"  [DEBUG] Using column: '{name_col}'")
+
+    print(f"  [DEBUG] Sample names in connectivity file: {conn_data[name_col].head(3).tolist()}")
+
+    # Match by name column
     conn_filtered = conn_data[
-        conn_data['Name'].isin(grn_names_to_keep)
+        conn_data[name_col].isin(grn_names_to_keep)
     ].copy()
 
     print(f"  ✓ Filtered to {len(conn_filtered)} GRNs matching filter")
+
+    if len(conn_filtered) == 0:
+        print(f"  [DEBUG] ⚠️  No GRNs matched!")
+        print(f"  [DEBUG] All names in connectivity file: {sorted(conn_data[name_col].unique())[:10]}")
+        print(f"  [DEBUG] Names we're looking for: {sorted(grn_names_to_keep)[:10]}")
 
     # Extract connectivity matrix (columns 5+)
     ach_ln_names = conn_filtered.columns[4:]
