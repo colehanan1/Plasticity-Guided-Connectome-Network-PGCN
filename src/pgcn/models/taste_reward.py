@@ -221,7 +221,7 @@ class TasteRewardCircuit(nn.Module):
         pn_input_direct = torch.matmul(grn_activity, self.W_grn_to_pn.T)  # (batch, n_sez_pns)
 
         # [4] Indirect ACh-LN → SEZ-PN pathway
-        pn_input_indirect = torch.matmul(ach_ln_activity, self.W_ach_to_pn)  # (batch, n_sez_pns)
+        pn_input_indirect = torch.matmul(ach_ln_activity, self.W_ach_to_pn.T)  # (batch, n_sez_pns)
 
         # [5] Total SEZ-PN activity (sum pathways)
         pn_input_total = pn_input_direct + pn_input_indirect
