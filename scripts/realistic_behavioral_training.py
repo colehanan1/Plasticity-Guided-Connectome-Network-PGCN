@@ -35,6 +35,12 @@ from data_loaders.circuit_loader import CircuitLoader
 from pgcn.models.olfactory_circuit import OlfactoryCircuit
 from pgcn.models.learning_model import DopamineModulatedPlasticity
 
+# DOOR database integration (optional, falls back to hardcoded if unavailable)
+try:
+    from door_integration.pgcn_door import PGCNDoorIntegration, DOOR_AVAILABLE
+except ImportError:
+    DOOR_AVAILABLE = False
+
 
 class TemporalTrial:
     """
@@ -570,36 +576,67 @@ def run_realistic_training_protocol(
         'pentyl_acetate'       # Pentyl acetate (unused in this protocol)
     ]
 
-    # Create PN activation patterns
-    # For now, use glomerulus-based activation (simplified)
-    # In full implementation, would use DoOR receptor profiles
+    # Create PN activation patterns using DOOR database (or fallback to hardcoded)
     pn_activations = {}
 
-    # Map odors to example glomeruli (this should come from DoOR in production)
-    # Odor-to-glomerulus mappings (simplified, should use DOOR database for production)
-    odor_to_glomeruli = {
-        'benzaldehyde': ['DL5', 'DM1', 'DM4'],
-        '1-hexanol': ['DA1', 'DL3', 'VA1d'],
-        'ethyl_butyrate': ['DM1', 'DM2', 'DM4'],
-        '3-octanol': ['DA1', 'DL1', 'VA1v'],
-        'linalool': ['DL4', 'DM5', 'VA2'],
-        'citral': ['DM2', 'DM3', 'DM5'],  # Citrus-like, similar to linalool
-        'apple_cider_vinegar': ['DM2', 'VA2', 'VC1'],  # Acidic/fermented profile
-        'geosmin': ['DA2', 'DA4m', 'DC3'],
-        'pentyl_acetate': ['DM2', 'VA6', 'VC1']
-    }
+    # Try to use DOOR database for real receptor activation profiles
+    if DOOR_AVAILABLE:
+        try:
+            print("  🧬 Using DOOR database for receptor activation profiles")
+            door = PGCNDoorIntegration()
 
-    for odor in test_odors:
-        if odor in odor_to_glomeruli:
-            glomeruli = odor_to_glomeruli[odor]
-            pn_activations[odor] = circuit.activate_pns_by_glomeruli(
-                glomeruli, firing_rate=1.0
-            )
-            print(f"  ✓ {odor}: {glomeruli}")
-        else:
-            # Fallback to random activation
-            pn_activations[odor] = np.random.rand(len(connectivity.pn_ids)) * 0.5
-            print(f"  • {odor}: random activation (no glomerulus mapping)")
+            for odor in test_odors:
+                try:
+                    # Get glomeruli activated by this odor from DOOR
+                    glomeruli = door.map_odorant_to_glomeruli(odor, threshold=0.3)
+
+                    if glomeruli:
+                        pn_activations[odor] = circuit.activate_pns_by_glomeruli(
+                            glomeruli, firing_rate=1.0
+                        )
+                        print(f"  ✓ {odor}: {glomeruli} (DOOR)")
+                    else:
+                        # No glomeruli found, use fallback
+                        print(f"  ⚠ {odor}: No DOOR data, skipping")
+
+                except Exception as e:
+                    print(f"  ⚠ {odor}: DOOR lookup failed ({e}), using fallback")
+                    # Will use fallback below
+
+        except Exception as e:
+            print(f"  ⚠ DOOR initialization failed: {e}")
+            print(f"  Falling back to hardcoded glomerulus mappings")
+            DOOR_AVAILABLE = False
+
+    # Fallback to hardcoded glomerulus mappings if DOOR unavailable
+    if not DOOR_AVAILABLE or len(pn_activations) == 0:
+        if not DOOR_AVAILABLE:
+            print("  ⚠ DOOR database not available - using hardcoded glomerulus mappings")
+
+        # Hardcoded odor-to-glomerulus mappings (approximate)
+        odor_to_glomeruli = {
+            'benzaldehyde': ['DL5', 'DM1', 'DM4'],
+            '1-hexanol': ['DA1', 'DL3', 'VA1d'],
+            'ethyl_butyrate': ['DM1', 'DM2', 'DM4'],
+            '3-octanol': ['DA1', 'DL1', 'VA1v'],
+            'linalool': ['DL4', 'DM5', 'VA2'],
+            'citral': ['DM2', 'DM3', 'DM5'],
+            'apple_cider_vinegar': ['DM2', 'VA2', 'VC1'],
+            'geosmin': ['DA2', 'DA4m', 'DC3'],
+            'pentyl_acetate': ['DM2', 'VA6', 'VC1']
+        }
+
+        for odor in test_odors:
+            if odor in odor_to_glomeruli:
+                glomeruli = odor_to_glomeruli[odor]
+                pn_activations[odor] = circuit.activate_pns_by_glomeruli(
+                    glomeruli, firing_rate=1.0
+                )
+                print(f"  ✓ {odor}: {glomeruli} (hardcoded)")
+            else:
+                # Fallback to random activation
+                pn_activations[odor] = np.random.rand(len(connectivity.pn_ids)) * 0.5
+                print(f"  • {odor}: random activation (no glomerulus mapping)")
 
     # ========================================================================
     # PHASE 1: Classical Conditioning (3 trials)
