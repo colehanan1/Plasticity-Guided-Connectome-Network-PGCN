@@ -255,7 +255,7 @@ class OperantTrial(TemporalTrial):
                 pn_input = pn_activation * odor_profile[t_idx]
 
                 # Propagate signals through circuit
-                kc_activation, _ = circuit.propagate_pn_to_kc(pn_input)
+                kc_activation = circuit.propagate_pn_to_kc(pn_input)
                 mbon_output = plasticity.compute_mbon_output(kc_activation)
 
                 mbon_trace.append(mbon_output[0])
@@ -330,7 +330,7 @@ class OperantTrial(TemporalTrial):
             pn_input = pn_activation * odor_profile[t_idx]
 
             # Propagate through circuit
-            kc_activation, _ = circuit.propagate_pn_to_kc(pn_input)
+            kc_activation = circuit.propagate_pn_to_kc(pn_input)
             mbon_output = plasticity.compute_mbon_output(kc_activation)
 
             # Dopamine signal from reward
@@ -427,7 +427,7 @@ def run_test_trial(
     mbon_outputs = []
     for t_idx, t in enumerate(time_axis):
         pn_input = pn_activation * odor_profile[t_idx]
-        kc_activation, _ = circuit.propagate_pn_to_kc(pn_input)
+        kc_activation = circuit.propagate_pn_to_kc(pn_input)
         mbon_output = plasticity.compute_mbon_output(kc_activation)
         mbon_outputs.append(mbon_output[0])
 
@@ -632,7 +632,7 @@ def run_realistic_training_protocol(
 
         for t_idx, t in enumerate(time_axis):
             pn_input = pn_activation * odor_profile[t_idx]
-            kc_activation, _ = circuit.propagate_pn_to_kc(pn_input)
+            kc_activation = circuit.propagate_pn_to_kc(pn_input)
             mbon_output = plasticity.compute_mbon_output(kc_activation)
 
             # Store initial MBON (before any plasticity)
@@ -752,7 +752,7 @@ def run_realistic_training_protocol(
             mbon_outputs = []
             for t_idx, t in enumerate(time_axis):
                 pn_input = pn_activation * odor_profile[t_idx]
-                kc_activation, _ = circuit.propagate_pn_to_kc(pn_input)
+                kc_activation = circuit.propagate_pn_to_kc(pn_input)
                 mbon_output = plasticity.compute_mbon_output(kc_activation)
                 mbon_outputs.append(mbon_output[0])
 
