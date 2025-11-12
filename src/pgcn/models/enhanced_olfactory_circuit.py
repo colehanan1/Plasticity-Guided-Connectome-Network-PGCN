@@ -6,9 +6,10 @@ This module provides the master EnhancedOlfactoryCircuit class that combines:
 - Lateral horn: PN → LH → Motor (innate valence)
 - Motor output: MBON → DN → Motor (learned responses)
 - Behavioral state: AN → MBON/DAN (context modulation)
+- Taste pathway: GRN → SEZ-PN/ACh-LN/GABA-LN → KC (with GABA veto gate)
 
 This integrates all 13,172+ extracted FlyWire neurons into a unified PyTorch model
-suitable for blocking experiments and olfactory learning simulations.
+suitable for blocking experiments, olfactory learning, and taste-reward association.
 
 Example
 -------
@@ -46,6 +47,7 @@ Example
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -60,6 +62,7 @@ from pgcn.models.enhanced_layers import (
     MotorSystemLayer,
 )
 from pgcn.models.olfactory_circuit import OlfactoryCircuit
+from pgcn.models.taste_circuit import TasteCircuit
 
 
 class EnhancedOlfactoryCircuit(nn.Module):
@@ -70,9 +73,12 @@ class EnhancedOlfactoryCircuit(nn.Module):
     2. Lateral horn (LH) innate valence pathway
     3. Motor system output (proboscis extension reflex)
     4. Brain-VNC interface (ascending/descending neurons)
+    5. Taste pathway (GRN → SEZ-PN/ACh-LN/GABA-LN → KC)
 
     The architecture enables blocking experiments where GABAergic LNs can veto
     PN→KC transmission, testing hypotheses about pathway-specific plasticity gating.
+    The taste pathway adds a GABA veto gate mechanism that can suppress reward
+    prediction errors, testing hypotheses about odor-specific learning failures.
 
     Parameters
     ----------
@@ -88,6 +94,14 @@ class EnhancedOlfactoryCircuit(nn.Module):
         Enable motor system and PER measurement (default: True).
     enable_vnc_interface : bool, optional
         Enable brain-VNC ascending/descending pathways (default: True).
+    enable_taste_pathway : bool, optional
+        Enable taste circuit with GABA veto gate (default: False).
+    taste_data_dir : Path, optional
+        Directory containing extracted taste circuit data (default: data/cache).
+    taste_gaba_mode : str, optional
+        GABA veto mode: 'direct', 'feedforward', or 'neuromod' (default: 'direct').
+    taste_gaba_gain : float, optional
+        GABA veto gain parameter (default: 1.0).
     gaba_strength : float, optional
         GABAergic LN inhibition strength (default: 1.0).
     chol_strength : float, optional
@@ -105,6 +119,8 @@ class EnhancedOlfactoryCircuit(nn.Module):
         Motor output layer (if enabled).
     vnc_interface : Optional[BrainVNCInterface]
         Brain-VNC communication layer (if enabled).
+    taste_circuit : Optional[TasteCircuit]
+        Taste pathway with GABA veto gate (if enabled).
     """
 
     def __init__(
@@ -115,6 +131,10 @@ class EnhancedOlfactoryCircuit(nn.Module):
         enable_lh_pathway: bool = True,
         enable_motor_output: bool = True,
         enable_vnc_interface: bool = True,
+        enable_taste_pathway: bool = False,
+        taste_data_dir: Path = Path("data/cache"),
+        taste_gaba_mode: str = "direct",
+        taste_gaba_gain: float = 1.0,
         gaba_strength: float = 1.0,
         chol_strength: float = 1.0,
     ) -> None:
@@ -122,6 +142,7 @@ class EnhancedOlfactoryCircuit(nn.Module):
         super().__init__()
 
         self.connectivity = connectivity
+        self.enable_taste_pathway = enable_taste_pathway
 
         # Core circuit (PN → KC → MBON)
         self.core_circuit = OlfactoryCircuit(
@@ -183,22 +204,49 @@ class EnhancedOlfactoryCircuit(nn.Module):
         else:
             self.vnc_interface = None
 
+        # Taste pathway (GRN → SEZ-PN/ACh-LN/GABA-LN → KC)
+        if enable_taste_pathway:
+            self.taste_circuit = TasteCircuit(
+                data_dir=taste_data_dir,
+                gaba_veto_mode=taste_gaba_mode,
+                gaba_gain=taste_gaba_gain,
+                use_synapse_weights=True,
+            )
+
+            # Initialize SEZ-PN → KC integration weights
+            # These are learnable random connections from SEZ-PNs to KCs
+            n_sez_pns = self.taste_circuit.n_sez_pns
+            n_kc = connectivity.n_kc
+
+            # Random sparse connectivity (similar to PN→KC)
+            self.sez_pn_to_kc = nn.Parameter(
+                torch.randn(n_sez_pns, n_kc) * 0.1,
+                requires_grad=True
+            )
+        else:
+            self.taste_circuit = None
+            self.sez_pn_to_kc = None
+
     def forward_pass_full(
         self,
         pn_activity: np.ndarray,
         blocking_strength: float = 0.0,
         an_activity: Optional[np.ndarray] = None,
+        sugar_input: Optional[float] = None,
+        odor_context: Optional[torch.Tensor] = None,
         return_diagnostics: bool = False,
     ) -> Dict[str, Any]:
         """Complete forward pass through all circuit components.
 
         This orchestrates the full circuit computation:
         1. PN → LN modulation (with optional GABAergic veto)
-        2. Modulated PN → KC → MBON (core circuit)
-        3. PN → LH → innate valence
-        4. AN → MBON/DAN context modulation
-        5. MBON → DN → Motor commands
-        6. LH + DN → Motor → PER response
+        2. (Optional) Sugar → GRN → SEZ-PN/ACh-LN/GABA-LN (taste pathway)
+        3. Modulated PN → KC → MBON (core circuit)
+        4. (Optional) SEZ-PN → KC integration (taste → learning)
+        5. PN → LH → innate valence
+        6. AN → MBON/DAN context modulation
+        7. MBON → DN → Motor commands
+        8. LH + DN → Motor → PER response
 
         Parameters
         ----------
@@ -208,6 +256,10 @@ class EnhancedOlfactoryCircuit(nn.Module):
             GABAergic veto strength (0.0 = none, 1.0 = max). Default: 0.0
         an_activity : Optional[np.ndarray], optional
             Ascending neuron activity for context, shape (n_an,). Default: None
+        sugar_input : Optional[float], optional
+            Sugar reward signal (activates taste GRNs). Default: None
+        odor_context : Optional[torch.Tensor], optional
+            Odor context for taste pathway (shape: n_pn). Default: None
         return_diagnostics : bool, optional
             Return detailed diagnostics. Default: False
 
@@ -218,6 +270,7 @@ class EnhancedOlfactoryCircuit(nn.Module):
             - mbon_output : np.ndarray, shape (n_mbon,)
             - per_response : float (if motor enabled)
             - innate_valence : float (if LH enabled)
+            - gaba_veto_signal : float (if taste enabled)
             - diagnostics : Dict (if return_diagnostics=True)
         """
         # Convert numpy to torch
@@ -228,6 +281,7 @@ class EnhancedOlfactoryCircuit(nn.Module):
             an_activity_torch = None
 
         diagnostics = {}
+        gaba_veto_signal = 0.0  # Default: no veto
 
         # Step 1: LN modulation (if enabled)
         if self.ln_layer is not None:
@@ -240,8 +294,43 @@ class EnhancedOlfactoryCircuit(nn.Module):
         else:
             pn_for_kc = pn_activity
 
+        # Step 1.5: Taste pathway (if enabled and sugar provided)
+        sez_pn_activity_torch = None
+        if self.taste_circuit is not None and sugar_input is not None:
+            # Process sugar through taste circuit
+            taste_output = self.taste_circuit(
+                sugar_input=sugar_input,
+                odor_context=odor_context
+            )
+
+            sez_pn_activity_torch = taste_output['sez_pn_activity']
+            gaba_veto_signal = taste_output['veto_signal'].item()
+
+            # Store taste diagnostics
+            diagnostics['grn_activity'] = taste_output['grn_activity'].detach().numpy()
+            diagnostics['ach_ln_activity'] = taste_output['ach_ln_activity'].detach().numpy()
+            diagnostics['gaba_ln_activity'] = taste_output['gaba_ln_activity'].detach().numpy()
+            diagnostics['sez_pn_activity'] = sez_pn_activity_torch.detach().numpy()
+            diagnostics['gaba_veto_signal'] = gaba_veto_signal
+
         # Step 2: Core circuit (PN → KC → MBON)
         kc_activity = self.core_circuit.propagate_pn_to_kc(pn_for_kc)
+
+        # Step 2.5: Integrate taste SEZ-PN activity into KC (if taste enabled)
+        if sez_pn_activity_torch is not None and self.sez_pn_to_kc is not None:
+            # SEZ-PN → KC integration
+            taste_kc_input = torch.matmul(
+                sez_pn_activity_torch.unsqueeze(0),
+                self.sez_pn_to_kc
+            ).squeeze(0)
+
+            # Add taste input to KC activity (weighted sum)
+            kc_activity_torch = torch.from_numpy(kc_activity).float()
+            kc_activity_torch = kc_activity_torch + taste_kc_input
+            kc_activity = kc_activity_torch.detach().numpy()
+
+            diagnostics['taste_kc_contribution'] = taste_kc_input.detach().numpy()
+
         mbon_output = self.core_circuit.propagate_kc_to_mbon(kc_activity)
 
         # Compute KC sparsity
@@ -300,6 +389,7 @@ class EnhancedOlfactoryCircuit(nn.Module):
             "mbon_output": mbon_output,
             "per_response": per_response,
             "innate_valence": innate_valence,
+            "gaba_veto_signal": gaba_veto_signal,
         }
 
         if return_diagnostics:
