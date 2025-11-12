@@ -312,7 +312,8 @@ class OperantTrial(TemporalTrial):
         self,
         circuit: OlfactoryCircuit,
         plasticity: DopamineModulatedPlasticity,
-        pn_activation: np.ndarray
+        pn_activation: np.ndarray,
+        veto_factor: float = 1.0
     ) -> Dict:
         """
         Run operant trial with response-contingent reward.
@@ -328,6 +329,7 @@ class OperantTrial(TemporalTrial):
             circuit: OlfactoryCircuit instance
             plasticity: DopamineModulatedPlasticity instance
             pn_activation: PN activation pattern for this odor (n_pn,)
+            veto_factor: Or7a veto strength (0-1, default 1.0 = no veto)
 
         Returns:
             dict with keys:
@@ -380,7 +382,8 @@ class OperantTrial(TemporalTrial):
         # Phase 3: Run full trial with plasticity updates
         trial_results = self._simulate_trial(
             circuit, plasticity, pn_activation,
-            odor_profile, reward_profile, time_axis
+            odor_profile, reward_profile, time_axis,
+            veto_factor=veto_factor
         )
 
         # Add operant-specific metrics
@@ -647,13 +650,13 @@ def run_realistic_training_protocol(
     print("\n🧠 Initializing plasticity...")
     plasticity = DopamineModulatedPlasticity(
         kc_to_mbon_weights=connectivity.kc_to_mbon.toarray(),
-        learning_rate=0.01,
+        learning_rate=0.0001,  # ✅ 100x smaller (was 0.01) to prevent MBON saturation
         eligibility_trace_tau=0.1,
         init_mode='copy',  # Use biological connectome weights
         init_scale=0.001   # Not used with 'copy' mode
     )
 
-    print(f"  ✓ Learning rate: 0.01")
+    print(f"  ✓ Learning rate: 0.0001 (reduced to prevent saturation)")
     print(f"  ✓ Eligibility trace τ: 0.1s")
     print(f"  ✓ Initial weights: biological connectome")
 
@@ -699,12 +702,12 @@ def run_realistic_training_protocol(
                         print(f"  ✓ {odor}{door_label}: {glomeruli} (DOOR)")
                         door_succeeded = True
                     else:
-                        # No glomeruli found, use fallback
-                        print(f"  ⚠ {odor}: No DOOR data, skipping")
+                        # No glomeruli found in DOOR - will use hardcoded fallback
+                        print(f"  ⚠ {odor}: Empty glomeruli in DOOR, will use fallback")
 
                 except Exception as e:
-                    print(f"  ⚠ {odor}: DOOR lookup failed ({e}), using fallback")
-                    # Will use fallback below
+                    # DOOR lookup failed - will use hardcoded fallback
+                    print(f"  ⚠ {odor}: DOOR lookup failed ({e}), will use fallback")
 
         except Exception as e:
             print(f"  ⚠ DOOR initialization failed: {e}")
@@ -856,6 +859,14 @@ def run_realistic_training_protocol(
 
     phase2_results = []
 
+    # Compute veto factors for each unique odor in Phase 2
+    phase2_veto_factors = {}
+    for _, odor, _, _, _ in phase2_protocol:
+        if odor not in phase2_veto_factors:
+            veto, or7a = compute_or7a_veto_factor(odor)
+            phase2_veto_factors[odor] = veto
+            print(f"🧬 Or7a veto for {odor}: {veto:.2f} (Or7a: {or7a:.2f})")
+
     for trial_num, odor, has_reward, duration_s, trial_type in phase2_protocol:
         print(f"\n📍 Trial {trial_num}: {odor} ", end="")
         if has_reward:
@@ -876,7 +887,8 @@ def run_realistic_training_protocol(
             )
 
             results = operant_trial.run_operant_trial(
-                circuit, plasticity, pn_activations[odor]
+                circuit, plasticity, pn_activations[odor],
+                veto_factor=phase2_veto_factors[odor]
             )
 
             print(f"  Response time:    {results['response_time']:.2f}s (at fly)")

@@ -291,14 +291,15 @@ class DopamineModulatedPlasticity:
     def apply_mbon_activation(self, raw_output: np.ndarray) -> np.ndarray:
         """Apply sigmoid activation to bound MBON output to [0, 1].
 
-        Uses sigmoid instead of tanh to match response threshold expectations.
-        Division by mbon_output_divisor (default 10.0) provides gentle squashing
-        to prevent early saturation.
+        Uses sigmoid with large temperature (50.0) to prevent early saturation.
+        This provides gentle squashing and keeps MBON values in a realistic range
+        during learning without hitting saturation.
 
         Returns:
             Bounded MBON valence in [0, 1] range
         """
-        return 1.0 / (1.0 + np.exp(-raw_output / self.mbon_output_divisor))
+        # ✅ Use temperature of 50.0 for gentler squashing (prevents saturation)
+        return 1.0 / (1.0 + np.exp(-raw_output / 50.0))
 
     def compute_rpe(
         self,
