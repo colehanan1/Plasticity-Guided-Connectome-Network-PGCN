@@ -578,6 +578,7 @@ def run_realistic_training_protocol(
 
     # Create PN activation patterns using DOOR database (or fallback to hardcoded)
     pn_activations = {}
+    door_succeeded = False
 
     # Try to use DOOR database for real receptor activation profiles
     if DOOR_AVAILABLE:
@@ -595,6 +596,7 @@ def run_realistic_training_protocol(
                             glomeruli, firing_rate=1.0
                         )
                         print(f"  ✓ {odor}: {glomeruli} (DOOR)")
+                        door_succeeded = True
                     else:
                         # No glomeruli found, use fallback
                         print(f"  ⚠ {odor}: No DOOR data, skipping")
@@ -606,10 +608,9 @@ def run_realistic_training_protocol(
         except Exception as e:
             print(f"  ⚠ DOOR initialization failed: {e}")
             print(f"  Falling back to hardcoded glomerulus mappings")
-            DOOR_AVAILABLE = False
 
     # Fallback to hardcoded glomerulus mappings if DOOR unavailable
-    if not DOOR_AVAILABLE or len(pn_activations) == 0:
+    if not DOOR_AVAILABLE or not door_succeeded or len(pn_activations) == 0:
         if not DOOR_AVAILABLE:
             print("  ⚠ DOOR database not available - using hardcoded glomerulus mappings")
 
