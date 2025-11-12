@@ -36,6 +36,63 @@ from pgcn.models.olfactory_circuit import OlfactoryCircuit
 from pgcn.models.learning_model import DopamineModulatedPlasticity
 
 
+# ============================================================================
+# Or7a Veto Mechanism Helpers
+# ============================================================================
+
+# DOOR odor name normalization (underscores → hyphens)
+DOOR_NAME_MAPPING = {
+    'ethyl_butyrate': 'ethyl-butyrate',
+    'pentyl_acetate': 'pentyl-acetate',
+    '3_octanol': '3-octanol',
+    '1_hexanol': '1-hexanol',
+    'apple_cider_vinegar': 'water',
+}
+
+def normalize_odor_name(odor: str) -> str:
+    """Normalize odor name for DOOR database lookup."""
+    if odor in DOOR_NAME_MAPPING:
+        return DOOR_NAME_MAPPING[odor]
+    return odor.replace('_', '-')
+
+
+def compute_or7a_veto_factor(odor: str) -> Tuple[float, float]:
+    """
+    Compute Or7a veto factor for learning plasticity.
+
+    Or7a receptor provides inhibitory feedback that blocks learning for
+    certain odors (e.g., benzaldehyde). This implements the blocking
+    mechanism observed in Shuai et al. (2015).
+
+    Args:
+        odor: Odor name
+
+    Returns:
+        (veto_factor, or7a_activation)
+        - veto_factor: 1.0 - or7a_activation (0-1, where 1 = no veto)
+        - or7a_activation: Or7a receptor activation (0-1)
+    """
+    # Or7a activation levels for common odors
+    # Data from DoOR database (Münch & Galizia, 2016)
+    or7a_responses = {
+        'benzaldehyde': 0.58,    # HIGH → strong veto → 21% learned
+        '1-hexanol': 0.16,       # LOW → weak veto → 66% learned
+        'ethyl-butyrate': 0.23,
+        '3-octanol': 0.12,
+        'linalool': 0.08,
+        'water': 0.0,
+        'citral': 0.15,          # LOW-MED → 19% learned
+        'geosmin': 0.02,
+        'pentyl-acetate': 0.10,
+    }
+
+    odor_normalized = normalize_odor_name(odor)
+    or7a_activation = or7a_responses.get(odor_normalized, 0.0)
+    veto_factor = 1.0 - or7a_activation
+
+    return veto_factor, or7a_activation
+
+
 class TemporalTrial:
     """
     Simulate a single conditioning trial with realistic timing.
@@ -212,7 +269,8 @@ class OperantTrial(TemporalTrial):
         self,
         circuit: OlfactoryCircuit,
         plasticity: DopamineModulatedPlasticity,
-        pn_activation: np.ndarray
+        pn_activation: np.ndarray,
+        veto_factor: float = 1.0
     ) -> Dict:
         """
         Run operant trial with response-contingent reward.
@@ -228,6 +286,7 @@ class OperantTrial(TemporalTrial):
             circuit: OlfactoryCircuit instance
             plasticity: DopamineModulatedPlasticity instance
             pn_activation: PN activation pattern for this odor (n_pn,)
+            veto_factor: Or7a veto strength (0-1, default 1.0 = no veto)
 
         Returns:
             dict with keys:
@@ -280,7 +339,8 @@ class OperantTrial(TemporalTrial):
         # Phase 3: Run full trial with plasticity updates
         trial_results = self._simulate_trial(
             circuit, plasticity, pn_activation,
-            odor_profile, reward_profile, time_axis
+            odor_profile, reward_profile, time_axis,
+            veto_factor=veto_factor
         )
 
         # Add operant-specific metrics
@@ -297,16 +357,17 @@ class OperantTrial(TemporalTrial):
         pn_activation: np.ndarray,
         odor_profile: np.ndarray,
         reward_profile: np.ndarray,
-        time_axis: np.ndarray
+        time_axis: np.ndarray,
+        veto_factor: float = 1.0
     ) -> Dict:
         """
-        Simulate trial dynamics with dopamine-gated plasticity.
+        Simulate trial dynamics with dopamine-gated plasticity and Or7a veto.
 
         This runs the full trial timestep-by-timestep, applying:
         - Odor-modulated PN inputs
         - Sparse KC activation
         - MBON output computation
-        - Dopamine-gated weight updates
+        - Dopamine-gated weight updates with Or7a veto gate
 
         Args:
             circuit: Olfactory circuit
@@ -315,6 +376,7 @@ class OperantTrial(TemporalTrial):
             odor_profile: Odor concentration over time (n_steps,)
             reward_profile: Reward (dopamine) over time (n_steps,)
             time_axis: Time in seconds (n_steps,)
+            veto_factor: Or7a veto strength (0-1, default 1.0 = no veto)
 
         Returns:
             dict with trial metrics and traces
@@ -336,14 +398,15 @@ class OperantTrial(TemporalTrial):
             # Dopamine signal from reward
             dopamine = reward_profile[t_idx]
 
-            # Update weights with three-factor rule (only when dopamine present)
+            # Update weights with three-factor rule and Or7a veto (only when dopamine present)
             if dopamine > 0:
                 # Compute weight change magnitude before update
                 weights_before = plasticity.kc_to_mbon.copy()
 
-                # Apply plasticity update
-                # ΔW = α × KC × MBON × DA
-                delta_w = (plasticity.learning_rate *
+                # Apply plasticity update with Or7a veto
+                # ΔW = (α × veto) × KC × MBON × DA
+                effective_lr = plasticity.learning_rate * veto_factor
+                delta_w = (effective_lr *
                           np.outer(mbon_output, kc_activation) *
                           dopamine)
                 plasticity.kc_to_mbon += delta_w
@@ -544,13 +607,13 @@ def run_realistic_training_protocol(
     print("\n🧠 Initializing plasticity...")
     plasticity = DopamineModulatedPlasticity(
         kc_to_mbon_weights=connectivity.kc_to_mbon.toarray(),
-        learning_rate=0.01,
+        learning_rate=0.0001,  # ✅ 100x smaller (was 0.01) to prevent MBON saturation
         eligibility_trace_tau=0.1,
         init_mode='random',
         init_scale=0.001
     )
 
-    print(f"  ✓ Learning rate: 0.01")
+    print(f"  ✓ Learning rate: 0.0001 (reduced to prevent saturation)")
     print(f"  ✓ Eligibility trace τ: 0.1s")
     print(f"  ✓ Initial weights: random (scale=0.001)")
 
@@ -606,6 +669,13 @@ def run_realistic_training_protocol(
 
     phase1_results = []
 
+    # Compute Or7a veto for CS odor (applies to all Phase 1 trials)
+    veto_factor, or7a_activation = compute_or7a_veto_factor(cs_odor)
+    print(f"\n🧬 Or7a Veto Gate for {cs_odor}:")
+    print(f"  Or7a activation: {or7a_activation:.2f} ({or7a_activation*100:.0f}%)")
+    print(f"  Veto factor: {veto_factor:.2f} ({veto_factor*100:.0f}% plasticity allowed)")
+    print(f"  Effect: {'STRONG BLOCKING' if or7a_activation > 0.4 else 'WEAK BLOCKING' if or7a_activation > 0.2 else 'MINIMAL BLOCKING'}")
+
     for trial_num in range(1, 4):
         print(f"\n📍 Trial {trial_num}: {cs_odor} + reward (30s classical)")
         print("-" * 70)
@@ -641,10 +711,13 @@ def run_realistic_training_protocol(
 
             mbon_during.append(mbon_output[0])
 
-            # Update weights with dopamine (three-factor rule)
+            # Update weights with dopamine and Or7a veto (three-factor rule + veto)
             dopamine = reward_profile[t_idx]
             if dopamine > 0:
-                delta_w = (plasticity.learning_rate *
+                # Apply Or7a veto to learning rate
+                effective_lr = plasticity.learning_rate * veto_factor
+
+                delta_w = (effective_lr *
                           np.outer(mbon_output, kc_activation) *
                           dopamine)
                 plasticity.kc_to_mbon += delta_w
@@ -692,6 +765,14 @@ def run_realistic_training_protocol(
 
     phase2_results = []
 
+    # Compute veto factors for each unique odor in Phase 2
+    phase2_veto_factors = {}
+    for _, odor, _, _, _ in phase2_protocol:
+        if odor not in phase2_veto_factors:
+            veto, or7a = compute_or7a_veto_factor(odor)
+            phase2_veto_factors[odor] = veto
+            print(f"🧬 Or7a veto for {odor}: {veto:.2f} (Or7a: {or7a:.2f})")
+
     for trial_num, odor, has_reward, duration_s, trial_type in phase2_protocol:
         print(f"\n📍 Trial {trial_num}: {odor} ", end="")
         if has_reward:
@@ -712,7 +793,8 @@ def run_realistic_training_protocol(
             )
 
             results = operant_trial.run_operant_trial(
-                circuit, plasticity, pn_activations[odor]
+                circuit, plasticity, pn_activations[odor],
+                veto_factor=phase2_veto_factors[odor]
             )
 
             print(f"  Response time:    {results['response_time']:.2f}s (at fly)")
