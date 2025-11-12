@@ -44,7 +44,7 @@ except ImportError:
 
 # Odor name mapping: DOOR uses hyphens, not underscores
 DOOR_NAME_MAPPING = {
-    'ethyl_butyrate': 'ethyl-butyrate',
+    'ethyl_butyrate': 'ethyl butyrate',
     'pentyl_acetate': 'pentyl-acetate',
     '3_octanol': '3-octanol',
     '1_hexanol': '1-hexanol',
