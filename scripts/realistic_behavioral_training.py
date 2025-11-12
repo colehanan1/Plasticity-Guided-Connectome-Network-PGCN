@@ -540,32 +540,34 @@ def run_realistic_training_protocol(
     print(f"  ✓ Loaded {len(connectivity.mbon_ids)} MBONs")
     print(f"  ✓ Loaded {len(connectivity.dan_ids)} DANs")
 
-    # Initialize plasticity with random small weights
+    # Initialize plasticity with biological connectome weights
     print("\n🧠 Initializing plasticity...")
     plasticity = DopamineModulatedPlasticity(
         kc_to_mbon_weights=connectivity.kc_to_mbon.toarray(),
         learning_rate=0.01,
         eligibility_trace_tau=0.1,
-        init_mode='random',
-        init_scale=0.001
+        init_mode='copy',  # Use biological connectome weights
+        init_scale=0.001   # Not used with 'copy' mode
     )
 
     print(f"  ✓ Learning rate: 0.01")
     print(f"  ✓ Eligibility trace τ: 0.1s")
-    print(f"  ✓ Initial weights: random (scale=0.001)")
+    print(f"  ✓ Initial weights: biological connectome")
 
     # Prepare PN activation patterns
     print("\n🎨 Preparing odor stimuli...")
 
-    # Define test odors for Phase 3
+    # Define test odors for Phase 3 (experimental protocol)
     test_odors = [
-        cs_odor,           # CS (benzaldehyde)
-        'ethyl_butyrate',  # Test odor A
-        '3-octanol',       # Test odor B
-        'linalool',        # Test odor C
-        'geosmin',         # Test odor D
-        'pentyl_acetate',  # Test odor E
-        test_odor          # Discrimination odor (hexanol)
+        '1-hexanol',           # Hexanol (test odor)
+        'benzaldehyde',        # CS (rewarded odor)
+        'apple_cider_vinegar', # Apple cider vinegar
+        '3-octanol',           # 3-octanol
+        'ethyl_butyrate',      # Ethyl butyrate
+        'citral',              # Citral
+        'linalool',            # Linalool
+        'geosmin',             # Geosmin (unused in this protocol)
+        'pentyl_acetate'       # Pentyl acetate (unused in this protocol)
     ]
 
     # Create PN activation patterns
@@ -574,12 +576,15 @@ def run_realistic_training_protocol(
     pn_activations = {}
 
     # Map odors to example glomeruli (this should come from DoOR in production)
+    # Odor-to-glomerulus mappings (simplified, should use DOOR database for production)
     odor_to_glomeruli = {
         'benzaldehyde': ['DL5', 'DM1', 'DM4'],
         '1-hexanol': ['DA1', 'DL3', 'VA1d'],
         'ethyl_butyrate': ['DM1', 'DM2', 'DM4'],
         '3-octanol': ['DA1', 'DL1', 'VA1v'],
         'linalool': ['DL4', 'DM5', 'VA2'],
+        'citral': ['DM2', 'DM3', 'DM5'],  # Citrus-like, similar to linalool
+        'apple_cider_vinegar': ['DM2', 'VA2', 'VC1'],  # Acidic/fermented profile
         'geosmin': ['DA2', 'DA4m', 'DC3'],
         'pentyl_acetate': ['DM2', 'VA6', 'VC1']
     }
@@ -797,17 +802,18 @@ def run_realistic_training_protocol(
     print("=" * 70)
     print("Protocol: Multiple odors, no reward, measure responses")
 
+    # Experimental test protocol (matches real fly behavioral experiment)
     test_protocol = [
-        (1, cs_odor, 30, 5),           # CS test
-        (2, cs_odor, 30, 5),           # CS repeat
-        (3, 'ethyl_butyrate', 30, 5),  # Test odor A
-        (4, cs_odor, 30, 5),           # CS repeat
-        (5, cs_odor, 30, 5),           # CS repeat
-        (6, '3-octanol', 30, 5),       # Test odor B
-        (7, 'linalool', 10, 3),        # Test odor C (short)
-        (8, 'geosmin', 10, 3),         # Test odor D (short)
-        (9, 'pentyl_acetate', 10, 3),  # Test odor E (short)
-        (10, test_odor, 10, 3),        # Test odor F (hexanol, short)
+        (1, '1-hexanol', 30, 5),       # Test 1: hexanol
+        (2, 'benzaldehyde', 30, 5),    # Test 2: benzaldehyde (CS)
+        (3, '1-hexanol', 30, 5),       # Test 3: hexanol
+        (4, 'benzaldehyde', 30, 5),    # Test 4: benzaldehyde (CS)
+        (5, 'benzaldehyde', 30, 5),    # Test 5: benzaldehyde (CS)
+        (6, 'apple_cider_vinegar', 30, 5),  # Test 6: apple cider vinegar
+        (7, '3-octanol', 30, 5),       # Test 7: 3-octanol
+        (8, 'ethyl_butyrate', 30, 5),  # Test 8: ethyl butyrate
+        (9, 'citral', 30, 5),          # Test 9: citral
+        (10, 'linalool', 30, 5),       # Test 10: linalool
     ]
 
     test_results = []
