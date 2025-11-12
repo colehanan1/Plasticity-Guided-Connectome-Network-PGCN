@@ -289,8 +289,16 @@ class DopamineModulatedPlasticity:
         return self.apply_mbon_activation(raw_output)
 
     def apply_mbon_activation(self, raw_output: np.ndarray) -> np.ndarray:
-        """Apply tanh squashing to raw MBON inputs."""
-        return np.tanh(raw_output / self.mbon_output_divisor) * self.mbon_output_max
+        """Apply sigmoid activation to bound MBON output to [0, 1].
+
+        Uses sigmoid instead of tanh to match response threshold expectations.
+        Division by mbon_output_divisor (default 10.0) provides gentle squashing
+        to prevent early saturation.
+
+        Returns:
+            Bounded MBON valence in [0, 1] range
+        """
+        return 1.0 / (1.0 + np.exp(-raw_output / self.mbon_output_divisor))
 
     def compute_rpe(
         self,
