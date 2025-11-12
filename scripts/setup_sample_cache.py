@@ -126,9 +126,9 @@ def create_sample_cache(cache_dir: Path, n_pn: int = 150, n_kc: int = 2000,
         for pn_id in source_pns:
             weight = np.random.exponential(scale=10) + 1  # Synapse count
             edges_data.append({
-                'source': pn_id,
-                'target': kc_id,
-                'weight': weight,
+                'source_id': pn_id,
+                'target_id': kc_id,
+                'synapse_weight': weight,
                 'edge_type': 'PN_KC'
             })
 
@@ -139,9 +139,9 @@ def create_sample_cache(cache_dir: Path, n_pn: int = 150, n_kc: int = 2000,
         for kc_id in source_kcs:
             weight = np.random.exponential(scale=5) + 1
             edges_data.append({
-                'source': kc_id,
-                'target': mbon_id,
-                'weight': weight,
+                'source_id': kc_id,
+                'target_id': mbon_id,
+                'synapse_weight': weight,
                 'edge_type': 'KC_MBON'
             })
 
@@ -162,9 +162,9 @@ def create_sample_cache(cache_dir: Path, n_pn: int = 150, n_kc: int = 2000,
         for kc_id in target_kcs:
             weight = np.random.exponential(scale=3) + 1
             dan_edges_data.append({
-                'source': dan_id,
-                'target': kc_id,
-                'weight': weight,
+                'source_id': dan_id,
+                'target_id': kc_id,
+                'synapse_weight': weight,
                 'edge_type': 'DAN_KC'
             })
 
@@ -174,9 +174,9 @@ def create_sample_cache(cache_dir: Path, n_pn: int = 150, n_kc: int = 2000,
         for mbon_id in target_mbons:
             weight = np.random.exponential(scale=3) + 1
             dan_edges_data.append({
-                'source': dan_id,
-                'target': mbon_id,
-                'weight': weight,
+                'source_id': dan_id,
+                'target_id': mbon_id,
+                'synapse_weight': weight,
                 'edge_type': 'DAN_MBON'
             })
 
