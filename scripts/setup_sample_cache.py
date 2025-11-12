@@ -73,12 +73,17 @@ def create_sample_cache(cache_dir: Path, n_pn: int = 150, n_kc: int = 2000,
             'z': np.random.randn() * 10 + 100
         })
 
-    # KCs
-    kc_types = ['KCab', 'KCg', 'KCapbp']
+    # KCs - all have type='KC', subtypes stored separately
+    kc_subtypes = ['ab', 'g_main', 'apbp']
+    kc_subtype_assignments = {}  # Track which KCs belong to which subtype
+
     for i, kc_id in enumerate(kc_ids):
+        subtype = kc_subtypes[i % len(kc_subtypes)]
+        kc_subtype_assignments[kc_id] = subtype
+
         nodes_data.append({
             'node_id': kc_id,
-            'type': kc_types[i % len(kc_types)],
+            'type': 'KC',  # All KCs have generic type
             'glomerulus': None,
             'hemisphere': 'L' if i % 2 == 0 else 'R',
             'x': np.random.randn() * 10 + 200,
@@ -113,6 +118,25 @@ def create_sample_cache(cache_dir: Path, n_pn: int = 150, n_kc: int = 2000,
     nodes_df = pd.DataFrame(nodes_data)
     nodes_df.to_parquet(cache_dir / 'nodes.parquet', index=False)
     print(f"  ✓ Saved {len(nodes_df)} nodes to nodes.parquet")
+
+    # Create KC subtype CSV files (required by circuit_loader)
+    print("\n🧬 Creating KC subtype files...")
+    for subtype in kc_subtypes:
+        # Get KCs belonging to this subtype
+        kc_ids_for_subtype = [
+            kc_id for kc_id, st in kc_subtype_assignments.items()
+            if st == subtype
+        ]
+
+        # Create DataFrame with root_id column
+        subtype_df = pd.DataFrame({
+            'root_id': kc_ids_for_subtype
+        })
+
+        # Save to kc_{subtype}.csv
+        subtype_path = cache_dir / f'kc_{subtype}.csv'
+        subtype_df.to_csv(subtype_path, index=False)
+        print(f"  ✓ Saved {len(subtype_df)} KCs to kc_{subtype}.csv")
 
     # Create edges DataFrame (PN→KC and KC→MBON)
     print("\n🔗 Creating edges...")
@@ -217,6 +241,9 @@ def create_sample_cache(cache_dir: Path, n_pn: int = 150, n_kc: int = 2000,
     print("  • nodes.parquet")
     print("  • edges.parquet")
     print("  • dan_edges.parquet")
+    print("  • kc_ab.csv")
+    print("  • kc_g_main.csv")
+    print("  • kc_apbp.csv")
     print("  • meta.json")
     print()
     print("You can now run:")
