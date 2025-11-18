@@ -1,0 +1,110 @@
+# Dataset-to-Odor Mapping Template for CCBPN Training
+# ======================================================
+#
+# This file maps dataset names and trial labels to actual odor identities.
+# CRITICAL: Fill in this template with YOUR experimental design before training!
+#
+# Structure:
+#   dataset_name:
+#     training_trials: [list of odors presented during training, in order]
+#     testing_trials: [list of odors presented during testing, in order]
+#
+# Available odors (from your experiments):
+#   - hexanol
+#   - ethyl_butyrate
+#   - benzaldehyde
+#   - 3-octanol
+#   - citral
+#   - linalool
+#   - apple_cider_vinegar
+#
+# INSTRUCTIONS:
+# 1. For each dataset in model_predictions.csv, specify which odors were used
+# 2. Training trials: Usually the same odor repeated (CS+ conditioning)
+# 3. Testing trials: Mix of CS+ (trained odor) and CS- (novel odors)
+# 4. Order matters! Trial 1 = first odor in list, trial 2 = second odor, etc.
+#
+# Example (REPLACE WITH YOUR ACTUAL EXPERIMENTAL DESIGN):
+
+# Benzaldehyde control experiment
+Benz_control:
+  # Training phase: Flies trained to associate benzaldehyde with reward
+  training_trials:
+    - benzaldehyde  # training_1
+    - benzaldehyde  # training_2
+    - benzaldehyde  # training_3
+    - benzaldehyde  # training_4
+    - benzaldehyde  # training_5
+    # ... add more if you had more training trials
+
+  # Testing phase: Test discrimination (benzaldehyde vs. novel odors)
+  testing_trials:
+    - benzaldehyde  # testing_1: CS+ (should approach)
+    - 3-octanol     # testing_2: CS- (should avoid)
+    - benzaldehyde  # testing_3: CS+ again
+    - hexanol       # testing_4: CS- (different novel odor)
+    # ... fill in complete test sequence
+
+# Hexanol control experiment
+hex_control:
+  training_trials:
+    - hexanol  # REPLACE with your actual training sequence
+    - hexanol
+    - hexanol
+
+  testing_trials:
+    - hexanol         # REPLACE with your actual test sequence
+    - ethyl_butyrate  # Example CS-
+    - hexanol
+    # ... continue
+
+# Ethyl butyrate control experiment
+EB_control:
+  training_trials:
+    - ethyl_butyrate  # REPLACE with actual sequence
+    - ethyl_butyrate
+
+  testing_trials:
+    - ethyl_butyrate  # REPLACE with actual sequence
+    - benzaldehyde    # Example CS-
+    # ... continue
+
+# Optogenetic + benzaldehyde experiment
+opto_benz:
+  # QUESTION: Same odor sequence as Benz_control but with GR5a activation?
+  # Or different experimental design?
+  training_trials:
+    - benzaldehyde  # FILL IN based on your protocol
+
+  testing_trials:
+    - benzaldehyde  # FILL IN based on your protocol
+
+# Optogenetic + hexanol experiment
+opto_hex:
+  training_trials:
+    - hexanol  # FILL IN based on your protocol
+
+  testing_trials:
+    - hexanol  # FILL IN based on your protocol
+
+# Optogenetic + ethyl butyrate experiment
+opto_EB:
+  training_trials:
+    - ethyl_butyrate  # FILL IN based on your protocol
+
+  testing_trials:
+    - ethyl_butyrate  # FILL IN based on your protocol
+
+# Add any other datasets present in your model_predictions.csv
+
+# NOTES:
+# - Use lowercase, underscores for multi-word odors (e.g., "ethyl_butyrate")
+# - Make sure odor names match those in DoOR database
+# - If you had N training trials, list N odors (even if repeated)
+# - If you had M testing trials, list M odors in order
+# - Comments (lines starting with #) are ignored
+
+# VALIDATION:
+# After filling this in, run:
+#   python -c "import yaml; yaml.safe_load(open('configs/dataset_to_odor_mapping.yaml'))"
+# to check for syntax errors

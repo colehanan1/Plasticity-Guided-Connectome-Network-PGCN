@@ -1,0 +1,155 @@
+# Dataset-to-Odor Mapping for CCBPN Training
+# ==============================================
+#
+# This file maps dataset names and trial numbers to actual odor identities
+# based on the experimental design provided by the user.
+#
+# Experimental Design:
+# - Training trials 1,2,3,4,6,8: Main CS+ odor (30s presentation, 5min ITI)
+# - Training trials 5,7: Different odor (blocking paradigm)
+# - Testing trials: TO BE FILLED IN (waiting for user input)
+#
+# Available odors in DoOR:
+#   hexanol, ethyl_butyrate, benzaldehyde, 3-octanol, citral, linalool
+#   (apple_cider_vinegar may not be in DoOR - will use approximation)
+
+# ============================================================================
+# Benzaldehyde Control Experiment
+# ============================================================================
+Benz_control:
+  training_trials:
+    - benzaldehyde  # training_1: CS+
+    - benzaldehyde  # training_2: CS+
+    - benzaldehyde  # training_3: CS+
+    - benzaldehyde  # training_4: CS+
+    - hexanol       # training_5: CS- (different odor)
+    - benzaldehyde  # training_6: CS+
+    - hexanol       # training_7: CS- (different odor)
+    - benzaldehyde  # training_8: CS+
+
+  testing_trials:
+    # FILL IN: User needs to provide testing trial odor sequence
+    # Example possibilities:
+    # - All benzaldehyde (test CS+ only)
+    # - Mix of benzaldehyde and hexanol (test discrimination)
+    # - Mix of benzaldehyde and novel odors (test generalization)
+    - FILL_IN_TESTING_1
+    - FILL_IN_TESTING_2
+    - FILL_IN_TESTING_3
+    - FILL_IN_TESTING_4
+    # Add more as needed based on actual number of testing trials
+
+# ============================================================================
+# Optogenetic + Benzaldehyde Experiment
+# ============================================================================
+opto_benz_1:  # Note: User said "opto_benz_1", check if dataset name is exact
+  training_trials:
+    - benzaldehyde  # training_1: CS+ with GR5a activation
+    - benzaldehyde  # training_2: CS+
+    - benzaldehyde  # training_3: CS+
+    - benzaldehyde  # training_4: CS+
+    - hexanol       # training_5: CS-
+    - benzaldehyde  # training_6: CS+
+    - hexanol       # training_7: CS-
+    - benzaldehyde  # training_8: CS+
+
+  testing_trials:
+    - FILL_IN_TESTING_1
+    - FILL_IN_TESTING_2
+    # Fill in based on actual testing protocol
+
+# ============================================================================
+# Ethyl Butyrate Control Experiment
+# ============================================================================
+EB_control:
+  training_trials:
+    - ethyl_butyrate  # training_1: CS+
+    - ethyl_butyrate  # training_2: CS+
+    - ethyl_butyrate  # training_3: CS+
+    - ethyl_butyrate  # training_4: CS+
+    - hexanol         # training_5: CS-
+    - ethyl_butyrate  # training_6: CS+
+    - hexanol         # training_7: CS-
+    - ethyl_butyrate  # training_8: CS+
+
+  testing_trials:
+    - FILL_IN_TESTING_1
+    - FILL_IN_TESTING_2
+    # Fill in based on actual testing protocol
+
+# ============================================================================
+# Optogenetic + Ethyl Butyrate Experiment
+# ============================================================================
+opto_EB:
+  training_trials:
+    - ethyl_butyrate  # training_1: CS+ with GR5a activation
+    - ethyl_butyrate  # training_2: CS+
+    - ethyl_butyrate  # training_3: CS+
+    - ethyl_butyrate  # training_4: CS+
+    - hexanol         # training_5: CS-
+    - ethyl_butyrate  # training_6: CS+
+    - hexanol         # training_7: CS-
+    - ethyl_butyrate  # training_8: CS+
+
+  testing_trials:
+    - FILL_IN_TESTING_1
+    - FILL_IN_TESTING_2
+    # Fill in based on actual testing protocol
+
+# ============================================================================
+# Hexanol Control Experiment
+# ============================================================================
+hex_control:
+  training_trials:
+    - hexanol                # training_1: CS+
+    - hexanol                # training_2: CS+
+    - hexanol                # training_3: CS+
+    - hexanol                # training_4: CS+
+    - apple_cider_vinegar    # training_5: CS-
+    - hexanol                # training_6: CS+
+    - apple_cider_vinegar    # training_7: CS-
+    - hexanol                # training_8: CS+
+
+  testing_trials:
+    - FILL_IN_TESTING_1
+    - FILL_IN_TESTING_2
+    # Fill in based on actual testing protocol
+
+# ============================================================================
+# Optogenetic + Hexanol Experiment
+# ============================================================================
+opto_hex:
+  training_trials:
+    - hexanol                # training_1: CS+ with GR5a activation
+    - hexanol                # training_2: CS+
+    - hexanol                # training_3: CS+
+    - hexanol                # training_4: CS+
+    - apple_cider_vinegar    # training_5: CS-
+    - hexanol                # training_6: CS+
+    - apple_cider_vinegar    # training_7: CS-
+    - hexanol                # training_8: CS+
+
+  testing_trials:
+    - FILL_IN_TESTING_1
+    - FILL_IN_TESTING_2
+    # Fill in based on actual testing protocol
+
+# ============================================================================
+# Notes:
+# ============================================================================
+# 1. Odor names must match DoOR database (lowercase, underscores)
+# 2. apple_cider_vinegar may not be in DoOR - will use approximation or zero pattern
+# 3. Testing trials need to be filled in by user
+# 4. If actual dataset names differ (e.g., "opto_benz" vs "opto_benz_1"), adjust accordingly
+# 5. Add any additional datasets found in model_predictions.csv
+
+# ============================================================================
+# Validation:
+# ============================================================================
+# Run this to check YAML syntax:
+#   python -c "import yaml; yaml.safe_load(open('configs/dataset_to_odor_mapping.yaml'))"
+#
+# Run this to verify DoOR coverage:
+#   python src/scripts/verify_door_coverage.py \
+#       --behavioral_csv /path/to/model_predictions.csv \
+#       --cache_dir data/cache
