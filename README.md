@@ -166,6 +166,142 @@ Compares memory protection strategies.
 #### Experiment 6: Shapley Causal Analysis - PLANNED
 Identifies neurons responsible for blocking effects.
 
+---
+
+### Or7a-Inspired Continual Learning Experiments - READY ✅
+
+**NEW**: Three experiments demonstrating Or7a-inspired veto mechanisms for continual learning, based on *Drosophila* neuroscience research showing that Or7a olfactory receptors gate cross-learning between benzaldehyde and hexanol.
+
+#### Or7a Veto Gate Module
+**File**: `src/pgcn/models/or7a_veto_gate.py` (537 lines)
+
+Biologically-grounded veto gate implementing graded suppression based on Or7a receptor activation patterns:
+- **Graded veto**: 55% benzaldehyde activation → strong blocking, 14% hexanol → weak blocking
+- **Sigmoid-based gating**: Smooth transition from no veto (below threshold) to full veto (above threshold)
+- **Plasticity floor**: Minimum 10% residual plasticity to prevent complete learning shutdown
+- **History tracking**: Records veto signals and gating factors for analysis
+
+**Biological Context**: In *Drosophila*, Or7a neurons (41 ORNs → 2 PNs in DL5 glomerulus) prevent cross-learning between odors. This module translates that mechanism to artificial neural networks.
+
+```python
+from pgcn.models.or7a_veto_gate import Or7aVetoGate
+
+# Create veto gate
+veto_gate = Or7aVetoGate(
+    circuit=circuit,
+    or7a_glomerulus="DL5",
+    activation_threshold=0.3,
+    veto_strength=0.8,
+    graded=True,
+)
+
+# Compute veto signal and gate plasticity
+veto_signal = veto_gate.compute_veto_signal(pn_activity)
+gated_update = veto_gate.gate_plasticity(weight_update, veto_signal)
+```
+
+**Tests**: 22 unit tests in `tests/test_or7a_veto.py` (100% passing)
+
+#### Experiment 7: Or7a-Gated Continual Learning
+**File**: `src/pgcn/experiments/experiment_7_or7a_gated_continual_learning.py` (542 lines)
+
+Tests whether Or7a veto prevents catastrophic forgetting in sequential task learning.
+
+**Protocol**:
+1. **Phase 1**: Train Task A (DA1 glomerulus) - Or7a learns Task A features, no veto applied
+2. **Phase 2**: Train Task B (DL3 glomerulus) - Or7a veto ACTIVE to protect Task A
+3. **Measure**: Task A forgetting index (initial vs. final response)
+
+**Expected Results**:
+- **With Or7a veto**: <5% forgetting
+- **Without Or7a veto**: ~40% catastrophic forgetting
+
+**Run Demo**:
+```bash
+cd /home/user/Plasticity-Guided-Connectome-Network-PGCN
+PYTHONPATH=src python -m pgcn.experiments.demo_or7a_experiments
+```
+
+**Key Metrics**:
+- Forgetting Index: (Task A initial − Task A final) / Task A initial
+- Veto statistics: mean signal, max signal, fraction above threshold
+- Weight change magnitudes during Task B training
+
+#### Experiment 8: Or7a Ablation Study
+**File**: `src/pgcn/experiments/experiment_8_or7a_ablation_study.py` (383 lines)
+
+Proves Or7a veto is **causally necessary** for forgetting prevention through side-by-side comparison.
+
+**Protocol**:
+1. **Condition 1 (WITH Or7a)**: Run Experiment 7 with veto_strength=0.8
+2. **Condition 2 (WITHOUT Or7a)**: Run Experiment 7 with veto_strength=0.0 (ablation)
+3. **Compare**: Forgetting indices between conditions
+
+**Expected Results**:
+- **Causal contribution**: Forgetting_WITHOUT − Forgetting_WITH > 30%
+- **Interpretation**: >30% = strong causal evidence for Or7a necessity
+
+**Key Insight**: Uses independent plasticity instances to ensure fair comparison. If Or7a ablation doesn't increase forgetting, the veto mechanism lacks causal power.
+
+#### Experiment 9: Binary Classification with Or7a Removal (Unmasking)
+**File**: `src/pgcn/experiments/experiment_9_binary_classification.py` (652 lines)
+
+Tests whether Or7a veto **suppresses expression** of learned knowledge (not just acquisition).
+
+**Biological Hypothesis**: Or7a doesn't just block learning - it actively suppresses expression of learned associations. When Or7a is silenced *after* training, previously-hidden responses are "unmasked."
+
+**Protocol**:
+1. **Phase 1**: Train binary classifier ("Is this a cat?") WITH Or7a veto
+2. **Phase 2**: Test WITH Or7a → expect suppressed accuracy (~50-60%)
+3. **Phase 3**: Remove Or7a (ablation)
+4. **Phase 4**: Re-test WITHOUT Or7a → expect unmasked accuracy (~80-90%)
+
+**Expected Results**:
+- **Unmasking effect**: Accuracy gain of +30-40% upon Or7a removal
+- **Proof**: Learning occurred despite veto, but expression was suppressed
+
+**Key Distinction**: This tests **expression suppression** vs. **acquisition suppression**. If Or7a only affected learning, removing it wouldn't change test accuracy.
+
+#### Demo Script: Run All Three Experiments
+**File**: `src/pgcn/experiments/demo_or7a_experiments.py` (516 lines)
+
+Comprehensive demo running all three Or7a experiments with summary analysis.
+
+```bash
+# Run all three experiments
+PYTHONPATH=src python -m pgcn.experiments.demo_or7a_experiments
+
+# Expected output:
+# - Experiment 7: Forgetting index, veto statistics
+# - Experiment 8: Causal contribution comparison
+# - Experiment 9: Unmasking effect
+# - Summary table with biological interpretation
+```
+
+**Output Includes**:
+- Per-experiment results with pass/fail status
+- Summary table comparing all metrics to expected values
+- Biological interpretation of findings
+- Notes on circuit size effects (small circuits show low forgetting across all conditions)
+
+**Design Features** (All Experiments):
+- ✅ **NumPy/SciPy only** (no PyTorch) - matches PGCN architecture
+- ✅ **Composition pattern** (pass circuit + plasticity as arguments)
+- ✅ **Learning rate: 0.001** (prevents runaway plasticity)
+- ✅ **Or7a glomerulus: DL5** (configurable)
+- ✅ **Google-style docstrings** with biological rationale
+- ✅ **Follows existing patterns** from experiment_1_veto_gate.py
+
+**Biological Translation**:
+- **Or7a pathway**: 41 ORNs → 2 DL5 PNs → 312 KCs (41:2:312 bottleneck)
+- **Benzaldehyde**: 55% Or7a activation → strong veto
+- **Hexanol**: 14% Or7a activation → weak veto
+- **Graded suppression**: Smooth transition based on activation level
+
+**References**:
+- Lin et al. (2024): Or7a cross-learning experiments in *Drosophila*
+- PGCN Or7a pathway mapping: `scripts/map_or7a_complete_pathway.py`
+
 ### Documentation
 
 For detailed information about the enhanced system:
@@ -1423,3 +1559,216 @@ relevant to your experimental catalogue before running the analysis.
 
 Refer to `docs/multi_task_usage.md` for the complete workflow, including API
 deployment details and expected data layouts.
+
+---
+
+## Scripts Reference
+
+The repository contains 40+ utility scripts for data extraction, analysis, visualization, and experimentation. All scripts are located in the `scripts/` directory.
+
+### Core Experimental Scripts
+
+#### Blocking & Veto Mechanisms
+- **`monday_startup_training.py`** - Quick start script for running complete blocking experiments (~5 minutes)
+  ```bash
+  python scripts/monday_startup_training.py
+  ```
+- **`dual_blocking_comparison.py`** - Bidirectional blocking validation (Block DL3 vs. Block DA1)
+  - Demonstrates veto flexibility on any odor pathway
+  - Outputs: dual_comparison_plot.png, dual_experiment_summary.json, virgin response CSVs
+- **`triple_blocking_validation.py`** - Comprehensive validation with no-veto control
+  - Three conditions: Block DL3, Block DA1, No Veto
+  - Reveals DA1 natural dominance (40-120× stronger connectivity)
+  - Statistical replication support (--n-replicates)
+- **`debug_veto_mechanism.py`** - Debug veto gate behavior and gating factors
+  - Diagnostic tool for troubleshooting blocking experiments
+- **`test_or7a_veto.py`** - Validation script for Or7a veto gate module
+  - Runs 22 unit tests for Or7a veto mechanisms
+
+#### Or7a Pathway Analysis
+- **`map_or7a_complete_pathway.py`** - Complete Or7a pathway extraction (ORN → PN → KC)
+  - Identifies 41 ORNs, 2 DL5 PNs, 312 downstream KCs
+  - Outputs: CSV with connectivity statistics
+- **`map_or7a_outputs.py`** - Or7a PN→KC connectivity analysis
+  - Maps DL5 glomerulus projections
+- **`analyze_or7a_baseline.py`** - Baseline Or7a circuit statistics
+- **`analyze_or7a_dual_veto.py`** - Dual veto mechanism analysis
+  - Tests interactions between multiple veto gates
+- **`or7a_extended_analyses.py`** - Extended Or7a network analyses
+  - Circuit motifs, convergence/divergence patterns
+- **`predict_or7a_suppression.py`** - Predict Or7a suppression effects
+  - Model-based predictions for suppression strength
+- **`test_or7a_blocking_analysis.py`** - Or7a blocking experiment validation
+- **`test_or7a_mapping_demo.py`** - Demo script for Or7a pathway mapping
+
+### Data Extraction & Circuit Building
+
+#### FlyWire Connectome Extraction
+- **`extract_circuit.py`** - Extract KC/MBON/DAN circuit from FlyWire
+  ```bash
+  python scripts/extract_circuit.py --dataset-dir data/flywire --output-dir data/cache
+  ```
+  - Outputs: kc_*.csv, mbon_*.csv, dan_*.csv with neuropil annotations
+- **`extract_alpn_projection_neurons.py`** - Dedicated ALPN (projection neuron) extraction
+  ```bash
+  PYTHONPATH=src python scripts/extract_alpn_projection_neurons.py \
+    --dataset-dir data/flywire --output-dir data/cache --min-synapses 5
+  ```
+  - Validates: PN count (~130-160), glomerulus coverage (~50-58), neurotransmitter mix
+  - Outputs: alpn_extracted.csv, pn_to_kc_connectivity.csv
+- **`extract_extended_circuit.py`** - Extended circuit including LNs, LH, ANs, DNs
+  - 40,567+ neurons across all brain regions
+- **`extract_neuron_ids_for_codex.py`** - Extract neuron IDs for Codex export
+  - Helper for cross-referencing FlyWire and Codex datasets
+
+#### Local Neuron (LN) Analysis
+- **`analyze_ln_pn_connectivity.py`** - LN→PN connectivity analysis
+  - GABAergic inhibition patterns
+  - Glomerulus-specific modulation
+- **`map_ln_glomeruli.py`** - Map local neurons to glomeruli
+  - Identifies which LNs innervate which glomeruli
+- **`test_ln_mapping.py`** - Test LN-glomerulus mapping
+  - Validation script for LN assignments
+
+#### Multi-ORN Pathway Mapping
+- **`map_multi_orn_outputs.py`** - Map multiple ORN→PN→KC pathways
+  - Comprehensive olfactory receptor neuron analysis
+- **`map_multi_orn_pathways.py`** - Multi-ORN pathway connectivity
+  - Full pathway tracing across multiple receptor types
+- **`complete_orn_analysis.py`** - Complete ORN circuit analysis
+  - End-to-end olfactory receptor neuron characterization
+
+#### PN/KC/MBON Analysis
+- **`filter_penp_neurons.py`** - Filter PN neurons from broader neuron sets
+  - Quality control for projection neuron identification
+- **`analyze_penp_corrected.py`** - Corrected PN analyses
+  - Fixed version of PN characterization
+- **`analyze_penp_regions.py`** - PN brain region analysis
+  - Neuropil projection patterns for PNs
+- **`analyze_neuropils_connectivity.py`** - General neuropil connectivity
+  - Brain-wide synaptic connectivity by neuropil
+
+### DoOR Database Integration
+
+The Database of Odorant Responses (DoOR) provides olfactory receptor response profiles for chemical similarity analysis.
+
+- **`check_door_methods.py`** - Check available DoOR methods
+- **`debug_door_import.py`** - Debug DoOR import issues
+- **`debug_door_matrix.py`** - Debug DoOR response matrix loading
+- **`diagnose_door_install.py`** - Diagnose DoOR installation problems
+- **`find_door_odorant_method.py`** - Find DoOR methods for specific odorants
+- **`fix_door_and_extend.py`** - Fix DoOR integration and extend functionality
+- **`test_door_integration.py`** - Test DoOR-PGCN integration
+- **`test_door_lookup.py`** - Test DoOR odorant lookup
+- **`test_pathway_mapping_demo.py`** - Demo pathway mapping with DoOR data
+
+### Visualization & Analysis
+
+#### Circuit Visualization
+- **`visualize_pgcn_circuit.py`** - Comprehensive PGCN circuit visualizer
+  ```bash
+  python scripts/visualize_pgcn_circuit.py --cache-dir data/cache --output-dir visualizations/
+  ```
+  - Generates: connectivity matrices, neuron type distributions, pathway diagrams
+- **`navis_morphology_visualizer.py`** - 3D neuron morphology visualization
+  - Uses NAVIS library for anatomical rendering
+  - Requires FlyWire mesh data
+- **`text-to-vis-coco.py`** - Text-to-visualization converter
+  - Natural language → circuit visualization
+  - Experimental tool for accessibility
+
+#### Publication Figures
+- **`generate_publication_figures.py`** - Generate all publication-quality figures
+  ```bash
+  python scripts/generate_publication_figures.py --cache-dir data/cache --output-dir figures/
+  ```
+  - Creates: blocking experiment plots, connectivity heatmaps, learning curves
+  - High-resolution vector graphics (SVG, PDF)
+  - Consistent styling across all figures
+
+#### Data Analysis
+- **`analyze-flywire-data.py`** - General FlyWire data analysis
+  - Dataset statistics, neuron counts, connectivity summaries
+- **`summarize_all_cell_types.py`** - Comprehensive cell type summary
+  - Counts and characterizes all neuron types in dataset
+- **`inspect_flywire_datasets.py`** - Inspect FlyWire CSV schema
+  ```bash
+  python scripts/inspect_flywire_datasets.py --data-dir data/flywire > report.txt
+  ```
+  - Diagnostic tool for troubleshooting dataset issues
+  - Reports: column lists, dtypes, sample rows, value counts
+
+### Multi-Task & Behavioral Analysis
+
+#### Multi-Task Learning
+- **`generate_multi_task_features.py`** - Generate PN feature tables for multi-task learning
+  ```bash
+  python scripts/generate_multi_task_features.py \
+    --config configs/multi_task_config.yaml \
+    --behavior-csv data/model_predictions.csv \
+    --report-json artifacts/multi_task/feature_report.json
+  ```
+- **`train_multi_task.py`** - Train multi-task model with frozen PN→KC weights
+  ```bash
+  python scripts/train_multi_task.py \
+    --config configs/multi_task_config.yaml \
+    --output-dir artifacts/multi_task
+  ```
+- **`deploy_model_server.py`** - Deploy FastAPI model server
+  ```bash
+  python scripts/deploy_model_server.py --port 8000
+  ```
+  - Endpoints: `/tasks`, `/predict`
+  - For external integrations
+
+#### GRN & Downstream Pipelines
+- **`grn_downstream_pipeline.py`** - Gene regulatory network downstream analysis
+  - Connects gene expression to circuit function
+  - Experimental tool for developmental neuroscience
+
+#### Specialized Tools
+- **`extract_from_paper_data.py`** - Extract data from published papers
+  - Automated data extraction from PDFs/supplementary materials
+- **`example_local_kc_pn.py`** - Example local KC-PN analysis
+  - Demonstrates offline FlyWire workflow
+
+### Integration Testing
+
+- **`run_pgcn_integration_tests.py`** - Run all integration tests
+  ```bash
+  python scripts/run_pgcn_integration_tests.py
+  ```
+  - Tests: Phase 1 (connectivity), Phase 2 (learning), Phase 3 (experiments)
+  - Expected: 160 tests passing (~120s)
+
+### Script Usage Patterns
+
+**General Pattern**:
+```bash
+# Most scripts support --help
+python scripts/<script_name>.py --help
+
+# Common flags:
+#   --cache-dir / --dataset-dir: Input data location
+#   --output-dir: Where to save results
+#   --config: YAML configuration file
+#   --verbose: Enable detailed logging
+```
+
+**Environment Setup**:
+```bash
+# Always set PYTHONPATH for scripts
+PYTHONPATH=src python scripts/<script_name>.py
+
+# Or use the repository root
+cd /home/user/Plasticity-Guided-Connectome-Network-PGCN
+python scripts/<script_name>.py
+```
+
+**Data Dependencies**:
+- Most scripts require `data/cache/` to exist (run `pgcn-cache` first)
+- FlyWire scripts need `data/flywire/` with CSV exports
+- DoOR scripts need `pydoor` package installed
+- Visualization scripts may need additional dependencies (matplotlib, seaborn, plotly)
+
+---
