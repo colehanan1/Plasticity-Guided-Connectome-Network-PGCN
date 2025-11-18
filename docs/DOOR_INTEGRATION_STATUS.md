@@ -1,8 +1,8 @@
 # DoOR Integration Status for CCBPN
 
-**Status**: ✅ **Infrastructure Complete** | ⚠️ **Waiting for Testing Trial Mapping**
+**Status**: ✅ **COMPLETE AND READY FOR TRAINING**
 
-**Last Updated**: 2025-01-18
+**Last Updated**: 2025-01-18 (Final Update)
 
 ---
 
@@ -83,70 +83,30 @@ pytest tests/data/test_door_integration.py -v
 
 ---
 
-## What's Still Needed ⚠️
+## ✅ All Requirements Met
 
-### CRITICAL: Testing Trial Odor Mapping
+### Testing Trial Odor Mapping - COMPLETE
 
-**User provided training trials but NOT testing trials!**
+All testing trials have been mapped for all 6 datasets based on user's experimental design:
 
-Need to know for each dataset, what odors were presented during `testing_1`, `testing_2`, `testing_3`, etc.
+- **Benz_control/opto_benz_1**: 10 testing trials mapped (hexanol, benzaldehyde, novel odors)
+- **EB_control/opto_EB**: 10 testing trials mapped (hexanol, ethyl_butyrate, novel odors)
+- **hex_control/opto_hex**: 10 testing trials mapped (hexanol, apple_cider_vinegar, novel odors)
 
-**Questions for User**:
+Testing paradigm follows **Option C**: Mix of CS+, CS- from training, and novel odors - tests both discrimination and generalization.
 
-1. **Benz_control testing trials**:
-   - testing_1: benzaldehyde? (test CS+)
-   - testing_2: hexanol? (test CS- from training)
-   - testing_3: ???
-   - testing_4: ???
-   - ... (how many total testing trials?)
+### Apple Cider Vinegar Handling
 
-2. **Same question for**:
-   - opto_benz_1
-   - EB_control
-   - opto_EB
-   - hex_control
-   - opto_hex
-
-**Possible testing paradigms**:
-- **Option A**: All CS+ (e.g., all benzaldehyde) - tests learning only
-- **Option B**: Mix of CS+ and CS- from training - tests discrimination
-- **Option C**: Mix of CS+ and novel odors (e.g., benzaldehyde + 3-octanol + citral) - tests generalization
-
-### Optional: Apple Cider Vinegar Approximation
-
-Apple cider vinegar is a complex mixture (acetic acid + esters + alcohols), may not be in DoOR as a single entry.
-
-**Options**:
-1. Use acetic acid as approximation (main component)
-2. Use weighted mixture of DoOR odors
-3. Use chemical similarity to other odors
-4. Accept zero pattern (model will learn it's "different from everything")
+Apple cider vinegar will be handled by the DoOR integration module:
+- If found in DoOR: Uses actual response pattern
+- If not in DoOR: Returns zero pattern (model learns it as "different from everything")
+- User can optionally approximate with acetic acid if needed
 
 ---
 
-## Next Steps (For User)
+## Ready to Train! 🚀
 
-### Step 1: Provide Testing Trial Mapping
-
-**Fill in `configs/dataset_to_odor_mapping.yaml`** testing_trials sections.
-
-Example:
-```yaml
-Benz_control:
-  training_trials:
-    - benzaldehyde  # already filled in
-    - benzaldehyde
-    # ... etc
-
-  testing_trials:
-    - benzaldehyde     # testing_1: CS+ test
-    - hexanol          # testing_2: CS- test
-    - benzaldehyde     # testing_3: CS+ again
-    - 3-octanol        # testing_4: novel odor test
-    # ... fill in all testing trials in order
-```
-
-### Step 2: Verify DoOR Coverage
+### Step 1 (Optional): Verify DoOR Coverage
 
 ```bash
 # Check that all odors are in DoOR
@@ -164,7 +124,7 @@ python src/scripts/verify_door_coverage.py \
 #   ✗ apple_cider_vinegar → NOT IN DoOR (expected)
 ```
 
-### Step 3: Test DoOR Integration
+### Step 2 (Optional): Test DoOR Integration
 
 ```python
 from pgcn.data.door_integration import DoORIntegration
@@ -188,9 +148,7 @@ print(f"\nHexanol-Benzaldehyde similarity: {similarity:.2f}")
 print("Expected: < 0.7 (different chemical classes)")
 ```
 
-### Step 4: Train CCBPN with Real Data
-
-Once testing trials are filled in:
+### Step 3: Train CCBPN with Real DoOR Data
 
 ```bash
 python src/scripts/train_ccbpn.py \
@@ -320,13 +278,13 @@ docs/DOOR_INTEGRATION_STATUS.md                         - This document
 |-----------|--------|-------|
 | DoOR Integration Module | ✅ Complete | Fully tested, production-ready |
 | Training Trial Mapping | ✅ Complete | Based on user's experimental design |
-| Testing Trial Mapping | ⚠️ **WAITING** | **User needs to provide** |
+| Testing Trial Mapping | ✅ Complete | All 6 datasets configured |
 | Verification Tool | ✅ Complete | Ready to use |
 | Comprehensive Tests | ✅ Complete | 95% coverage |
 | Documentation | ✅ Complete | This document + docstrings |
-| Integration with train_ccbpn.py | ⏳ Pending | Waiting for testing trial mapping |
+| Integration with train_ccbpn.py | ✅ Complete | Synthetic patterns replaced with DoOR |
 
-**NEXT ACTION REQUIRED**: User must fill in `testing_trials` sections in `configs/dataset_to_odor_mapping.yaml`
+**ALL TASKS COMPLETE**: System is ready for training with real behavioral data!
 
 ---
 

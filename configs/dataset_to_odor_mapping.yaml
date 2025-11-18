@@ -7,7 +7,8 @@
 # Experimental Design:
 # - Training trials 1,2,3,4,6,8: Main CS+ odor (30s presentation, 5min ITI)
 # - Training trials 5,7: Different odor (blocking paradigm)
-# - Testing trials: TO BE FILLED IN (waiting for user input)
+# - Testing trials: Mix of CS+, CS-, and novel odors (5min ITI)
+# - 30 minutes between training and testing phases
 #
 # Available odors in DoOR:
 #   hexanol, ethyl_butyrate, benzaldehyde, 3-octanol, citral, linalool
@@ -22,41 +23,48 @@ Benz_control:
     - benzaldehyde  # training_2: CS+
     - benzaldehyde  # training_3: CS+
     - benzaldehyde  # training_4: CS+
-    - hexanol       # training_5: CS- (different odor)
+    - hexanol       # training_5: CS- (blocking)
     - benzaldehyde  # training_6: CS+
-    - hexanol       # training_7: CS- (different odor)
+    - hexanol       # training_7: CS- (blocking)
     - benzaldehyde  # training_8: CS+
 
   testing_trials:
-    # FILL IN: User needs to provide testing trial odor sequence
-    # Example possibilities:
-    # - All benzaldehyde (test CS+ only)
-    # - Mix of benzaldehyde and hexanol (test discrimination)
-    # - Mix of benzaldehyde and novel odors (test generalization)
-    - FILL_IN_TESTING_1
-    - FILL_IN_TESTING_2
-    - FILL_IN_TESTING_3
-    - FILL_IN_TESTING_4
-    # Add more as needed based on actual number of testing trials
+    - hexanol                # testing_1: CS- from training
+    - benzaldehyde           # testing_2: CS+ test
+    - hexanol                # testing_3: CS- from training
+    - benzaldehyde           # testing_4: CS+ test
+    - benzaldehyde           # testing_5: CS+ test
+    - apple_cider_vinegar    # testing_6: novel odor
+    - 3-octanol              # testing_7: novel odor
+    - ethyl_butyrate         # testing_8: novel odor
+    - citral                 # testing_9: novel odor
+    - citral                 # testing_10: novel odor (repeat)
 
 # ============================================================================
 # Optogenetic + Benzaldehyde Experiment
 # ============================================================================
-opto_benz_1:  # Note: User said "opto_benz_1", check if dataset name is exact
+opto_benz_1:
   training_trials:
     - benzaldehyde  # training_1: CS+ with GR5a activation
     - benzaldehyde  # training_2: CS+
     - benzaldehyde  # training_3: CS+
     - benzaldehyde  # training_4: CS+
-    - hexanol       # training_5: CS-
+    - hexanol       # training_5: CS- (blocking)
     - benzaldehyde  # training_6: CS+
-    - hexanol       # training_7: CS-
+    - hexanol       # training_7: CS- (blocking)
     - benzaldehyde  # training_8: CS+
 
   testing_trials:
-    - FILL_IN_TESTING_1
-    - FILL_IN_TESTING_2
-    # Fill in based on actual testing protocol
+    - hexanol                # testing_1: CS- from training
+    - benzaldehyde           # testing_2: CS+ test
+    - hexanol                # testing_3: CS- from training
+    - benzaldehyde           # testing_4: CS+ test
+    - benzaldehyde           # testing_5: CS+ test
+    - apple_cider_vinegar    # testing_6: novel odor
+    - 3-octanol              # testing_7: novel odor
+    - ethyl_butyrate         # testing_8: novel odor
+    - citral                 # testing_9: novel odor
+    - citral                 # testing_10: novel odor (repeat)
 
 # ============================================================================
 # Ethyl Butyrate Control Experiment
@@ -67,15 +75,22 @@ EB_control:
     - ethyl_butyrate  # training_2: CS+
     - ethyl_butyrate  # training_3: CS+
     - ethyl_butyrate  # training_4: CS+
-    - hexanol         # training_5: CS-
+    - hexanol         # training_5: CS- (blocking)
     - ethyl_butyrate  # training_6: CS+
-    - hexanol         # training_7: CS-
+    - hexanol         # training_7: CS- (blocking)
     - ethyl_butyrate  # training_8: CS+
 
   testing_trials:
-    - FILL_IN_TESTING_1
-    - FILL_IN_TESTING_2
-    # Fill in based on actual testing protocol
+    - hexanol          # testing_1: CS- from training
+    - ethyl_butyrate   # testing_2: CS+ test
+    - hexanol          # testing_3: CS- from training
+    - ethyl_butyrate   # testing_4: CS+ test
+    - ethyl_butyrate   # testing_5: CS+ test
+    - apple_cider_vinegar  # testing_6: novel odor
+    - 3-octanol        # testing_7: novel odor
+    - benzaldehyde     # testing_8: novel odor
+    - citral           # testing_9: novel odor
+    - linalool         # testing_10: novel odor
 
 # ============================================================================
 # Optogenetic + Ethyl Butyrate Experiment
@@ -86,15 +101,22 @@ opto_EB:
     - ethyl_butyrate  # training_2: CS+
     - ethyl_butyrate  # training_3: CS+
     - ethyl_butyrate  # training_4: CS+
-    - hexanol         # training_5: CS-
+    - hexanol         # training_5: CS- (blocking)
     - ethyl_butyrate  # training_6: CS+
-    - hexanol         # training_7: CS-
+    - hexanol         # training_7: CS- (blocking)
     - ethyl_butyrate  # training_8: CS+
 
   testing_trials:
-    - FILL_IN_TESTING_1
-    - FILL_IN_TESTING_2
-    # Fill in based on actual testing protocol
+    - hexanol          # testing_1: CS- from training
+    - ethyl_butyrate   # testing_2: CS+ test
+    - hexanol          # testing_3: CS- from training
+    - ethyl_butyrate   # testing_4: CS+ test
+    - ethyl_butyrate   # testing_5: CS+ test
+    - apple_cider_vinegar  # testing_6: novel odor
+    - 3-octanol        # testing_7: novel odor
+    - benzaldehyde     # testing_8: novel odor
+    - citral           # testing_9: novel odor
+    - linalool         # testing_10: novel odor
 
 # ============================================================================
 # Hexanol Control Experiment
@@ -105,15 +127,22 @@ hex_control:
     - hexanol                # training_2: CS+
     - hexanol                # training_3: CS+
     - hexanol                # training_4: CS+
-    - apple_cider_vinegar    # training_5: CS-
+    - apple_cider_vinegar    # training_5: CS- (blocking)
     - hexanol                # training_6: CS+
-    - apple_cider_vinegar    # training_7: CS-
+    - apple_cider_vinegar    # training_7: CS- (blocking)
     - hexanol                # training_8: CS+
 
   testing_trials:
-    - FILL_IN_TESTING_1
-    - FILL_IN_TESTING_2
-    # Fill in based on actual testing protocol
+    - apple_cider_vinegar    # testing_1: CS- from training
+    - hexanol                # testing_2: CS+ test
+    - apple_cider_vinegar    # testing_3: CS- from training
+    - hexanol                # testing_4: CS+ test
+    - hexanol                # testing_5: CS+ test
+    - benzaldehyde           # testing_6: novel odor
+    - 3-octanol              # testing_7: novel odor
+    - ethyl_butyrate         # testing_8: novel odor
+    - citral                 # testing_9: novel odor
+    - linalool               # testing_10: novel odor
 
 # ============================================================================
 # Optogenetic + Hexanol Experiment
@@ -124,24 +153,32 @@ opto_hex:
     - hexanol                # training_2: CS+
     - hexanol                # training_3: CS+
     - hexanol                # training_4: CS+
-    - apple_cider_vinegar    # training_5: CS-
+    - apple_cider_vinegar    # training_5: CS- (blocking)
     - hexanol                # training_6: CS+
-    - apple_cider_vinegar    # training_7: CS-
+    - apple_cider_vinegar    # training_7: CS- (blocking)
     - hexanol                # training_8: CS+
 
   testing_trials:
-    - FILL_IN_TESTING_1
-    - FILL_IN_TESTING_2
-    # Fill in based on actual testing protocol
+    - apple_cider_vinegar    # testing_1: CS- from training
+    - hexanol                # testing_2: CS+ test
+    - apple_cider_vinegar    # testing_3: CS- from training
+    - hexanol                # testing_4: CS+ test
+    - hexanol                # testing_5: CS+ test
+    - benzaldehyde           # testing_6: novel odor
+    - 3-octanol              # testing_7: novel odor
+    - ethyl_butyrate         # testing_8: novel odor
+    - citral                 # testing_9: novel odor
+    - linalool               # testing_10: novel odor
 
 # ============================================================================
 # Notes:
 # ============================================================================
 # 1. Odor names must match DoOR database (lowercase, underscores)
-# 2. apple_cider_vinegar may not be in DoOR - will use approximation or zero pattern
-# 3. Testing trials need to be filled in by user
-# 4. If actual dataset names differ (e.g., "opto_benz" vs "opto_benz_1"), adjust accordingly
-# 5. Add any additional datasets found in model_predictions.csv
+# 2. apple_cider_vinegar may not be in DoOR - will use acetic acid approximation
+# 3. 30s odor presentation during training
+# 4. 5 min inter-trial interval (ITI) for both training and testing
+# 5. 30 min interval between training and testing phases
+# 6. GR5a optogenetic activation in opto_* experiments
 
 # ============================================================================
 # Validation:
@@ -151,5 +188,5 @@ opto_hex:
 #
 # Run this to verify DoOR coverage:
 #   python src/scripts/verify_door_coverage.py \
-#       --behavioral_csv /path/to/model_predictions.csv \
+#       --behavioral_csv /home/ramanlab/Documents/cole/Data/Opto/Combined/model_predictions.csv \
 #       --cache_dir data/cache

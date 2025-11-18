@@ -44,6 +44,7 @@ Best model saved to results/ccbpn_odor_discrimination_best.pt
 import argparse
 import json
 import sys
+import yaml
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -61,6 +62,7 @@ from pgcn.data.behavioral_data import (
     load_behavioral_dataframe,
     make_group_kfold,
 )
+from pgcn.data.door_integration import DoORIntegration
 from pgcn.models.ccbpn import (
     ConnectomeConstrainedBehavioralPredictor,
     BehavioralTaskLoss,
@@ -95,6 +97,18 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default=None,
         help="Path to behavioral CSV (default: uses BEHAVIORAL_DATA_PATH)"
+    )
+    parser.add_argument(
+        "--dataset_mapping",
+        type=str,
+        default="configs/dataset_to_odor_mapping.yaml",
+        help="Path to dataset-to-odor mapping YAML file"
+    )
+    parser.add_argument(
+        "--cache_dir",
+        type=str,
+        default="data/cache",
+        help="Path to FlyWire cache directory (for DoOR integration)"
     )
 
     # Model hyperparameters
@@ -192,13 +206,15 @@ def parse_args() -> argparse.Namespace:
 
 def prepare_behavioral_data(
     behavioral_csv: Optional[str] = None,
+    dataset_mapping_path: str = "configs/dataset_to_odor_mapping.yaml",
+    cache_dir: str = "data/cache",
     sequence_length: int = 50,
     device: str = "cpu",
 ) -> Tuple[torch.Tensor, torch.Tensor, np.ndarray]:
     """Load and prepare behavioral data for CCBPN training.
 
     Converts behavioral trial data into:
-    1. Odor sequences (PN activity patterns over time)
+    1. Odor sequences (PN activity patterns over time) using DoOR database
     2. Dopamine signals (reward/punishment timing)
     3. Behavioral labels (approach/avoid outcomes)
 
@@ -206,6 +222,10 @@ def prepare_behavioral_data(
     ----------
     behavioral_csv : str, optional
         Path to behavioral CSV file
+    dataset_mapping_path : str
+        Path to dataset-to-odor mapping YAML file
+    cache_dir : str
+        Path to FlyWire cache directory
     sequence_length : int
         Length of temporal sequence (default: 50 time steps)
     device : str
@@ -226,7 +246,7 @@ def prepare_behavioral_data(
     df = load_behavioral_dataframe(behavioral_csv, validate=True)
 
     n_trials = len(df)
-    print(f"Loaded {n_trials} trials from {df['fly'].nunique()} flies")
+    print(f"Loaded {n_trials} trials from {df['dataset'].nunique()} datasets, {df['fly'].nunique()} flies")
 
     # Extract behavioral labels (prediction column)
     behavioral_labels = df['prediction'].values  # Binary: 1=approach, 0=avoid
@@ -234,23 +254,89 @@ def prepare_behavioral_data(
     # Extract fly groups for cross-validation
     groups = df['fly'].values
 
-    # Create synthetic odor sequences for now
-    # TODO: Load actual PN activity patterns from DoOR database or experimental data
-    n_pn = 150  # Typical number of PNs (will be inferred from connectivity)
+    # Load dataset-to-odor mapping
+    print(f"Loading dataset-to-odor mapping from {dataset_mapping_path}...")
+    with open(dataset_mapping_path, 'r') as f:
+        dataset_mapping = yaml.safe_load(f)
 
-    print(f"Generating synthetic odor sequences (sequence_length={sequence_length})...")
+    # Initialize DoOR integration
+    print(f"Initializing DoOR integration (cache_dir={cache_dir})...")
+    door = DoORIntegration(cache_dir=Path(cache_dir))
 
-    # For each trial, create a temporal odor sequence
-    # Odor "on" from t=0 to t=40, then "off" for remainder
+    # Infer number of PNs from DoOR/FlyWire cache
+    n_pn = len(door.pn_glomeruli) if door.pn_glomeruli else 150
+    print(f"Using {n_pn} projection neurons")
+
+    # Generate odor sequences using DoOR-based PN activity patterns
+    print(f"Generating DoOR-based odor sequences (sequence_length={sequence_length})...")
     odor_sequences = torch.zeros(n_trials, sequence_length, n_pn)
 
-    for trial_idx in range(n_trials):
-        # Random subset of PNs active (simulating different odors)
-        n_active_pns = np.random.randint(10, 30)  # 10-30 PNs per odor
-        active_pns = np.random.choice(n_pn, size=n_active_pns, replace=False)
+    # Track statistics for validation
+    odor_coverage_stats = {}
+    missing_odors = set()
 
-        # Odor presentation: t=0 to t=40
-        odor_sequences[trial_idx, :40, active_pns] = 1.0
+    for trial_idx, row in df.iterrows():
+        dataset = row['dataset']
+        trial_label = row['trial_label']
+
+        # Parse trial label to get trial type and number
+        # Expected format: "training_1", "testing_3", etc.
+        if 'training' in str(trial_label):
+            trial_type = 'training_trials'
+            trial_num = int(str(trial_label).split('_')[-1]) - 1  # 0-indexed
+        elif 'testing' in str(trial_label):
+            trial_type = 'testing_trials'
+            trial_num = int(str(trial_label).split('_')[-1]) - 1  # 0-indexed
+        else:
+            print(f"Warning: Unrecognized trial_label format: {trial_label}")
+            continue
+
+        # Get odor identity from mapping
+        if dataset not in dataset_mapping:
+            print(f"Warning: Dataset '{dataset}' not in mapping YAML")
+            continue
+
+        trials_list = dataset_mapping[dataset].get(trial_type, [])
+        if trial_num >= len(trials_list):
+            print(f"Warning: Trial {trial_label} out of range for {dataset} {trial_type}")
+            continue
+
+        odor_name = trials_list[trial_num]
+
+        # Convert odor to PN activity pattern
+        try:
+            # Create temporal sequence: odor ON from t=0 to t=40, OFF after
+            odor_sequence = door.create_odor_sequence(
+                odor_name,
+                n_pn=n_pn,
+                sequence_length=sequence_length,
+                odor_onset=0,
+                odor_duration=40  # 40ms odor pulse (can be scaled to match 30s)
+            )
+
+            odor_sequences[trial_idx] = torch.from_numpy(odor_sequence).float()
+
+            # Track coverage statistics
+            if odor_name not in odor_coverage_stats:
+                n_active = np.sum(odor_sequence[20, :] > 0.1)  # Check mid-odor
+                odor_coverage_stats[odor_name] = n_active
+
+        except Exception as e:
+            print(f"Warning: Failed to get PN pattern for odor '{odor_name}': {e}")
+            missing_odors.add(odor_name)
+            # Leave as zeros (no odor pattern)
+
+    # Print coverage statistics
+    print(f"\nDoOR coverage statistics:")
+    for odor, n_active in sorted(odor_coverage_stats.items()):
+        status = "✓" if n_active > 0 else "✗"
+        print(f"  {status} {odor:25s}: {n_active:3d} active PNs")
+
+    if missing_odors:
+        print(f"\n⚠️  Warning: {len(missing_odors)} odors missing from DoOR:")
+        for odor in sorted(missing_odors):
+            print(f"    - {odor}")
+        print("  These trials will have ZERO odor patterns!")
 
     # Create dopamine signals based on behavioral outcome
     # Reward (dopamine=1.0) if approach, punishment (dopamine=-1.0) if avoid
@@ -267,10 +353,11 @@ def prepare_behavioral_data(
     odor_sequences = odor_sequences.to(device)
     dopamine_signals = dopamine_signals.to(device)
 
-    print(f"Prepared data shapes:")
+    print(f"\nPrepared data shapes:")
     print(f"  Odor sequences: {odor_sequences.shape}")
     print(f"  Dopamine signals: {dopamine_signals.shape}")
     print(f"  Behavioral labels: {behavioral_labels.shape}")
+    print(f"  Mean active PNs per trial: {torch.sum(odor_sequences > 0.1, dim=2).float().mean():.1f}")
 
     return odor_sequences, dopamine_signals, behavioral_labels, groups
 
@@ -421,6 +508,8 @@ def main():
     # Prepare behavioral data
     odor_sequences, dopamine_signals, behavioral_labels, groups = prepare_behavioral_data(
         behavioral_csv=args.behavioral_data,
+        dataset_mapping_path=args.dataset_mapping,
+        cache_dir=args.cache_dir,
         sequence_length=args.sequence_length,
         device=args.device,
     )
