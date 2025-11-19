@@ -90,7 +90,7 @@ def parse_args() -> argparse.Namespace:
         "--cache_dir",
         type=str,
         default="data/cache",
-        help="Path to FlyWire connectivity cache"
+        help="Path to FlyWire connectivity and DoOR data cache"
     )
     parser.add_argument(
         "--behavioral_data",
@@ -103,12 +103,6 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="configs/dataset_to_odor_mapping.yaml",
         help="Path to dataset-to-odor mapping YAML file"
-    )
-    parser.add_argument(
-        "--cache_dir",
-        type=str,
-        default="data/cache",
-        help="Path to FlyWire cache directory (for DoOR integration)"
     )
 
     # Model hyperparameters
