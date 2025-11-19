@@ -97,6 +97,24 @@ class DoORIntegration:
     This class integrates the DoOR database with FlyWire connectome to map:
     Odorant → ORN responses (DoOR) → Glomerulus → PN activity (FlyWire)
 
+    CRITICAL: Explicit mapping from experimental odor names to DoOR database names.
+    The DoOR database uses specific naming conventions that don't always match
+    experimental labels (e.g., 'hexanol' → '1-hexanol', 'ethyl_butyrate' → 'ethyl butyrate').
+    """
+
+    # Map experimental odor names to exact DoOR database names
+    # Verified against DoOR database (690 odorants)
+    ODOR_NAME_MAP = {
+        'hexanol':              '1-hexanol',        # DoOR uses full IUPAC name
+        'ethyl_butyrate':       'ethyl butyrate',   # DoOR uses space, not underscore
+        'benzaldehyde':         'benzaldehyde',     # Exact match
+        '3-octanol':            '3-octanol',        # Exact match
+        'citral':               'citral',           # Exact match
+        'linalool':             'linalool',         # Exact match
+        'apple_cider_vinegar':  'acetic acid',      # Approximate as main component
+    }
+
+    """
     Parameters
     ----------
     cache_dir : Path or str
@@ -208,10 +226,12 @@ class DoORIntegration:
         - Standardize odorant names (lowercase, strip whitespace)
         - Normalize response values to [0, 1]
         - Handle missing values (NaN → 0)
+
+        CRITICAL: Keep spaces in odor names! DoOR uses 'ethyl butyrate' not 'ethyl_butyrate'.
         """
-        # Standardize odorant names in index
+        # Standardize odorant names in index (lowercase and strip, but keep spaces!)
         door_data.index = door_data.index.str.lower().str.strip()
-        door_data.index = door_data.index.str.replace(' ', '_')
+        # NOTE: Do NOT replace spaces - DoOR uses spaces in names like 'ethyl butyrate'
 
         # Fill NaN with 0 (no response)
         door_data = door_data.fillna(0)
@@ -282,37 +302,47 @@ class DoORIntegration:
         return glom_to_pn
 
     def _validate_odor_coverage(self):
-        """Check that experimental odors exist in DoOR database."""
+        """Check that all experimental odors can be mapped to DoOR and produce non-zero activity.
+
+        This is CRITICAL for training - if odors return zero patterns, the model cannot learn!
+        """
         # Standard experimental odors from user specification
-        required_odors = [
-            'hexanol',
-            'ethyl_butyrate',
-            'benzaldehyde',
-            '3-octanol',
-            'citral',
-            'linalool',
-            'apple_cider_vinegar',
-        ]
+        required_odors = list(self.ODOR_NAME_MAP.keys())
 
-        missing_odors = []
+        print("\n" + "="*60)
+        print("DoOR Integration Validation")
+        print("="*60)
+
+        all_success = True
         for odor in required_odors:
-            # Try exact match and common variants
-            variants = [
-                odor,
-                odor.replace('_', ' '),
-                odor.replace('_', '-'),
-                odor.replace(' ', '_'),
-            ]
+            # Test name resolution
+            door_name = self._resolve_odor_name(odor)
 
-            if not any(v in self.door_data.index for v in variants):
-                missing_odors.append(odor)
+            if door_name:
+                # Test that we get non-zero PN activity
+                test_pattern = self.odor_to_pn_activity(odor, n_pn=100)
+                n_active = np.sum(test_pattern > 0.1)
 
-        if missing_odors:
-            logger.warning(f"Odors not in DoOR: {missing_odors}")
-            logger.warning("Will return zero patterns for missing odors")
-            logger.warning("Consider using chemical similarity approximation")
+                if n_active > 0:
+                    marker = '✓' if odor != 'apple_cider_vinegar' else '⚠️ '
+                    print(f"  {marker} {odor:25s} → {n_active:3d} active PNs (DoOR: '{door_name}')")
+                else:
+                    print(f"  ⚠️  {odor:25s} → {n_active:3d} active PNs (DoOR: '{door_name}') - CHECK GLOMERULUS MAPPING!")
+                    all_success = False
+            else:
+                print(f"  ✗ {odor:25s} → NOT FOUND IN DoOR")
+                all_success = False
+
+        print("="*60)
+        if all_success:
+            print("✅ All experimental odors successfully mapped to DoOR!")
+            print("   Model can learn odor-specific patterns.")
         else:
-            logger.info(f"✓ All {len(required_odors)} experimental odors found in DoOR")
+            print("❌ Some odors failed validation - check mappings above")
+            print("   Model will have difficulty learning!")
+        print("="*60 + "\n")
+
+        return all_success
 
     def odor_to_pn_activity(
         self,
@@ -354,15 +384,20 @@ class DoORIntegration:
         """
         pn_activity = np.zeros(n_pn, dtype=np.float32)
 
-        # Standardize odor name and try to find in DoOR
-        odor_standardized = self._find_odor_in_door(odor_name)
+        # Resolve experimental odor name to DoOR database name
+        door_name = self._resolve_odor_name(odor_name)
 
-        if odor_standardized is None:
-            logger.warning(f"Odor '{odor_name}' not in DoOR, returning zero pattern")
-            return pn_activity
+        if door_name is None:
+            logger.error(f"❌ Odor '{odor_name}' not in DoOR, returning ZERO pattern")
+            logger.error(f"   → Model cannot learn from this odor!")
+            return pn_activity  # All zeros - model cannot learn!
 
         # Get ORN responses from DoOR for this odor
-        orn_responses = self.door_data.loc[odor_standardized]
+        try:
+            orn_responses = self.door_data.loc[door_name]  # Series of ORN type → response
+        except KeyError:
+            logger.error(f"❌ KeyError for resolved odor '{door_name}' (this should never happen!)")
+            return pn_activity
 
         # Map ORN responses → PN activity via glomeruli
         for pn_idx, glomerulus in self.pn_glomeruli.items():
@@ -390,36 +425,71 @@ class DoORIntegration:
 
         return pn_activity
 
-    def _find_odor_in_door(self, odor_name: str) -> Optional[str]:
-        """Find odor in DoOR database, trying common name variants.
+    def _resolve_odor_name(self, odor_name: str) -> Optional[str]:
+        """Map experimental odor name to DoOR database name.
+
+        This method implements a robust name resolution strategy:
+        1. Check explicit ODOR_NAME_MAP first (handles known mismatches)
+        2. Try exact match (case-sensitive)
+        3. Try common variants (spaces, hyphens, case)
+        4. Try case-insensitive search
+        5. Return None if not found
+
+        Parameters
+        ----------
+        odor_name : str
+            User's odor name (e.g., 'ethyl_butyrate', 'hexanol')
 
         Returns
         -------
         str or None
-            Standardized odor name if found, None otherwise
+            DoOR database name (e.g., 'ethyl butyrate', '1-hexanol') or None if not found
         """
-        # Standardize input
-        odor_lower = odor_name.lower().strip()
+        # Step 1: Check explicit mapping FIRST (handles 'hexanol' → '1-hexanol', etc.)
+        if odor_name in self.ODOR_NAME_MAP:
+            door_name = self.ODOR_NAME_MAP[odor_name]
+            if door_name in self.door_data.index:
+                logger.debug(f"Mapped '{odor_name}' → '{door_name}' via explicit map")
+                return door_name
+            else:
+                logger.error(f"Mapped '{odor_name}' → '{door_name}', but '{door_name}' NOT IN DoOR!")
+                logger.error(f"Available DoOR odors sample: {list(self.door_data.index[:10])}...")
+                return None
 
-        # Try exact match
-        if odor_lower in self.door_data.index:
-            return odor_lower
+        # Step 2: Try exact match (case-sensitive)
+        if odor_name in self.door_data.index:
+            logger.debug(f"Exact match: '{odor_name}'")
+            return odor_name
 
-        # Try common variants
+        # Step 3: Try common variants (spaces, hyphens, case)
         variants = [
-            odor_lower.replace(' ', '_'),
-            odor_lower.replace(' ', '-'),
-            odor_lower.replace('_', ' '),
-            odor_lower.replace('-', ' '),
-            odor_lower.replace('_', '-'),
-            odor_lower.replace('-', '_'),
+            odor_name.replace('_', ' '),           # ethyl_butyrate → ethyl butyrate
+            odor_name.replace('_', '-'),           # 3_octanol → 3-octanol
+            odor_name.replace('-', ' '),           # 3-octanol → 3 octanol
+            f"1-{odor_name}",                      # hexanol → 1-hexanol
+            odor_name.lower(),                     # HEXANOL → hexanol
+            odor_name.replace('_', ' ').lower(),   # Ethyl_Butyrate → ethyl butyrate
         ]
 
         for variant in variants:
             if variant in self.door_data.index:
-                logger.debug(f"Matched '{odor_name}' → '{variant}' in DoOR")
+                logger.info(f"Matched '{odor_name}' → '{variant}' via variant search")
                 return variant
 
+        # Step 4: Case-insensitive exact match
+        for door_odor in self.door_data.index:
+            if door_odor.lower() == odor_name.lower():
+                logger.info(f"Matched '{odor_name}' → '{door_odor}' via case-insensitive search")
+                return door_odor
+
+        # Step 5: Failed to find
+        logger.warning(f"⚠️  Odor '{odor_name}' NOT FOUND in DoOR database!")
+        # Show similar odors for debugging
+        similar = [o for o in self.door_data.index if len(odor_name) >= 4 and odor_name[:4].lower() in o.lower()]
+        if similar:
+            logger.warning(f"    Available similar odors: {similar[:5]}")
+        else:
+            logger.warning(f"    Total DoOR odors: {len(self.door_data.index)}")
         return None
 
     def create_odor_sequence(
