@@ -201,6 +201,28 @@ class DoORIntegration:
             door_data = pd.read_csv(cached_path, index_col=0)
             return self._normalize_door_data(door_data)
 
+        # Try door-toolkit formatted data (more reliable than GitHub CSV)
+        door_toolkit_paths = [
+            self.cache_dir / "response_matrix_norm.csv",
+            self.cache_dir / "response_matrix_norm.parquet",
+            self.cache_dir.parent / "door_cache" / "response_matrix_norm.csv",
+            self.cache_dir.parent / "door_cache" / "response_matrix_norm.parquet",
+        ]
+
+        for toolkit_path in door_toolkit_paths:
+            if toolkit_path.exists():
+                logger.info(f"Loading door-toolkit data from {toolkit_path}")
+                if toolkit_path.suffix == '.parquet':
+                    door_data = pd.read_parquet(toolkit_path)
+                else:
+                    door_data = pd.read_csv(toolkit_path, index_col=0)
+
+                # Cache in standard location for future use
+                door_data.to_csv(cached_path)
+                logger.info(f"Cached door-toolkit data to {cached_path}")
+
+                return self._normalize_door_data(door_data)
+
         # Try to download from DoOR repository
         logger.info("Downloading DoOR database (this may take a minute)...")
         try:
@@ -229,6 +251,21 @@ class DoORIntegration:
 
         CRITICAL: Keep spaces in odor names! DoOR uses 'ethyl butyrate' not 'ethyl_butyrate'.
         """
+        # Validate DoOR data structure
+        if len(door_data.columns) == 0:
+            raise ValueError(
+                "DoOR data is malformed (0 columns - no ORN types found).\n"
+                "This usually means the downloaded CSV has InChIKeys with concatenated data.\n\n"
+                "Fix: Use door-toolkit formatted data instead:\n"
+                "  1. Install door-toolkit: pip install door-toolkit\n"
+                "  2. Extract data: door extract --output data/door_cache/\n"
+                "  3. Or copy existing: cp data/door_cache/response_matrix_norm.csv data/cache/\n\n"
+                "The code will automatically detect door-toolkit formatted files."
+            )
+
+        if len(door_data) == 0:
+            raise ValueError("DoOR data is empty (0 odorants found)")
+
         # Standardize odorant names in index (lowercase and strip, but keep spaces!)
         door_data.index = door_data.index.str.lower().str.strip()
         # NOTE: Do NOT replace spaces - DoOR uses spaces in names like 'ethyl butyrate'
