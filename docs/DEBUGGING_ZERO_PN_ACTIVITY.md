@@ -34,7 +34,40 @@ The scripts will identify which of these issues you have:
 
 ## Likely Root Causes
 
-### 1. **Haven't Pulled Latest Fix** (Most Common)
+### 1. **Malformed DoOR Data from GitHub** (Current Issue - Fixed in Latest Code)
+
+**Symptoms**:
+- `test_orn_pn_mapping.py` shows "ORN types (columns): 0"
+- DoOR odor names look like: `'sfr;0.0627144154948233;0.06972846128059;...'`
+- Diagnostic shows "Matched: 0" ORN types
+
+**Root Cause**: The `door_response_matrix.csv` downloaded from GitHub has InChIKeys with concatenated data instead of proper columns. You need to use door-toolkit formatted data instead.
+
+**Fix**: Pull latest code - it will automatically detect and use your door-toolkit data:
+```bash
+git pull origin claude/connectome-constrained-behavior-prediction-014UV3FWTFdXYAttqMaTBEoh
+```
+
+The updated code now:
+- Checks for door-toolkit formatted data (`response_matrix_norm.csv`) before GitHub download
+- Automatically finds your data at `data/door_cache/response_matrix_norm.csv`
+- Validates DoOR structure (detects 0 columns) and provides helpful error messages
+
+**Verification**: Run `test_orn_pn_mapping.py` and check for:
+```
+[1/4] DoOR Data Structure
+  Odorants (rows): 693
+  ORN types (columns): 110  ← FIXED! (was 0)
+
+[3/4] Glomerulus→ORN Mapping
+  Matched: 35  ← FIXED! (was 0)
+```
+
+**See**: [docs/DOOR_MALFORMED_DATA_FIX.md](DOOR_MALFORMED_DATA_FIX.md) for complete details.
+
+---
+
+### 2. **Haven't Pulled Latest Odor Name Fix**
 
 **Symptoms**:
 - `diagnose_door_integration.py` shows "ODOR_NAME_MAP NOT FOUND"
@@ -56,7 +89,7 @@ git pull origin claude/connectome-constrained-behavior-prediction-014UV3FWTFdXYA
 
 ---
 
-### 2. **PN→Glomerulus Mapping Missing**
+### 3. **PN→Glomerulus Mapping Missing**
 
 **Symptoms**:
 - `test_orn_pn_mapping.py` shows "Total PNs mapped: 0"
@@ -100,7 +133,7 @@ print(f"Created mock nodes.parquet with {len(df)} PNs")
 
 ---
 
-### 3. **DoOR Column Names Don't Match ORN Names**
+### 4. **DoOR Column Names Don't Match ORN Names**
 
 **Symptoms**:
 - `test_orn_pn_mapping.py` shows "Matched: 0" ORN types
@@ -160,7 +193,7 @@ Matched: 35  (or however many glomeruli you have)
 
 ---
 
-### 4. **Wrong Cache Directory Path**
+### 5. **Wrong Cache Directory Path**
 
 **Symptoms**:
 - DoOR data files exist but aren't being found
@@ -195,7 +228,9 @@ cp data/door_cache/* data/cache/
 
 ---
 
-### 5. **DoOR Data Format Mismatch**
+### 6. **DoOR Data Format Mismatch** (Deprecated - See Issue #1)
+
+**Note**: This issue is now handled automatically by the fix in Issue #1. The code will detect and use door-toolkit formatted data.
 
 **Symptoms**:
 - You have `response_matrix_norm.parquet` but code expects `door_response_matrix.csv`
