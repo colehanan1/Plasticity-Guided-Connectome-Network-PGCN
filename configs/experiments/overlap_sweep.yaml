@@ -1,0 +1,255 @@
+# KC Overlap Sweep Experiment Configuration
+#
+# This configuration enables systematic KC sparsity ablation studies to test
+# how circuit architecture (KC sparsity) affects KC overlap and veto efficacy.
+#
+# Usage:
+#   python scripts/experiments/kc_overlap_vs_veto_efficacy.py \
+#       --kc-sparsity 0.05 \
+#       --output reports/experiments/overlap/sweep_sparsity_5pct.csv
+#
+# Author: PGCN Project
+# Date: 2025-11-18
+
+# ==============================================================================
+# EXPERIMENT DESIGN
+# ==============================================================================
+
+experiment:
+  name: "KC Overlap vs Veto Efficacy Sweep"
+  description: |
+    Systematic test of the hypothesis that veto gate protection efficacy
+    depends on KC overlap between tasks. We measure forgetting across
+    three similarity levels (low/medium/high chemical similarity) and
+    compare baseline vs veto gate protection strategies.
+
+  hypothesis: |
+    Veto gate protection should scale with KC overlap:
+    - Low KC overlap (<10%): Minimal benefit (~0-5%)
+    - Medium KC overlap (15-40%): Moderate benefit (~20-40%)
+    - High KC overlap (>50%): Strong benefit (~50-70%)
+
+  expected_outcome: |
+    Chemical similarity (DoOR) predicts KC overlap, which predicts
+    veto efficacy. Sparse coding (5% KC sparsity) naturally prevents
+    interference for dissimilar odors, making veto unnecessary. For
+    similar odors with high KC overlap, veto becomes critical.
+
+
+# ==============================================================================
+# KC SPARSITY ABLATION SWEEP
+# ==============================================================================
+
+kc_sparsity_sweep:
+  # KC sparsity values to test (fraction of active KCs per odor)
+  # Biological range: 0.05-0.10 (5-10%)
+  # Extended range for ablation: 0.02-0.20 (2-20%)
+
+  values: [0.02, 0.05, 0.10, 0.15, 0.20]
+
+  predictions:
+    sparsity_0.02:
+      description: "Very sparse (2%)"
+      expected_overlap_low: "~0%"
+      expected_overlap_medium: "~0-2%"
+      expected_overlap_high: "~5-10%"
+      veto_benefit: "Minimal (sparse coding sufficient)"
+
+    sparsity_0.05:
+      description: "Sparse (5%, biological default)"
+      expected_overlap_low: "~0%"
+      expected_overlap_medium: "~5-15%"
+      expected_overlap_high: "~15-30%"
+      veto_benefit: "Moderate (needed for high similarity)"
+
+    sparsity_0.10:
+      description: "Medium sparse (10%)"
+      expected_overlap_low: "~5-10%"
+      expected_overlap_medium: "~20-35%"
+      expected_overlap_high: "~40-60%"
+      veto_benefit: "Strong (needed for medium-high similarity)"
+
+    sparsity_0.15:
+      description: "Low sparse (15%)"
+      expected_overlap_low: "~10-20%"
+      expected_overlap_medium: "~35-50%"
+      expected_overlap_high: "~60-80%"
+      veto_benefit: "Very strong (needed even for medium similarity)"
+
+    sparsity_0.20:
+      description: "Minimal sparse (20%)"
+      expected_overlap_low: "~20-30%"
+      expected_overlap_medium: "~50-70%"
+      expected_overlap_high: "~75-90%"
+      veto_benefit: "Critical (needed for all similarity levels)"
+
+
+# ==============================================================================
+# TASK DEFINITIONS (5 ODORS, CITRAL EXCLUDED)
+# ==============================================================================
+
+odor_pool:
+  # 5 odors with validated DoOR glomerulus mapping
+  # Citral excluded (Or83c not mapped to glomerulus)
+  odors:
+    - "1-hexanol"
+    - "ethyl butyrate"
+    - "linalool"
+    - "3-octanol"
+    - "benzaldehyde"
+
+  rationale: |
+    These 5 odors span a range of chemical similarities (38% to 72%)
+    and all successfully map to glomeruli via the DoOR database.
+    Citral was excluded because it only activates Or83c, which has
+    no glomerulus mapping in the current OR_TO_GLOMERULUS dictionary.
+
+
+similarity_levels:
+  low:
+    description: "Low chemical similarity (38%)"
+    task_A:
+      odor_rewarded: "linalool"
+      odor_unrewarded: "1-hexanol"
+    task_B:
+      odor_rewarded: "benzaldehyde"
+      odor_unrewarded: "3-octanol"
+    chemical_similarity: 0.382  # linalool vs benzaldehyde
+    expected_kc_overlap_5pct: "~0%"
+    expected_veto_benefit: "Minimal (~0-5%)"
+
+  medium:
+    description: "Medium chemical similarity (47%)"
+    task_A:
+      odor_rewarded: "ethyl butyrate"
+      odor_unrewarded: "1-hexanol"
+    task_B:
+      odor_rewarded: "benzaldehyde"
+      odor_unrewarded: "3-octanol"
+    chemical_similarity: 0.470  # ethyl butyrate vs benzaldehyde
+    expected_kc_overlap_5pct: "~5-15%"
+    expected_veto_benefit: "Moderate (~20-40%)"
+
+  high:
+    description: "High chemical similarity (72%)"
+    task_A:
+      odor_rewarded: "1-hexanol"
+      odor_unrewarded: "linalool"
+    task_B:
+      odor_rewarded: "ethyl butyrate"
+      odor_unrewarded: "benzaldehyde"
+    chemical_similarity: 0.717  # 1-hexanol vs ethyl butyrate
+    expected_kc_overlap_5pct: "~15-30%"
+    expected_veto_benefit: "Strong (~50-70%)"
+
+
+# ==============================================================================
+# TRAINING PARAMETERS
+# ==============================================================================
+
+training:
+  trials_per_task: 30  # Training trials per discrimination task
+  learning_rate: 0.005  # Plasticity learning rate (α in dW = α × KC × MBON × DA)
+  random_seed: 42  # Random seed for reproducibility
+
+
+# ==============================================================================
+# VETO GATE PARAMETERS
+# ==============================================================================
+
+veto_gate:
+  protection_threshold: 0.3  # Protect top 30% of synapses
+  gate_strength: 0.9  # 90% suppression when veto fully active
+  min_gating_factor: 0.1  # 10% minimum plasticity retained
+  similarity_metric: "chemical"  # Use DoOR receptor similarity
+  door_threshold: 0.3  # Receptor activation threshold for glomerulus mapping
+  pathway_identification: "gradient_magnitude"  # Identify critical synapses by weight changes
+
+
+# ==============================================================================
+# CIRCUIT PARAMETERS
+# ==============================================================================
+
+circuit:
+  cache_dir: "data/cache"
+  normalize_weights: "row"  # Sum-to-1 per postsynaptic neuron
+  include_dan: false  # Simplified circuit (no DAN feedback)
+  include_extended: false  # Core circuit only (PN→KC→MBON)
+
+
+# ==============================================================================
+# OUTPUT PARAMETERS
+# ==============================================================================
+
+output:
+  results_dir: "reports/experiments/overlap"
+  figures_dir: "reports/figures"
+
+  file_naming:
+    results_csv: "kc_overlap_sweep_sparsity_{sparsity_pct}pct.csv"
+    figure_pdf: "kc_overlap_vs_protection_sparsity_{sparsity_pct}pct.pdf"
+
+  logging:
+    level: "INFO"
+    format: "[%(asctime)s] %(levelname)s - %(message)s"
+
+
+# ==============================================================================
+# EXPERIMENTAL WORKFLOW
+# ==============================================================================
+
+workflow:
+  description: |
+    1. For each KC sparsity value (2%, 5%, 10%, 15%, 20%):
+       a. Load circuit with specified sparsity
+       b. For each similarity level (low, medium, high):
+          i.   Measure pre-training KC overlap
+          ii.  Run baseline (no protection)
+          iii. Run veto gate protection
+          iv.  Compute protection benefit
+       c. Save results to CSV
+       d. Generate 3-panel visualization
+
+    2. Meta-analysis across sparsity levels:
+       - Plot KC overlap vs sparsity (should increase with sparsity)
+       - Plot veto benefit vs sparsity (should increase with sparsity)
+       - Validate hypothesis: benefit = f(overlap)
+
+  example_commands:
+    run_single_sparsity: |
+      python scripts/experiments/kc_overlap_vs_veto_efficacy.py \
+          --kc-sparsity 0.05 \
+          --trials-per-task 30 \
+          --learning-rate 0.005 \
+          --output reports/experiments/overlap/sweep_sparsity_5pct.csv
+
+    visualize: |
+      python scripts/experiments/plot_overlap_vs_protection.py \
+          --input reports/experiments/overlap/sweep_sparsity_5pct.csv \
+          --output reports/figures/overlap_vs_protection_5pct.pdf
+
+    run_full_sweep: |
+      # Bash loop over sparsity values
+      for sparsity in 0.02 0.05 0.10 0.15 0.20; do
+        pct=$(echo "$sparsity * 100" | bc | cut -d. -f1)
+        python scripts/experiments/kc_overlap_vs_veto_efficacy.py \
+            --kc-sparsity $sparsity \
+            --output reports/experiments/overlap/sweep_sparsity_${pct}pct.csv
+        python scripts/experiments/plot_overlap_vs_protection.py \
+            --input reports/experiments/overlap/sweep_sparsity_${pct}pct.csv \
+            --output reports/figures/overlap_vs_protection_${pct}pct.pdf
+      done
+
+
+# ==============================================================================
+# NOTES AND CAVEATS
+# ==============================================================================
+
+notes: |
+  1. Chemical similarity (DoOR) is a proxy for KC overlap, not a perfect predictor
+  2. KC overlap depends on both chemical similarity AND circuit architecture (PN→KC connectivity)
+  3. Veto efficacy depends on both KC overlap AND learning dynamics (weight magnitudes)
+  4. Citral (Or83c) excluded due to missing glomerulus mapping - this is a limitation of the
+     current DoOR integration and should be addressed in future work
+  5. Negative forgetting (performance improvement after Task B) may occur due to transfer learning
+     or unstable weight dynamics - this warrants further investigation

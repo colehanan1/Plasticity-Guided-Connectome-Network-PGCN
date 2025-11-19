@@ -185,6 +185,7 @@ class DopamineModulatedPlasticity:
         init_scale: float = 0.01,
         mbon_output_divisor: float = 10.0,
         mbon_output_max: float = 100.0,
+        kc_sparsity: float = 0.05,  # Expected fraction of active KCs per odor
     ) -> None:
         """Initialize plasticity manager with weight reference and parameters."""
         # Validate learning rate
@@ -226,6 +227,9 @@ class DopamineModulatedPlasticity:
                 # No anatomical mask; use dense initialization
                 self.kc_to_mbon = random_weights * init_scale
 
+        # Initialize weights in homeostatic normalization needs to be done AFTER setting all parameters
+        # It will be called after the full __init__ completes
+
         self.learning_rate = learning_rate
         self.eligibility_trace_tau = eligibility_trace_tau
         self.plasticity_mode = plasticity_mode
@@ -247,6 +251,27 @@ class DopamineModulatedPlasticity:
 
         # Optional: sign-flipped synapses for microsurgery experiments
         self._sign_flip_synapses: set = set()
+
+        # Optional: veto gate for continual learning
+        self.veto_gate: Optional[Any] = None  # Will be SelectiveVetoGate instance
+        self.protected_tasks: List[int] = []
+        self.weight_change_history: List[np.ndarray] = []  # Track delta_w for pathway identification
+
+        # Homeostatic plasticity: KC output normalization
+        self.enable_weight_normalization = True  # Critical for stability
+        # Scale target KC output by expected number of active KCs
+        # Goal: total MBON input ≈ 10 for biological realism
+        n_kc_expected = int(base_weights.shape[1] * kc_sparsity)  # e.g., 2000 * 0.05 = 100
+        self.target_kc_output = 10.0 / max(n_kc_expected, 1)  # e.g., 10 / 100 = 0.1
+        self.gradient_clip_norm = 1.0  # Prevent gradient explosion
+
+        print(f"[Homeostasis] KC output target: {self.target_kc_output:.4f} "
+              f"(n_KC_expected={n_kc_expected}, target_sum≈{10.0})")
+
+        # Apply initial KC normalization (start from normalized state)
+        if init_mode != "zeros" and self.enable_weight_normalization:
+            self.normalize_kc_outputs()
+            print(f"[Homeostasis] Initialized weights in normalized state (target={self.target_kc_output})")
 
     def reset_weights_random(self, init_scale: float = 0.01) -> None:
         """Reset KC→MBON weights to small random values while preserving mask."""
@@ -278,6 +303,47 @@ class DopamineModulatedPlasticity:
             else:
                 row_values = (row_values / std) * init_scale
             self.kc_to_mbon[row_idx, mask_row] = row_values
+
+    def normalize_kc_outputs(self) -> None:
+        """
+        Homeostatic plasticity: Normalize each KC's total output strength.
+
+        Biological Basis
+        ----------------
+        KCs maintain constant average drive to MBONs through synaptic scaling,
+        preventing runaway weight growth during learning. This implements
+        homeostatic plasticity observed at Drosophila NMJ and MB circuits.
+
+        The normalization ensures that each KC's L2 norm (total synaptic strength
+        to all MBONs) remains constant at `target_kc_output`.
+
+        References
+        ----------
+        - Homeostatic plasticity at Drosophila NMJ (PMC8044042)
+        - Compensatory variability in mushroom body (PNAS 2021)
+        - Synaptic scaling in sparse coding networks (Nature Neuroscience 2013)
+
+        Notes
+        -----
+        Weight matrix shape: (n_mbon, n_kc) = (44, 2000)
+        Normalization: Each KC column normalized independently (axis=0)
+        """
+        if not self.enable_weight_normalization:
+            return
+
+        # Compute L2 norm for each KC (column-wise, summing over MBONs)
+        # Shape: (n_kc,)
+        kc_norms = np.linalg.norm(self.kc_to_mbon, axis=0, ord=2)
+
+        # Normalize each KC's output to target strength
+        # Avoid division by zero for inactive KCs
+        kc_norms_safe = np.where(kc_norms > 1e-6, kc_norms, 1.0)
+
+        # Apply normalization: scale each column
+        self.kc_to_mbon = self.kc_to_mbon * (self.target_kc_output / kc_norms_safe[np.newaxis, :])
+
+        # Re-enforce anatomical mask (normalization might violate it)
+        self.enforce_connectivity_mask()
 
     def compute_mbon_output(self, kc_activity: np.ndarray) -> np.ndarray:
         """Compute normalized MBON output from KC activity.
@@ -498,6 +564,23 @@ class DopamineModulatedPlasticity:
                 if 0 <= kc_idx < n_kc and 0 <= mbon_idx < n_mbon:
                     delta_w[mbon_idx, kc_idx] *= -1.0
 
+        # Apply veto gate protection (for continual learning)
+        if self.veto_gate is not None and self.veto_gate.protection_mask is not None:
+            # Only apply if protection mask has been set (after identify_critical_pathways)
+            delta_w = self.veto_gate.apply_protection(delta_w)
+
+        # Track weight changes for pathway identification (if enabled)
+        if hasattr(self, 'weight_change_history') and len(self.weight_change_history) < 1000:
+            # Limit history to prevent memory explosion (keep last 1000 updates)
+            self.weight_change_history.append(delta_w.copy())
+            if len(self.weight_change_history) > 1000:
+                self.weight_change_history.pop(0)
+
+        # Clip gradients to prevent explosion (biological constraint)
+        delta_w_norm = np.linalg.norm(delta_w)
+        if delta_w_norm > self.gradient_clip_norm:
+            delta_w = delta_w * (self.gradient_clip_norm / delta_w_norm)
+
         # Apply weight update
         self.kc_to_mbon += delta_w
 
@@ -507,6 +590,10 @@ class DopamineModulatedPlasticity:
 
         # Enforce anatomical mask after updates
         self.enforce_connectivity_mask()
+
+        # CRITICAL: Homeostatic plasticity (KC output normalization)
+        # This prevents weight explosion and maintains biological realism
+        self.normalize_kc_outputs()
 
         # Compute diagnostics
         weight_change_magnitude = float(np.linalg.norm(delta_w))
@@ -523,6 +610,81 @@ class DopamineModulatedPlasticity:
             "mean_weight": mean_weight,
             "max_weight": max_weight,
             "eligibility_trace_norm": eligibility_trace_norm,
+        }
+
+    def enable_veto_protection(
+        self,
+        veto_gate: Any,  # SelectiveVetoGate instance
+        protected_tasks: Optional[List[int]] = None,
+        track_weight_changes: bool = True,
+    ) -> None:
+        """Register veto gate to modulate plasticity during continual learning.
+
+        This method integrates a SelectiveVetoGate to prevent catastrophic forgetting
+        during sequential task learning. The veto gate identifies critical pathways
+        for Task A and gates plasticity during Task B training based on odor similarity.
+
+        Biological Rationale
+        --------------------
+        Inspired by Or7a blocking mechanism in Drosophila: selective pathway gating
+        prevents interference between similar tasks while allowing independent learning
+        for dissimilar tasks.
+
+        Integration Details
+        -------------------
+        During update_weights():
+        1. Compute standard weight update (dW = α × KC × MBON × DA)
+        2. If veto gate is registered, apply protection to gated updates
+        3. Track weight changes for subsequent pathway identification
+
+        Parameters
+        ----------
+        veto_gate : SelectiveVetoGate
+            Veto gate instance for plasticity gating.
+        protected_tasks : Optional[List[int]], optional
+            List of task IDs to protect. Default: None (protect all previous tasks).
+        track_weight_changes : bool, optional
+            Whether to track weight changes for gradient-based pathway identification.
+            Default: True
+
+        Example
+        -------
+        >>> from pgcn.models.veto_gate import SelectiveVetoGate
+        >>>
+        >>> # Create veto gate
+        >>> veto_gate = SelectiveVetoGate(
+        ...     circuit=circuit,
+        ...     protection_threshold=0.3,
+        ...     gate_strength=0.9,
+        ...     similarity_metric='chemical'
+        ... )
+        >>>
+        >>> # Register with plasticity model
+        >>> plasticity.enable_veto_protection(veto_gate, protected_tasks=[0])
+        >>>
+        >>> # Plasticity updates will now be gated during Task 1 training
+        """
+        self.veto_gate = veto_gate
+        self.protected_tasks = protected_tasks or []
+
+        if track_weight_changes:
+            self.weight_change_history = []
+
+        print(f"✅ Veto protection enabled (protecting tasks: {self.protected_tasks})")
+
+    def get_task_data_for_protection(self) -> Dict[str, Any]:
+        """Extract task data for veto gate pathway identification.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Task data with keys:
+            - 'weight_changes': List of delta_w matrices from training
+            - 'final_weights': Current KC→MBON weights
+        """
+        return {
+            'weight_changes': self.weight_change_history.copy(),
+            'final_weights': self.kc_to_mbon.copy(),
         }
 
     def decay_weights(self, decay_rate: float = 0.001, dt: float = 1.0) -> None:

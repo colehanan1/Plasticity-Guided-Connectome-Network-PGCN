@@ -1,0 +1,226 @@
+# Veto Gate Continual Learning Experiment Configuration
+#
+# This configuration file defines parameters for sequential task learning
+# experiments with different catastrophic forgetting prevention strategies.
+#
+# Usage:
+#   python scripts/experiments/continual_learning_veto.py --config configs/experiments/veto_continual_learning.yaml
+#
+# Author: PGCN Project
+# Date: 2025-11-18
+
+# ==============================================================================
+# TASK DEFINITIONS
+# ==============================================================================
+
+tasks:
+  # List of odor discrimination tasks (odor_a, odor_b pairs)
+  # Each task is a binary discrimination: odor_a → reward, odor_b → no reward
+  #
+  # Note: Odor names must match DoOR database entries.
+  # Common transformations:
+  #   - 'hexanol' → '1-hexanol' (automatic)
+  #   - 'ethyl_butyrate' → 'ethyl butyrate' (underscore to space)
+  #
+  # Example task sequences:
+  # - High similarity: All aldehyde/ketone pairs (expect strong interference)
+  # - Low similarity: Diverse chemical classes (expect weak interference)
+
+  - odor_a: "ethyl butyrate"
+    odor_b: "1-hexanol"
+    description: "Task 1: Ester vs Alcohol"
+
+  - odor_a: "benzaldehyde"
+    odor_b: "3-octanol"
+    description: "Task 2: Aromatic Aldehyde vs Alcohol"
+
+  - odor_a: "citral"
+    odor_b: "linalool"
+    description: "Task 3: Terpenoid Aldehyde vs Alcohol"
+
+
+# ==============================================================================
+# PROTECTION STRATEGIES
+# ==============================================================================
+
+strategies:
+  # List of strategies to test.
+  # Options:
+  #   - baseline: No protection (catastrophic forgetting baseline)
+  #   - veto_gate: Selective veto gate with DoOR chemical similarity
+  #   - simplified_ewc: Elastic Weight Consolidation (penalty on weight change)
+  #   - freeze_topk: Hard freeze top-k critical neurons
+
+  - baseline
+  - veto_gate
+  - simplified_ewc
+  - freeze_topk
+
+
+# ==============================================================================
+# TRAINING PARAMETERS
+# ==============================================================================
+
+training:
+  trials_per_task: 25  # Number of training trials per task
+  learning_rate: 0.001  # Plasticity learning rate (α in dW = α × KC × MBON × DA)
+  random_seed: 42  # Random seed for reproducibility
+
+
+# ==============================================================================
+# VETO GATE PARAMETERS
+# ==============================================================================
+
+veto_gate:
+  # Protection threshold (percentile)
+  # 0.3 = protect top 30% of synapses by importance
+  # Biological motivation: Not all synapses equally critical
+  protection_threshold: 0.3
+
+  # Gate strength (β)
+  # Range: [0, 1]
+  # 0.9 = 90% suppression when veto fully active
+  # Biological: Or7a provides strong but not complete blocking
+  gate_strength: 0.9
+
+  # Minimum gating factor (floor)
+  # Ensures some residual plasticity even under full veto
+  # 0.1 = 10% minimum plasticity retained
+  # Biological: Synapses never fully frozen in vivo
+  min_gating_factor: 0.1
+
+  # Similarity metric
+  # Options:
+  #   - 'chemical': DoOR receptor response cosine similarity (preferred)
+  #   - 'kc_overlap': Jaccard similarity of KC activations (fallback)
+  #   - 'learned_weights': Weight pattern similarity (experimental)
+  similarity_metric: "chemical"
+
+  # DoOR receptor activation threshold for glomerulus mapping
+  # 0.3 = receptor must be activated >30% to count as "active"
+  door_threshold: 0.3
+
+  # Pathway identification method
+  # Options:
+  #   - 'gradient_magnitude': Protect synapses with largest weight changes
+  #   - 'weight_magnitude': Protect synapses with largest final weights
+  #   - 'activity_correlation': Protect KCs most correlated with task output
+  pathway_identification: "gradient_magnitude"
+
+
+# ==============================================================================
+# SIMPLIFIED EWC PARAMETERS
+# ==============================================================================
+
+simplified_ewc:
+  # EWC penalty strength
+  # Higher = stronger pull toward Task 0 weights
+  # 0.5 = moderate penalty
+  ewc_strength: 0.5
+
+
+# ==============================================================================
+# FREEZE TOP-K PARAMETERS
+# ==============================================================================
+
+freeze_topk:
+  # Percentile threshold for freezing
+  # 0.7 = freeze top 30% (1.0 - 0.7) of critical synapses
+  freeze_threshold: 0.7
+
+
+# ==============================================================================
+# CIRCUIT PARAMETERS
+# ==============================================================================
+
+circuit:
+  # Circuit cache directory
+  cache_dir: "data/cache"
+
+  # KC sparsity target (fraction of active KCs per odor)
+  # Biological range: 0.05-0.10 (5-10%)
+  kc_sparsity: 0.05
+
+  # Connectivity normalization
+  # Options: 'row' (sum-to-1 per postsynaptic neuron), 'none'
+  normalize_weights: "row"
+
+  # Include DAN neurons in connectivity
+  # Set to false for simplified experiments
+  include_dan: false
+
+  # Include extended circuit components (LN, motor, etc.)
+  include_extended: false
+
+
+# ==============================================================================
+# OUTPUT PARAMETERS
+# ==============================================================================
+
+output:
+  # Results CSV file path
+  results_csv: "results/continual_learning_results.csv"
+
+  # Figure output directory
+  figures_dir: "reports/figures"
+
+  # Logging verbosity
+  # Options: 'DEBUG', 'INFO', 'WARNING', 'ERROR'
+  log_level: "INFO"
+
+
+# ==============================================================================
+# ABLATION STUDY CONFIGURATIONS
+# ==============================================================================
+# Uncomment sections below for specific ablation studies
+
+# # Ablation 1: Veto strength sweep
+# veto_gate_ablation_strength:
+#   gate_strength_values: [0.0, 0.3, 0.6, 0.9, 1.0]
+
+# # Ablation 2: Protection threshold sweep
+# veto_gate_ablation_threshold:
+#   protection_threshold_values: [0.1, 0.2, 0.3, 0.4, 0.5]
+
+# # Ablation 3: Similarity metric comparison
+# veto_gate_ablation_similarity:
+#   similarity_metrics: ['chemical', 'kc_overlap', 'learned_weights']
+
+# # Ablation 4: Task sequence variations
+# task_ablation_sequences:
+#   - name: "high_similarity"
+#     tasks:
+#       - ["benzaldehyde", "2-heptanone"]  # Both aldehydes/ketones
+#       - ["hexanal", "octanal"]  # Both aldehydes
+#       - ["2-butanone", "2-pentanone"]  # Both ketones
+#
+#   - name: "low_similarity"
+#     tasks:
+#       - ["benzaldehyde", "1-hexanol"]  # Aromatic vs aliphatic
+#       - ["linalool", "acetic acid"]  # Terpenoid vs acid
+#       - ["ethyl acetate", "geraniol"]  # Ester vs alcohol
+
+
+# ==============================================================================
+# NOTES
+# ==============================================================================
+
+notes: |
+  Configuration for Or7a-inspired selective veto gate continual learning.
+
+  Key design principles:
+  1. Chemical similarity (DoOR) predicts interference
+  2. Graded protection (not binary on/off)
+  3. Dynamic pathway identification (not fixed like Or7a)
+  4. Minimal overhead (top 30% protection sufficient)
+
+  Expected outcomes:
+  - Baseline: 40% forgetting (catastrophic)
+  - Veto gate: <5% forgetting (excellent retention)
+  - Simplified EWC: 10-20% forgetting (moderate)
+  - Freeze top-k: 15-25% forgetting (partial protection)
+
+  Biological validation:
+  - Veto strength ~0.9 matches Or7a blocking strength (55% activation)
+  - Protection threshold 0.3 matches sparse coding (~30% critical neurons)
+  - Min gating 0.1 prevents full plasticity shutdown (biologically realistic)
