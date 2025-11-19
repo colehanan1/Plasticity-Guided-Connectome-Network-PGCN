@@ -34,33 +34,42 @@ The scripts will identify which of these issues you have:
 
 ## Likely Root Causes
 
-### 1. **Malformed DoOR Data from GitHub** (Current Issue - Fixed in Latest Code)
+### 1. **InChIKey Indices in door-toolkit Data** (Current Issue - Fixed in Latest Code)
 
 **Symptoms**:
-- `test_orn_pn_mapping.py` shows "ORN types (columns): 0"
-- DoOR odor names look like: `'sfr;0.0627144154948233;0.06972846128059;...'`
-- Diagnostic shows "Matched: 0" ORN types
+- `test_orn_pn_mapping.py` shows 110 ORN columns ✓ but still "0 active PNs"
+- When you check the data: `head -5 data/door_cache/response_matrix_norm.csv`
+- Indices are InChIKeys: `'humnylrzrppjdn-uhfffaoysa-n'` instead of `'benzaldehyde'`
+- Odor lookups fail even though data structure is correct
 
-**Root Cause**: The `door_response_matrix.csv` downloaded from GitHub has InChIKeys with concatenated data instead of proper columns. You need to use door-toolkit formatted data instead.
+**Root Cause**: The door-toolkit's `response_matrix_norm.csv` uses **InChIKey chemical identifiers** as row indices instead of common names. When code searches for 'benzaldehyde', it doesn't find 'humnylrzrppjdn-uhfffaoysa-n'.
 
-**Fix**: Pull latest code - it will automatically detect and use your door-toolkit data:
+**Fix**: Pull latest code - it will automatically convert InChIKey indices to common names:
 ```bash
 git pull origin claude/connectome-constrained-behavior-prediction-014UV3FWTFdXYAttqMaTBEoh
 ```
 
 The updated code now:
-- Checks for door-toolkit formatted data (`response_matrix_norm.csv`) before GitHub download
-- Automatically finds your data at `data/door_cache/response_matrix_norm.csv`
-- Validates DoOR structure (detects 0 columns) and provides helpful error messages
+- Loads `response_matrix_norm.csv` (InChIKey indices)
+- Loads `odor_metadata.parquet` (InChIKey → Name mappings)
+- Converts InChIKey indices to common names
+- Caches converted matrix for future use
 
-**Verification**: Run `test_orn_pn_mapping.py` and check for:
+**Manual verification** (optional):
+```bash
+python convert_inchikey_to_names.py
 ```
-[1/4] DoOR Data Structure
-  Odorants (rows): 693
-  ORN types (columns): 110  ← FIXED! (was 0)
 
-[3/4] Glomerulus→ORN Mapping
-  Matched: 35  ← FIXED! (was 0)
+**Expected output**:
+```
+[4/4] Converting InChIKey indices to common names
+   ✓ Converted 693/693 indices to common names
+
+Verifying critical odor names:
+   ✓ 1-hexanol           found
+   ✓ benzaldehyde        found
+   ✓ acetic acid         found
+   ...
 ```
 
 **See**: [docs/DOOR_MALFORMED_DATA_FIX.md](DOOR_MALFORMED_DATA_FIX.md) for complete details.

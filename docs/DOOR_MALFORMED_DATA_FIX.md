@@ -1,7 +1,7 @@
-# DoOR Malformed Data Fix - Summary
+# DoOR InChIKey Index Fix - Summary
 
 **Date**: 2025-01-19
-**Issue**: Zero PN activity due to malformed DoOR data from GitHub
+**Issue**: Zero PN activity due to InChIKey indices in door-toolkit data
 **Status**: ✅ **FIXED**
 **Branch**: `claude/connectome-constrained-behavior-prediction-014UV3FWTFdXYAttqMaTBEoh`
 
@@ -11,29 +11,33 @@
 
 ### Symptom from Diagnostics
 
-```
-[1/4] DoOR Data Structure
-  Odorants (rows): 693
-  ORN types (columns): 0  ← PROBLEM!
+When examining the actual DoOR data files:
 
-  Available DoOR odors (sample):
-    'sfr;0.0627144154948233;0.06972846128059;...'
-    ← InChIKeys with concatenated data, not proper CSV
+```bash
+head -5 data/door_cache/response_matrix_norm.csv
+```
+
+Output shows InChIKey identifiers as row indices:
+```
+zsiaufguxnugdi-uhfffaoysa-n   (NOT "1-hexanol")
+humnylrzrppjdn-uhfffaoysa-n   (NOT "benzaldehyde")
+qtbsbxvteameqo-uhfffaoysa-n   (NOT "acetic acid")
 ```
 
 ### Root Cause
 
-The `door_response_matrix.csv` downloaded from GitHub is **malformed**:
+The door-toolkit's `response_matrix_norm.csv` uses **InChIKey chemical identifiers** as row indices instead of common chemical names:
 
-- **Expected format**: CSV with odorant names as rows, ORN types as columns
-- **Actual format**: InChIKeys as row labels with all response data concatenated as semicolon-separated strings in a single column
+- **Expected format**: Common names as indices ('benzaldehyde', '1-hexanol', 'ethyl butyrate')
+- **Actual format**: InChIKeys as indices ('humnylrzrppjdn-uhfffaoysa-n', 'zsiaufguxnugdi-uhfffaoysa-n')
 
 This results in:
 - 693 odorants detected ✓
-- **0 ORN columns** ✗
-- All PN activity calculations return 0
+- 110 ORN columns detected ✓
+- **BUT**: Odor lookups fail because code searches for 'benzaldehyde' but indices contain 'humnylrzrppjdn-uhfffaoysa-n'
+- All PN activity calculations return 0 (no matching odors found)
 
-### Why Odor Name Mapping Was Not the Issue
+### Why Odor Name Mapping Was Not Enough
 
 The diagnostic output showed:
 ```
@@ -44,31 +48,39 @@ The diagnostic output showed:
     ...
 ```
 
-The ODOR_NAME_MAP fix (implemented earlier) was **working correctly**. The issue was that DoOR had no valid ORN columns to map TO.
+The ODOR_NAME_MAP fix (implemented earlier) was **working correctly**. It properly mapped experimental names to DoOR names.
+
+**BUT**: Even after mapping 'hexanol' → '1-hexanol', the lookup still failed because:
+- The code searched for `'1-hexanol'` in the index
+- The index contained `'zsiaufguxnugdi-uhfffaoysa-n'` (InChIKey for 1-hexanol)
+- No match found → 0 active PNs
+
+The **real issue** was that DoOR indices were InChIKeys, not common names.
 
 ---
 
 ## The Solution
 
-### User Already Had Good Data
+### Discovery: door-toolkit Provides Name Mappings
 
-The user has properly formatted DoOR data from **door-toolkit** at:
-```
-data/door_cache/response_matrix_norm.csv
-```
+The door-toolkit provides **two critical files**:
 
-This file has:
-- Odorant names as row index ✓
-- ORN types as columns (Or42b, Or59b, etc.) ✓
-- Response values properly formatted ✓
+1. **`response_matrix_norm.csv`**: DoOR response matrix with **InChIKey indices**
+   - 693 odorants × 110 ORN types ✓
+   - Response values properly formatted ✓
+   - **BUT**: Row indices are InChIKeys
+
+2. **`odor_metadata.parquet`**: Metadata with **InChIKey → Name mappings**
+   - Contains columns: `['Name', 'InChIKey', 'CAS', 'SMILES', ...]`
+   - Provides the crucial mapping: `'humnylrzrppjdn-uhfffaoysa-n' → 'benzaldehyde'`
 
 ### Code Changes
 
 **File**: `src/pgcn/data/door_integration.py`
 
-#### Change 1: Prioritize door-toolkit Data (lines 204-224)
+#### Change 1: Prioritize door-toolkit Data (lines 204-230)
 
-Added checks for door-toolkit formatted files BEFORE attempting GitHub download:
+Added checks for door-toolkit formatted files BEFORE attempting GitHub download, and added InChIKey → Name conversion:
 
 ```python
 # Try door-toolkit formatted data (more reliable than GitHub CSV)
@@ -87,11 +99,17 @@ for toolkit_path in door_toolkit_paths:
         else:
             door_data = pd.read_csv(toolkit_path, index_col=0)
 
+        # Convert InChIKey indices to common names (NEW!)
+        door_data = self._convert_inchikey_to_names(door_data, toolkit_path)
+
+        # Normalize before caching
+        door_data = self._normalize_door_data(door_data)
+
         # Cache in standard location for future use
         door_data.to_csv(cached_path)
         logger.info(f"Cached door-toolkit data to {cached_path}")
 
-        return self._normalize_door_data(door_data)
+        return door_data
 ```
 
 **Loading priority** (updated):
@@ -104,7 +122,50 @@ for toolkit_path in door_toolkit_paths:
    - `data/door_cache/response_matrix_norm.parquet`
 4. GitHub download (fallback only)
 
-#### Change 2: Validate DoOR Data Structure (lines 254-267)
+#### Change 2: Convert InChIKey Indices to Common Names (lines 284-356)
+
+Added new method `_convert_inchikey_to_names()` to handle InChIKey → Name conversion:
+
+```python
+def _convert_inchikey_to_names(self, door_data: pd.DataFrame, toolkit_path: Path) -> pd.DataFrame:
+    """Convert InChIKey indices to common chemical names using metadata."""
+    # Load odor_metadata.parquet from same directory
+    metadata_path = toolkit_path.parent / "odor_metadata.parquet"
+
+    if not metadata_path.exists():
+        logger.warning("odor_metadata.parquet not found")
+        return door_data
+
+    # Load metadata and create InChIKey → Name mapping
+    metadata = pd.read_parquet(metadata_path)
+    inchikey_to_name = {}
+    for idx, row in metadata.iterrows():
+        if pd.notna(row.get('Name')) and pd.notna(row.get('InChIKey')):
+            name = str(row['Name']).lower().strip()
+            inchikey = str(row['InChIKey']).lower().strip()
+            inchikey_to_name[inchikey] = name
+
+    # Replace InChIKey indices with common names
+    new_index = []
+    for inchikey in door_data.index:
+        inchikey_lower = str(inchikey).lower().strip()
+        if inchikey_lower in inchikey_to_name:
+            new_index.append(inchikey_to_name[inchikey_lower])
+        else:
+            new_index.append(inchikey)  # Keep InChIKey if no mapping
+
+    door_data.index = new_index
+    return door_data
+```
+
+This method:
+1. Finds `odor_metadata.parquet` in the same directory as the response matrix
+2. Creates InChIKey → Name mapping from the metadata
+3. Replaces InChIKey indices with common names
+4. Logs conversion statistics
+5. Gracefully handles missing metadata
+
+#### Change 3: Validate DoOR Data Structure (lines 254-267)
 
 Added validation to detect malformed data early:
 
@@ -136,14 +197,19 @@ This will catch the malformed GitHub data and provide actionable guidance.
 When you run training again:
 
 1. **DoORIntegration initialization** will:
-   - Skip `data/cache/door_response_matrix.csv` (malformed)
    - Find `data/door_cache/response_matrix_norm.csv` ✓
-   - Load it successfully
-   - Copy to `data/cache/door_response_matrix.csv` for future use
+   - Load it successfully (InChIKey indices)
+   - Load `data/door_cache/odor_metadata.parquet` ✓
+   - Convert InChIKey indices to common names ✓
+   - Normalize the data
+   - Save converted matrix to `data/cache/door_response_matrix.csv` for future use
 
 2. **Expected log output**:
    ```
    INFO: Loading door-toolkit data from data/door_cache/response_matrix_norm.csv
+   INFO: Loading odor metadata from data/door_cache/odor_metadata.parquet
+   INFO: Loaded 693 InChIKey → Name mappings
+   INFO: Converted 693/693 InChIKey indices to common names
    INFO: Cached door-toolkit data to data/cache/door_response_matrix.csv
    ```
 
@@ -195,15 +261,59 @@ cd /path/to/Plasticity-Guided-Connectome-Network-PGCN
 git pull origin claude/connectome-constrained-behavior-prediction-014UV3FWTFdXYAttqMaTBEoh
 ```
 
-### Step 2: (Optional) Clean Malformed Cache
+### Step 2: (Option A) Automatic Conversion - Just Run Training
 
-If you want to remove the malformed file:
+The code will **automatically** convert InChIKey indices to common names on the next run. No manual steps needed!
+
+### Step 2: (Option B) Manual Conversion - Use Standalone Script
+
+If you want to verify the conversion before training, run:
 
 ```bash
-rm data/cache/door_response_matrix.csv
+python convert_inchikey_to_names.py
 ```
 
-This forces the code to reload from door-toolkit data. Otherwise, it will detect the malformed file during validation and provide helpful guidance.
+This standalone script will:
+1. Load `data/door_cache/response_matrix_norm.csv` (InChIKey indices)
+2. Load `data/door_cache/odor_metadata.parquet` (Name mappings)
+3. Convert InChIKey indices to common names
+4. Save to both `data/cache/door_response_matrix.csv` and `data/door_cache/door_response_matrix.csv`
+5. Verify critical odors are found ('1-hexanol', 'benzaldehyde', etc.)
+
+**Expected output**:
+```
+======================================================================
+DoOR InChIKey → Name Conversion
+======================================================================
+
+[1/4] Loading response matrix from data/door_cache/response_matrix_norm.csv
+   ✓ Loaded 693 odorants × 110 ORN types
+   Sample indices: ['zsiaufguxnugdi-uhfffaoysa-n', 'humnylrzrppjdn-uhfffaoysa-n', ...]
+
+[2/4] Loading metadata from data/door_cache/odor_metadata.parquet
+   ✓ Loaded 693 metadata entries
+
+[3/4] Creating InChIKey → Name mapping
+   ✓ Created 693 InChIKey → Name mappings
+
+[4/4] Converting InChIKey indices to common names
+   ✓ Converted 693/693 indices to common names
+
+Verifying critical odor names:
+   ✓ 1-hexanol           found
+   ✓ benzaldehyde        found
+   ✓ acetic acid         found
+   ✓ ethyl butyrate      found
+   ✓ 3-octanol           found
+   ✓ citral              found
+   ✓ linalool            found
+
+Critical odors found: 7/7
+
+======================================================================
+✅ Conversion complete!
+======================================================================
+```
 
 ### Step 3: Run Diagnostic Verification
 
@@ -273,25 +383,26 @@ python src/scripts/train_ccbpn.py \
 
 ## Technical Details
 
-### Why GitHub DoOR File is Malformed
+### Why door-toolkit Uses InChIKeys
 
-The GitHub URL:
-```
-https://raw.githubusercontent.com/ropensci/DoOR.data/master/data/door_response_matrix.csv
-```
-
-Returns a file where:
-- **Row labels**: InChIKeys (chemical structure identifiers)
-- **Data format**: All response values concatenated as semicolon-separated strings in a single column
-- **Result**: pandas reads it as 693 rows × 0 columns (no valid numeric columns)
-
-### Why door-toolkit Format Works
-
-The **door-toolkit** package properly extracts DoOR data from the R package:
-- **Row labels**: Odorant names (e.g., '1-hexanol', 'ethyl butyrate')
+The **door-toolkit** package extracts DoOR data from the R package:
+- **Row labels**: InChIKeys (chemical structure identifiers) - unambiguous, globally unique
 - **Columns**: ORN types (Or42b, Or59b, Or7a, etc.)
 - **Values**: Normalized response magnitudes (0-1)
 - **Result**: pandas reads it as 693 rows × 110 columns ✓
+
+But InChIKeys are not human-readable:
+- `'humnylrzrppjdn-uhfffaoysa-n'` vs `'benzaldehyde'`
+- Code searches for common names like 'benzaldehyde'
+- Lookups fail because indices are InChIKeys
+
+### Why We Need odor_metadata.parquet
+
+The **odor_metadata.parquet** file bridges the gap:
+- **Provides**: Name → InChIKey mappings
+- **Example**: `'benzaldehyde' → 'humnylrzrppjdn-uhfffaoysa-n'`
+- **Enables**: Converting InChIKey indices to common names
+- **Result**: Response matrix with human-readable indices ✓
 
 ### Loading Priority Logic
 

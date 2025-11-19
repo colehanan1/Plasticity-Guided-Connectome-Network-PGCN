@@ -217,11 +217,17 @@ class DoORIntegration:
                 else:
                     door_data = pd.read_csv(toolkit_path, index_col=0)
 
+                # Convert InChIKey indices to common names (door-toolkit uses InChIKeys)
+                door_data = self._convert_inchikey_to_names(door_data, toolkit_path)
+
+                # Normalize before caching
+                door_data = self._normalize_door_data(door_data)
+
                 # Cache in standard location for future use
                 door_data.to_csv(cached_path)
                 logger.info(f"Cached door-toolkit data to {cached_path}")
 
-                return self._normalize_door_data(door_data)
+                return door_data
 
         # Try to download from DoOR repository
         logger.info("Downloading DoOR database (this may take a minute)...")
@@ -280,6 +286,80 @@ class DoORIntegration:
                 door_data[col] = door_data[col] / col_max
 
         return door_data
+
+    def _convert_inchikey_to_names(self, door_data: pd.DataFrame, toolkit_path: Path) -> pd.DataFrame:
+        """Convert InChIKey indices to common chemical names using metadata.
+
+        door-toolkit uses InChIKey identifiers as row indices (e.g., 'humnylrzrppjdn-uhfffaoysa-n'),
+        but we need common names (e.g., 'benzaldehyde') for odor lookups.
+
+        This method loads odor_metadata.parquet and replaces InChIKey indices with
+        corresponding common names.
+
+        Parameters
+        ----------
+        door_data : pd.DataFrame
+            DoOR response matrix with InChIKey indices
+        toolkit_path : Path
+            Path to the response matrix file (used to locate metadata)
+
+        Returns
+        -------
+        pd.DataFrame
+            DoOR response matrix with common name indices
+        """
+        # Try to find odor_metadata.parquet in the same directory
+        metadata_path = toolkit_path.parent / "odor_metadata.parquet"
+
+        if not metadata_path.exists():
+            logger.warning(
+                f"odor_metadata.parquet not found at {metadata_path}. "
+                f"Cannot convert InChIKey indices to common names. "
+                f"Odor lookups may fail if indices are InChIKeys."
+            )
+            return door_data
+
+        try:
+            # Load metadata
+            logger.info(f"Loading odor metadata from {metadata_path}")
+            metadata = pd.read_parquet(metadata_path)
+
+            # Create InChIKey → Name mapping
+            inchikey_to_name = {}
+            for idx, row in metadata.iterrows():
+                if pd.notna(row.get('Name')) and pd.notna(row.get('InChIKey')):
+                    name = str(row['Name']).lower().strip()
+                    inchikey = str(row['InChIKey']).lower().strip()
+                    # Store the mapping (InChIKey → common name)
+                    inchikey_to_name[inchikey] = name
+
+            logger.info(f"Loaded {len(inchikey_to_name)} InChIKey → Name mappings")
+
+            # Replace InChIKey indices with common names
+            new_index = []
+            converted_count = 0
+            for inchikey in door_data.index:
+                inchikey_lower = str(inchikey).lower().strip()
+                if inchikey_lower in inchikey_to_name:
+                    new_index.append(inchikey_to_name[inchikey_lower])
+                    converted_count += 1
+                else:
+                    # Keep original if no mapping found
+                    new_index.append(inchikey)
+
+            door_data.index = new_index
+            logger.info(
+                f"Converted {converted_count}/{len(door_data)} InChIKey indices to common names"
+            )
+
+            return door_data
+
+        except Exception as e:
+            logger.warning(
+                f"Failed to convert InChIKey indices to common names: {e}. "
+                f"Continuing with original indices."
+            )
+            return door_data
 
     def _load_pn_glomeruli(self) -> Dict[int, str]:
         """Load PN → glomerulus assignments from FlyWire cache.
