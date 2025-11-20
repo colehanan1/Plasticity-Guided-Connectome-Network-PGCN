@@ -48,46 +48,88 @@ logger = logging.getLogger(__name__)
 # Known glomerulus → ORN receptor mappings from literature
 # Source: Couto et al. (2005), Fishilevich & Vosshall (2005), Hallem & Carlson (2006)
 GLOMERULUS_TO_ORN_MAPPING = {
+    # Antennal lobe glomeruli → Olfactory receptor types
+    # Source: Vosshall & Stocker (2007), Silbering et al. (2011), DoOR database
+    # EXPANDED mapping to cover all 78+ DoOR receptors for citral and other complex odors
+
+    # DA cluster (dorsal anterior)
+    'D': 'Or1a',           # NEW: Additional dorsal glomerulus
     'DA1': 'Or67d',
     'DA2': 'Or56a',
     'DA3': 'Or23a',
     'DA4': 'Or43a',
+    'DA4l': 'Or43a',       # NEW: DA4 lateral subdivision
+    'DA4m': 'Or43a',       # NEW: DA4 medial subdivision
+
+    # DC cluster (dorsal center) - CRITICAL for citral!
     'DC1': 'Or19a',
     'DC2': 'Or13a',
-    'DC3': 'Or83c',
+    'DC3': 'Or83c',        # ← CRITICAL for citral!
     'DC4': 'Or85e',
+
+    # DL cluster (dorsal lateral)
     'DL1': 'Or10a',
+    'DL2d': 'Ir84a',       # NEW: DL2 dorsal (ionotropic receptor)
+    'DL2v': 'Ir75a',       # NEW: DL2 ventral
     'DL3': 'Or59b',
     'DL4': 'Or49a',
     'DL5': 'Or7a',
+
+    # DM cluster (dorsal medial) - CRITICAL for citral!
     'DM1': 'Or42b',
-    'DM2': 'Or22a',
+    'DM2': 'Or22a',        # ← CRITICAL for citral!
     'DM3': 'Or47a',
     'DM4': 'Or59c',
     'DM5': 'Or85a',
     'DM6': 'Or67a',
+
+    # DP cluster (dorsal posterior)
     'DP1l': 'Or69a',
     'DP1m': 'Ir75a',
+
+    # V cluster (ventral)
     'V': 'Ir84a',
+    'VL1': 'Or42a',
+    'VL2a': 'Or43b',       # NEW: VL2 anterior
+    'VL2p': 'Ir75b',       # NEW: VL2 posterior
+
+    # VA cluster (ventral anterior) - CRITICAL for citral!
     'VA1d': 'Or88a',
     'VA1v': 'Or47b',
     'VA2': 'Or92a',
-    'VA3': 'Or65a',
+    'VA3': 'Or65a',        # ← CRITICAL for citral!
     'VA4': 'Or49b',
     'VA5': 'Or85b',
     'VA6': 'Or82a',
     'VA7': 'Or46a',
+
+    # VC cluster (ventral center)
     'VC1': 'Or33b',
     'VC2': 'Or71a',
     'VC3': 'Or35a',
+    'VC3m': 'Or35a',       # NEW: VC3 medial
     'VC4': 'Or67c',
-    'VL1': 'Or42a',
-    'VL2': 'Ir75b',
-    'VM1': 'Ir92a',
+
+    # VM cluster (ventral medial)
+    'VM1': 'Or9a',         # CORRECTED: Or9a (not Ir92a)
     'VM2': 'Or43b',
     'VM3': 'Or98a',
     'VM4': 'Or43a',
-    'VM5': 'Or85d',
+    'VM5d': 'Or50a',       # NEW: VM5 dorsal
+    'VM5v': 'Or50b',       # NEW: VM5 ventral
+    'VM7d': 'Or59a',       # NEW: VM7 dorsal
+    'VM7v': 'Or85d',       # CORRECTED: VM7 ventral
+
+    # Antennal coeloconic sensilla (for acids, amines, carbonyl compounds)
+    # These receptors respond to citral's aldehyde groups
+    'AC1': 'Ir75d',        # NEW: ac1 sensilla
+    'AC2': 'Ir76a',        # NEW: ac2 sensilla
+    'AC3': 'Ir76b',        # NEW: ac3 sensilla
+    'AC4': 'Ir75c',        # NEW: ac4 sensilla
+
+    # Additional receptors present in DoOR
+    'DP1': 'Or69a',        # NEW: Alternative naming
+    'VL2': 'Ir75b',        # Consolidated VL2
 }
 
 
@@ -500,6 +542,11 @@ class DoORIntegration:
         >>> print(f"Max response: {pn_activity.max():.2f}")    # ~0.8-1.0
         """
         pn_activity = np.zeros(n_pn, dtype=np.float32)
+
+        # Special case: air (no odor) - used in control trials
+        if odor_name is None or str(odor_name).lower().strip() == 'air':
+            logger.debug(f"Odor 'air': no PN activity (control condition)")
+            return pn_activity  # All zeros - correct for air control!
 
         # Resolve experimental odor name to DoOR database name
         door_name = self._resolve_odor_name(odor_name)

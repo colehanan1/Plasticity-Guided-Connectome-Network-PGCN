@@ -171,14 +171,44 @@ opto_hex:
     - linalool               # testing_10: novel odor
 
 # ============================================================================
+# Optogenetic + Air Control Experiment (No Odor Conditioning)
+# ============================================================================
+opto_AIR:
+  training_trials:
+    # 7 air trials + 1 hexanol trial (control for optogenetic stimulation alone)
+    - air          # training_1: air only (no odor)
+    - air          # training_2: air only
+    - air          # training_3: air only
+    - air          # training_4: air only
+    - hexanol      # training_5: hexanol (blocking)
+    - air          # training_6: air only
+    - hexanol      # training_7: hexanol (blocking)
+    - air          # training_8: air only
+
+  testing_trials:
+    # Testing with various odors to see if optogenetic stimulation alone creates learning
+    - hexanol                # testing_1: odor from training
+    - air                    # testing_2: air control
+    - hexanol                # testing_3: odor from training
+    - air                    # testing_4: air control
+    - air                    # testing_5: air control
+    - apple_cider_vinegar    # testing_6: novel odor
+    - ethyl_butyrate         # testing_7: novel odor
+    - benzaldehyde           # testing_8: novel odor
+    - citral                 # testing_9: novel odor
+    - 3-octanol              # testing_10: novel odor
+
+# ============================================================================
 # Notes:
 # ============================================================================
 # 1. Odor names must match DoOR database (lowercase, underscores)
-# 2. apple_cider_vinegar may not be in DoOR - will use acetic acid approximation
-# 3. 30s odor presentation during training
-# 4. 5 min inter-trial interval (ITI) for both training and testing
-# 5. 30 min interval between training and testing phases
-# 6. GR5a optogenetic activation in opto_* experiments
+# 2. Special odor name 'air' = no odor (returns zero PN activity, used in control trials)
+# 3. apple_cider_vinegar may not be in DoOR - will use acetic acid approximation
+# 4. 30s odor presentation during training
+# 5. 5 min inter-trial interval (ITI) for both training and testing
+# 6. 30 min interval between training and testing phases
+# 7. GR5a optogenetic activation in opto_* experiments
+# 8. opto_AIR: Control for optogenetic stimulation alone (no odor conditioning)
 
 # ============================================================================
 # Validation:
