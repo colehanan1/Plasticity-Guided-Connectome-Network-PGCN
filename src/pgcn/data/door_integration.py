@@ -394,6 +394,22 @@ class DoORIntegration:
                 f"Converted {converted_count}/{len(door_data)} InChIKey indices to common names"
             )
 
+            # Check for and merge duplicate indices (e.g., stereoisomers with same name)
+            if door_data.index.duplicated().any():
+                duplicates = door_data.index[door_data.index.duplicated(keep=False)].unique()
+                logger.warning(
+                    f"Found {len(duplicates)} odor names with multiple entries (stereoisomers): "
+                    f"{list(duplicates)[:5]}{'...' if len(duplicates) > 5 else ''}"
+                )
+
+                # Merge duplicate rows by taking the maximum response for each ORN
+                # This combines responses from all stereoisomers
+                door_data = door_data.groupby(door_data.index).max()
+                logger.info(
+                    f"Merged duplicate rows by taking max response across stereoisomers. "
+                    f"Final shape: {door_data.shape}"
+                )
+
             return door_data
 
         except Exception as e:
