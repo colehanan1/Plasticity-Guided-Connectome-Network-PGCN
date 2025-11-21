@@ -570,7 +570,7 @@ def main():
 
         # Setup learning rate scheduler
         if args.use_lr_scheduler:
-            scheduler = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=10, verbose=True)
+            scheduler = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=10)
         else:
             scheduler = None
 
@@ -599,7 +599,11 @@ def main():
 
             # Update learning rate
             if scheduler is not None:
+                old_lr = optimizer.param_groups[0]['lr']
                 scheduler.step(val_acc)
+                new_lr = optimizer.param_groups[0]['lr']
+                if old_lr != new_lr:
+                    logger.info(f"Learning rate reduced: {old_lr:.6f} → {new_lr:.6f}")
 
             # Save best model
             if val_acc > best_val_acc:
