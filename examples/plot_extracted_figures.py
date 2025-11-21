@@ -471,7 +471,7 @@ def plot_ml_comparison(
     ax.set_xlim(0, max(df['forgetting_score']) * 1.15)
     ax.grid(axis='x', alpha=0.3, linestyle='--')
     ax.spines['top'].set_visible(False)
-    ax.spines('right'].set_visible(False)
+    ax.spines['right'].set_visible(False)
 
     # Add annotation for best model
     best_model = df.iloc[0]['model_type']
