@@ -11,6 +11,7 @@ from .multi_task_model import (
     validate_biological_constraints,
 )
 from .behavior_connectome import BehaviorConnectomeAnalyzer
+from .ccbpn_recurrent import CCBPNWithRecurrentContext
 
 __all__ = [
     "ChemicallyInformedDrosophilaModel",
@@ -24,4 +25,5 @@ __all__ = [
     "TaskHeadConfig",
     "validate_biological_constraints",
     "BehaviorConnectomeAnalyzer",
+    "CCBPNWithRecurrentContext",
 ]
