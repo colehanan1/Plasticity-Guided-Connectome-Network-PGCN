@@ -204,6 +204,7 @@ class ConnectomeConstrainedBehavioralPredictor(nn.Module):
         learning_rate_plasticity: float = 0.01,
         enable_dopamine_modulation: bool = True,
         weight_normalization: str = "row",
+        dropout_rate: float = 0.0,
     ) -> None:
         """Initialize CCBPN with FlyWire connectivity and task configuration."""
         super().__init__()
@@ -268,6 +269,14 @@ class ConnectomeConstrainedBehavioralPredictor(nn.Module):
 
         # Initialize trainable synaptic weights
         self._initialize_weights()
+
+        # Dropout for regularization (applied to KC→MBON pathway)
+        self.dropout_rate = dropout_rate
+        if dropout_rate > 0:
+            self.kc_dropout = nn.Dropout(p=dropout_rate)
+            print(f"  Dropout enabled: {dropout_rate:.1%} at KC→MBON layer")
+        else:
+            self.kc_dropout = None
 
         # Behavioral readout layer (MBON → approach/avoid decision)
         self.behavioral_readout = nn.Linear(self.n_mbon, 1)
@@ -445,10 +454,15 @@ class ConnectomeConstrainedBehavioralPredictor(nn.Module):
             # Enforce KC sparsity via k-winners-take-all
             kc_state = self._enforce_kc_sparsity(kc_state)
 
+            # Apply dropout for regularization (only during training)
+            kc_state_dropped = kc_state
+            if self.kc_dropout is not None and self.training:
+                kc_state_dropped = self.kc_dropout(kc_state)
+
             # KC → MBON propagation with dopamine modulation
             # CRITICAL: Apply connectivity mask to enforce fixed topology
             masked_kc_mbon = self.kc_mbon_weights * self.kc_mbon_mask
-            mbon_input = F.linear(kc_state, masked_kc_mbon)  # (batch, n_mbon)
+            mbon_input = F.linear(kc_state_dropped, masked_kc_mbon)  # (batch, n_mbon)
 
             # MBON dynamics: τ_MBON * dMBON/dt = -MBON + input
             tau_mbon = self.tau_membrane['MBON']
@@ -615,6 +629,8 @@ class BehavioralTaskLoss(nn.Module):
         discrimination_weight: float = 1.0,
         retention_weight: float = 0.3,
         generalization_weight: float = 0.2,
+        use_class_weights: bool = False,
+        class_weights: Optional[torch.Tensor] = None,
     ) -> None:
         super().__init__()
 
@@ -628,6 +644,13 @@ class BehavioralTaskLoss(nn.Module):
         self.discrimination_weight = discrimination_weight
         self.retention_weight = retention_weight
         self.generalization_weight = generalization_weight
+        self.use_class_weights = use_class_weights
+
+        # Class weights for handling imbalanced datasets
+        if class_weights is not None:
+            self.register_buffer("class_weights", class_weights)
+        else:
+            self.register_buffer("class_weights", None)
 
     def forward(
         self,
@@ -656,12 +679,29 @@ class BehavioralTaskLoss(nn.Module):
         if predicted_behavior.dim() == 2:
             predicted_behavior = predicted_behavior[:, -1]  # Final decision
 
-        # Discrimination loss: binary cross-entropy
-        disc_loss = F.binary_cross_entropy(
-            predicted_behavior,
-            observed_behavior.float(),
-            reduction='mean'
-        )
+        # Discrimination loss: binary cross-entropy with optional class weighting
+        if self.use_class_weights and self.class_weights is not None:
+            # Compute per-sample weights based on class labels
+            # class_weights[0] = weight for class 0 (avoid)
+            # class_weights[1] = weight for class 1 (approach)
+            sample_weights = torch.where(
+                observed_behavior == 1,
+                self.class_weights[1],
+                self.class_weights[0]
+            )
+            disc_loss = F.binary_cross_entropy(
+                predicted_behavior,
+                observed_behavior.float(),
+                weight=sample_weights,
+                reduction='mean'
+            )
+        else:
+            # Standard BCE without class weighting
+            disc_loss = F.binary_cross_entropy(
+                predicted_behavior,
+                observed_behavior.float(),
+                reduction='mean'
+            )
 
         total_loss = self.discrimination_weight * disc_loss
 

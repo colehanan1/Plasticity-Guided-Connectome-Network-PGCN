@@ -199,6 +199,56 @@ opto_AIR:
     - 3-octanol              # testing_10: novel odor
 
 # ============================================================================
+# Optogenetic + 3-Octanol Experiment
+# ============================================================================
+opto_3-oct:
+  training_trials:
+    - 3-octanol              # training_1: CS+ with GR5a activation
+    - 3-octanol              # training_2: CS+
+    - 3-octanol              # training_3: CS+
+    - 3-octanol              # training_4: CS+
+    - hexanol                # training_5: CS- (blocking)
+    - 3-octanol              # training_6: CS+
+    - hexanol                # training_7: CS- (blocking)
+    - 3-octanol              # training_8: CS+
+
+  testing_trials:
+    - hexanol                # testing_1: CS- from training
+    - 3-octanol              # testing_2: CS+ test
+    - hexanol                # testing_3: CS- from training
+    - 3-octanol              # testing_4: CS+ test
+    - 3-octanol              # testing_5: CS+ test
+    - apple_cider_vinegar    # testing_6: novel odor
+    - ethyl_butyrate         # testing_7: novel odor
+    - benzaldehyde           # testing_8: novel odor
+    - citral                 # testing_9: novel odor
+    - linalool               # testing_10: novel odor
+
+# ============================================================================
+# REWARD MAPPING: Dataset → CS+ (Rewarded Odor)
+# ============================================================================
+# CRITICAL: This maps each dataset to the odor that was paired with reward.
+# Used for dopamine signal assignment during training.
+#
+# Dopamine assignment logic:
+#   - If trial odor == dataset's CS+ → dopamine signal = 1.0 (reward)
+#   - If trial odor != dataset's CS+ → dopamine signal = 0.0 (no reward)
+#   - If dataset has NO reward (null) → dopamine signal = 0.0 (control)
+#
+dataset_reward_mapping:
+  # Conditioned datasets (odor paired with optogenetic reward)
+  opto_hex: 'hexanol'              # Hexanol was CS+ (rewarded)
+  opto_benz_1: 'benzaldehyde'      # Benzaldehyde was CS+ (rewarded)
+  opto_EB: 'ethyl_butyrate'        # Ethyl butyrate was CS+ (rewarded)
+  opto_3-oct: '3-octanol'          # 3-octanol was CS+ (rewarded)
+
+  # Control datasets (NO odor paired with reward)
+  hex_control: null                # No reward training (control)
+  Benz_control: null               # No reward training (control)
+  EB_control: null                 # No reward training (control)
+  opto_AIR: null                   # Air control (optogenetic only, no odor)
+
+# ============================================================================
 # Notes:
 # ============================================================================
 # 1. Odor names must match DoOR database (lowercase, underscores)

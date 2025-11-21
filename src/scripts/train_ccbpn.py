@@ -109,8 +109,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--kc_sparsity",
         type=float,
-        default=0.05,
-        help="Target KC sparsity fraction (biological: 0.05)"
+        default=0.10,
+        help="Target KC sparsity fraction (biological: 0.05, recommended: 0.10)"
+    )
+    parser.add_argument(
+        "--dropout",
+        type=float,
+        default=0.30,
+        help="Dropout rate for KC→MBON layer (0.30=balanced - prevents overfitting while allowing learning)"
     )
     parser.add_argument(
         "--tau_pn",
@@ -152,8 +158,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--learning_rate",
         type=float,
-        default=0.001,
-        help="Learning rate for optimizer"
+        default=0.01,
+        help="Initial learning rate for optimizer (allows faster learning)"
+    )
+    parser.add_argument(
+        "--use_lr_scheduler",
+        action="store_true",
+        help="Use learning rate scheduler (warmup + cosine decay)"
+    )
+    parser.add_argument(
+        "--use_class_weights",
+        action="store_true",
+        help="Use class-balanced loss to handle imbalanced datasets"
     )
     parser.add_argument(
         "--n_folds",
@@ -187,6 +203,14 @@ def parse_args() -> argparse.Namespace:
         help="Print detailed training progress"
     )
 
+    # Dataset filtering (for task complexity test)
+    parser.add_argument(
+        "--single_dataset",
+        type=str,
+        default=None,
+        help="Train on single dataset only (e.g., 'opto_hex'). If None, use all datasets."
+    )
+
     # Device configuration
     parser.add_argument(
         "--device",
@@ -204,33 +228,45 @@ def prepare_behavioral_data(
     cache_dir: str = "data/cache",
     sequence_length: int = 50,
     device: str = "cpu",
-) -> Tuple[torch.Tensor, torch.Tensor, np.ndarray]:
+    add_input_noise: bool = True,
+    noise_std: float = 0.15,
+    single_dataset: Optional[str] = None,
+) -> Tuple[torch.Tensor, torch.Tensor, np.ndarray, np.ndarray]:
     """Load and prepare behavioral data for CCBPN training.
 
+    CRITICAL CHANGES (Biological Realism Fixes):
+    1. Dopamine assigned based on TRAINING PROTOCOL (CS+ identity), not behavioral outcome
+    2. Input noise ADDED to create trial-to-trial variability
+    3. Control datasets INCLUDED to capture innate preferences
+
     Converts behavioral trial data into:
-    1. Odor sequences (PN activity patterns over time) using DoOR database
-    2. Dopamine signals (reward/punishment timing)
+    1. Odor sequences (PN activity patterns over time) using DoOR database WITH NOISE
+    2. Dopamine signals (reward timing based on CS+ identity)
     3. Behavioral labels (approach/avoid outcomes)
 
     Parameters
     ----------
     behavioral_csv : str, optional
-        Path to behavioral CSV file
+        Path to behavioral CSV file (includes control + conditioned datasets)
     dataset_mapping_path : str
-        Path to dataset-to-odor mapping YAML file
+        Path to dataset-to-odor mapping YAML file (must include dataset_reward_mapping)
     cache_dir : str
         Path to FlyWire cache directory
     sequence_length : int
         Length of temporal sequence (default: 50 time steps)
     device : str
         Device for tensors (default: 'cpu')
+    add_input_noise : bool
+        If True, add biological noise to odor inputs (default: True)
+    noise_std : float
+        Standard deviation of noise (default: 0.15 = 15% variability)
 
     Returns
     -------
-    Tuple[torch.Tensor, torch.Tensor, np.ndarray]
+    Tuple[torch.Tensor, torch.Tensor, np.ndarray, np.ndarray]
         (odor_sequences, dopamine_signals, behavioral_labels, groups)
-        - odor_sequences: (n_trials, sequence_length, n_pn)
-        - dopamine_signals: (n_trials, sequence_length)
+        - odor_sequences: (n_trials, sequence_length, n_pn) WITH trial variability
+        - dopamine_signals: (n_trials, sequence_length) based on CS+ identity
         - behavioral_labels: (n_trials,)
         - groups: (n_trials,) fly identifiers for group k-fold
     """
@@ -242,16 +278,41 @@ def prepare_behavioral_data(
     n_trials = len(df)
     print(f"Loaded {n_trials} trials from {df['dataset'].nunique()} datasets, {df['fly'].nunique()} flies")
 
+    # Filter to single dataset if specified (for task complexity test)
+    if single_dataset is not None:
+        print(f"\n⚠️  SINGLE-DATASET MODE: Filtering to dataset '{single_dataset}' only")
+        df = df[df['dataset'] == single_dataset].copy()
+
+        if len(df) == 0:
+            raise ValueError(
+                f"No trials found for dataset '{single_dataset}'. "
+                f"Available datasets: {sorted(load_behavioral_dataframe(behavioral_csv, validate=True)['dataset'].unique())}"
+            )
+
+        # CRITICAL: Reset index to avoid index out of bounds errors in trial_odors_array
+        df = df.reset_index(drop=True)
+
+        n_trials_filtered = len(df)
+        print(f"  Retained {n_trials_filtered} trials from {df['fly'].nunique()} flies")
+        print(f"  Class distribution: {np.sum(df['prediction'] == 0)} avoid, {np.sum(df['prediction'] == 1)} approach")
+        n_trials = n_trials_filtered
+
     # Extract behavioral labels (prediction column)
     behavioral_labels = df['prediction'].values  # Binary: 1=approach, 0=avoid
 
     # Extract fly groups for cross-validation
     groups = df['fly'].values
 
-    # Load dataset-to-odor mapping
+    # Load dataset-to-odor mapping AND reward mapping
     print(f"Loading dataset-to-odor mapping from {dataset_mapping_path}...")
     with open(dataset_mapping_path, 'r') as f:
-        dataset_mapping = yaml.safe_load(f)
+        config = yaml.safe_load(f)
+
+    # Separate trial mappings from reward mappings
+    reward_mapping = config.get('dataset_reward_mapping', {})
+    dataset_mapping = {k: v for k, v in config.items() if k != 'dataset_reward_mapping'}
+
+    print(f"  Found {len(dataset_mapping)} datasets and {len(reward_mapping)} reward assignments")
 
     # Initialize DoOR integration
     print(f"Initializing DoOR integration (cache_dir={cache_dir})...")
@@ -261,13 +322,15 @@ def prepare_behavioral_data(
     n_pn = len(door.pn_glomeruli) if door.pn_glomeruli else 150
     print(f"Using {n_pn} projection neurons")
 
-    # Generate odor sequences using DoOR-based PN activity patterns
-    print(f"Generating DoOR-based odor sequences (sequence_length={sequence_length})...")
+    # Generate odor sequences using DoOR-based PN activity patterns WITH NOISE
+    noise_status = "WITH biological noise" if add_input_noise else "deterministic"
+    print(f"Generating DoOR-based odor sequences ({noise_status}, sequence_length={sequence_length})...")
     odor_sequences = torch.zeros(n_trials, sequence_length, n_pn)
 
     # Track statistics for validation
     odor_coverage_stats = {}
     missing_odors = set()
+    trial_odors = []  # Track odor identity for dopamine assignment
 
     for trial_idx, row in df.iterrows():
         dataset = row['dataset']
@@ -296,8 +359,9 @@ def prepare_behavioral_data(
             continue
 
         odor_name = trials_list[trial_num]
+        trial_odors.append(odor_name)  # Track for dopamine assignment
 
-        # Convert odor to PN activity pattern
+        # Convert odor to PN activity pattern WITH biological noise
         try:
             # Create temporal sequence: odor ON from t=0 to t=40, OFF after
             odor_sequence = door.create_odor_sequence(
@@ -305,19 +369,28 @@ def prepare_behavioral_data(
                 n_pn=n_pn,
                 sequence_length=sequence_length,
                 odor_onset=0,
-                odor_duration=40  # 40ms odor pulse (can be scaled to match 30s)
+                odor_duration=40,  # 40ms odor pulse (can be scaled to match 30s)
+                add_noise=add_input_noise,  # Enable trial-to-trial variability
+                noise_std=noise_std,        # 15% noise (default)
+                temporal_jitter=3           # ±3ms timing variability
             )
 
             odor_sequences[trial_idx] = torch.from_numpy(odor_sequence).float()
 
-            # Track coverage statistics
+            # Track coverage statistics (only for unique odors, before noise)
             if odor_name not in odor_coverage_stats:
-                n_active = np.sum(odor_sequence[20, :] > 0.1)  # Check mid-odor
+                # Check coverage on canonical pattern (without noise for consistency)
+                canonical_seq = door.create_odor_sequence(
+                    odor_name, n_pn=n_pn, sequence_length=sequence_length,
+                    odor_onset=0, odor_duration=40, add_noise=False
+                )
+                n_active = np.sum(canonical_seq[20, :] > 0.1)  # Check mid-odor
                 odor_coverage_stats[odor_name] = n_active
 
         except Exception as e:
             print(f"Warning: Failed to get PN pattern for odor '{odor_name}': {e}")
             missing_odors.add(odor_name)
+            trial_odors[-1] = None  # Mark as failed
             # Leave as zeros (no odor pattern)
 
     # Print coverage statistics
@@ -332,16 +405,62 @@ def prepare_behavioral_data(
             print(f"    - {odor}")
         print("  These trials will have ZERO odor patterns!")
 
-    # Create dopamine signals based on behavioral outcome
-    # Reward (dopamine=1.0) if approach, punishment (dopamine=-1.0) if avoid
-    # Dopamine delivered at t=45 (after odor offset)
+    # CRITICAL: Create dopamine signals based on TRAINING PROTOCOL (CS+ identity), NOT behavioral outcome!
+    # This is the key biological realism fix - dopamine reflects reward contingency, not fly's choice
+    print(f"\nAssigning dopamine signals based on CS+ identity (training protocol)...")
     dopamine_signals = torch.zeros(n_trials, sequence_length)
 
-    for trial_idx, label in enumerate(behavioral_labels):
-        if label > 0.5:  # Approach trial
-            dopamine_signals[trial_idx, 45:] = 1.0  # Reward
-        else:  # Avoid trial
-            dopamine_signals[trial_idx, 45:] = -1.0  # Punishment
+    # Convert trial_odors to numpy array for easier indexing
+    trial_odors_array = np.array(trial_odors, dtype=object)
+
+    # Track dopamine statistics
+    dopamine_stats = {dataset: {'total': 0, 'rewarded': 0} for dataset in df['dataset'].unique()}
+
+    for trial_idx, row in df.iterrows():
+        dataset = row['dataset']
+        odor_name = trial_odors_array[trial_idx]
+
+        if odor_name is None:
+            continue  # Skip trials with failed odor mapping
+
+        # Get the CS+ (rewarded odor) for this dataset
+        rewarded_odor = reward_mapping.get(dataset, None)
+
+        dopamine_stats[dataset]['total'] += 1
+
+        if rewarded_odor is not None and odor_name == rewarded_odor:
+            # This odor was the CS+ (rewarded) in this dataset
+            # Dopamine signal during/after odor presentation (40-50ms window)
+            dopamine_signals[trial_idx, 40:50] = 1.0  # Reward
+            dopamine_stats[dataset]['rewarded'] += 1
+        else:
+            # This odor was CS- (not rewarded) OR from control dataset
+            # NO dopamine signal
+            dopamine_signals[trial_idx, :] = 0.0  # No reward
+
+    # Print dopamine assignment statistics
+    print(f"\nDopamine assignment statistics:")
+    total_rewarded = 0
+    for dataset in sorted(dopamine_stats.keys()):
+        n_total = dopamine_stats[dataset]['total']
+        n_rewarded = dopamine_stats[dataset]['rewarded']
+        total_rewarded += n_rewarded
+        pct = (n_rewarded / n_total * 100) if n_total > 0 else 0
+        cs_plus = reward_mapping.get(dataset, 'none')
+        print(f"  {dataset:20s}: {n_rewarded:3d}/{n_total:3d} trials ({pct:5.1f}%) | CS+: {cs_plus}")
+
+    print(f"\n  TOTAL: {total_rewarded}/{n_trials} trials ({total_rewarded/n_trials*100:.1f}%) received dopamine")
+
+    # Validation: Check that control datasets have ZERO dopamine
+    control_datasets = [d for d, cs in reward_mapping.items() if cs is None]
+    for dataset in control_datasets:
+        dataset_trials = df[df['dataset'] == dataset].index
+        if len(dataset_trials) > 0:
+            dataset_dopamine = dopamine_signals[dataset_trials].max().item()
+            if dataset_dopamine > 0:
+                print(f"  ⚠️  WARNING: Control dataset '{dataset}' has dopamine signal!")
+            else:
+                print(f"  ✓ Control dataset '{dataset}' has ZERO dopamine (correct)")
 
     # Move to device
     odor_sequences = odor_sequences.to(device)
@@ -352,6 +471,36 @@ def prepare_behavioral_data(
     print(f"  Dopamine signals: {dopamine_signals.shape}")
     print(f"  Behavioral labels: {behavioral_labels.shape}")
     print(f"  Mean active PNs per trial: {torch.sum(odor_sequences > 0.1, dim=2).float().mean():.1f}")
+
+    # VALIDATION: Check that noise created trial-to-trial variability
+    if add_input_noise:
+        print(f"\nValidating trial-to-trial variability...")
+
+        # Find trials of the same odor
+        for odor in set(trial_odors_array) - {None}:
+            odor_trials = np.where(trial_odors_array == odor)[0]
+
+            if len(odor_trials) >= 2:
+                # Compute pairwise correlations between trials of same odor
+                correlations = []
+                for i in range(min(5, len(odor_trials))):
+                    for j in range(i+1, min(5, len(odor_trials))):
+                        trial_i = odor_sequences[odor_trials[i]].flatten().cpu().numpy()
+                        trial_j = odor_sequences[odor_trials[j]].flatten().cpu().numpy()
+
+                        if np.sum(trial_i) > 0 and np.sum(trial_j) > 0:
+                            corr = np.corrcoef(trial_i, trial_j)[0, 1]
+                            correlations.append(corr)
+
+                if correlations:
+                    mean_corr = np.mean(correlations)
+                    print(f"  {odor:25s}: mean correlation = {mean_corr:.3f} (expect 0.90-0.95)")
+
+                    if mean_corr > 0.98:
+                        print(f"    ⚠️  WARNING: Correlation too high ({mean_corr:.3f})! Noise may be insufficient.")
+                    elif mean_corr < 0.85:
+                        print(f"    ⚠️  WARNING: Correlation too low ({mean_corr:.3f})! Noise may be excessive.")
+                break  # Just check one odor as example
 
     return odor_sequences, dopamine_signals, behavioral_labels, groups
 
@@ -431,6 +580,73 @@ def train_epoch(
     return avg_loss, accuracy
 
 
+class EarlyStopping:
+    """Early stopping to prevent overfitting.
+
+    Stops training when validation loss stops improving for `patience` epochs.
+
+    Parameters
+    ----------
+    patience : int
+        Number of epochs to wait for improvement before stopping (default: 15)
+    min_delta : float
+        Minimum change in validation loss to qualify as improvement (default: 0.001)
+    verbose : bool
+        If True, print messages when validation loss improves (default: True)
+
+    Example
+    -------
+    >>> early_stopping = EarlyStopping(patience=15)
+    >>> for epoch in range(100):
+    ...     train_loss = train_one_epoch(...)
+    ...     val_loss = validate(...)
+    ...     if early_stopping(val_loss):
+    ...         print(f"Early stopping at epoch {epoch}")
+    ...         break
+    """
+
+    def __init__(self, patience: int = 15, min_delta: float = 0.001, verbose: bool = True):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.verbose = verbose
+        self.best_loss = float('inf')
+        self.counter = 0
+        self.should_stop = False
+
+    def __call__(self, val_loss: float) -> bool:
+        """Check if training should stop.
+
+        Parameters
+        ----------
+        val_loss : float
+            Current validation loss
+
+        Returns
+        -------
+        bool
+            True if training should stop, False otherwise
+        """
+        if val_loss < self.best_loss - self.min_delta:
+            # Validation loss improved
+            if self.verbose:
+                print(f"    Validation loss improved: {self.best_loss:.4f} → {val_loss:.4f}")
+            self.best_loss = val_loss
+            self.counter = 0
+            self.should_stop = False
+        else:
+            # No improvement
+            self.counter += 1
+            if self.verbose and self.counter > 0:
+                print(f"    No improvement for {self.counter}/{self.patience} epochs")
+
+            if self.counter >= self.patience:
+                if self.verbose:
+                    print(f"    Early stopping triggered (no improvement for {self.patience} epochs)")
+                self.should_stop = True
+
+        return self.should_stop
+
+
 def evaluate(
     model: ConnectomeConstrainedBehavioralPredictor,
     dataloader: DataLoader,
@@ -499,14 +715,35 @@ def main():
     torch.manual_seed(42)
     np.random.seed(42)
 
-    # Prepare behavioral data
+    # Prepare behavioral data WITH biological noise and correct dopamine assignment
     odor_sequences, dopamine_signals, behavioral_labels, groups = prepare_behavioral_data(
         behavioral_csv=args.behavioral_data,
         dataset_mapping_path=args.dataset_mapping,
         cache_dir=args.cache_dir,
         sequence_length=args.sequence_length,
         device=args.device,
+        add_input_noise=True,  # Enable trial-to-trial variability
+        noise_std=0.08,        # REDUCED to 8% additive only (was 15% with multiplicative/dropout/jitter)
+        single_dataset=args.single_dataset,  # Filter to single dataset if specified
     )
+
+    # Compute class weights for imbalanced datasets
+    class_weights = None
+    if args.use_class_weights:
+        print(f"\nComputing class weights for imbalanced dataset...")
+        n_avoid = np.sum(behavioral_labels == 0)
+        n_approach = np.sum(behavioral_labels == 1)
+        n_total = len(behavioral_labels)
+
+        # Inverse frequency weighting
+        weight_avoid = n_total / (2.0 * n_avoid) if n_avoid > 0 else 1.0
+        weight_approach = n_total / (2.0 * n_approach) if n_approach > 0 else 1.0
+
+        class_weights = torch.tensor([weight_avoid, weight_approach], device=args.device)
+
+        print(f"  Class distribution:")
+        print(f"    Avoid (0):    {n_avoid:4d} ({n_avoid/n_total:.1%}) -> weight={weight_avoid:.3f}")
+        print(f"    Approach (1): {n_approach:4d} ({n_approach/n_total:.1%}) -> weight={weight_approach:.3f}")
 
     # Initialize model
     print(f"\nInitializing CCBPN model...")
@@ -518,6 +755,7 @@ def main():
         tau_mbon=args.tau_mbon,
         kc_sparsity_target=args.kc_sparsity,
         enable_dopamine_modulation=not args.disable_dopamine,
+        dropout_rate=args.dropout,
     )
     model = model.to(args.device)
 
@@ -535,8 +773,12 @@ def main():
         new_odor_sequences[:, :, :min_pn] = odor_sequences[:, :, :min_pn]
         odor_sequences = new_odor_sequences
 
-    # Loss function
-    criterion = BehavioralTaskLoss(task_type=args.task)
+    # Loss function with optional class weighting
+    criterion = BehavioralTaskLoss(
+        task_type=args.task,
+        use_class_weights=args.use_class_weights,
+        class_weights=class_weights,
+    )
 
     # Cross-validation training
     print(f"\nTraining CCBPN ({args.n_folds}-fold cross-validation)...")
@@ -545,12 +787,22 @@ def main():
     best_val_acc = 0.0
     best_model_state = None
 
-    for fold_idx, (train_idx, val_idx) in enumerate(make_group_kfold(
-        path=args.behavioral_data,
-        n_splits=args.n_folds,
-        groups=groups,
-        validate=False,
-    )):
+    # Handle cross-validation splits
+    # If single_dataset is used, we can't use make_group_kfold with path (it reloads full data)
+    # Instead, use GroupKFold directly on filtered data
+    if args.single_dataset is not None:
+        from sklearn.model_selection import GroupKFold
+        splitter = GroupKFold(n_splits=args.n_folds)
+        cv_splits = splitter.split(np.arange(len(groups)), groups=groups)
+    else:
+        cv_splits = make_group_kfold(
+            path=args.behavioral_data,
+            n_splits=args.n_folds,
+            groups=groups,
+            validate=False,
+        )
+
+    for fold_idx, (train_idx, val_idx) in enumerate(cv_splits):
         print(f"\n{'='*60}")
         print(f"Fold {fold_idx + 1}/{args.n_folds}")
         print(f"{'='*60}")
@@ -587,15 +839,43 @@ def main():
             tau_mbon=args.tau_mbon,
             kc_sparsity_target=args.kc_sparsity,
             enable_dopamine_modulation=not args.disable_dopamine,
+            dropout_rate=args.dropout,
         )
         model = model.to(args.device)
 
-        # Optimizer
-        optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+        # Optimizer with light L2 regularization to prevent overfitting
+        optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=0.002)
+
+        # Learning rate scheduler (optional)
+        scheduler = None
+        if args.use_lr_scheduler:
+            from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
+
+            # Warmup for 10 epochs, then cosine decay
+            warmup_epochs = 10
+            warmup_scheduler = LinearLR(
+                optimizer,
+                start_factor=0.1,
+                total_iters=warmup_epochs
+            )
+            cosine_scheduler = CosineAnnealingLR(
+                optimizer,
+                T_max=args.epochs - warmup_epochs,
+                eta_min=0.0001
+            )
+            scheduler = SequentialLR(
+                optimizer,
+                [warmup_scheduler, cosine_scheduler],
+                milestones=[warmup_epochs]
+            )
+            print(f"  Learning rate scheduler: warmup({warmup_epochs}) + cosine decay")
 
         # Training loop
         fold_best_val_acc = 0.0
         fold_metrics = []
+
+        # Early stopping to prevent overfitting
+        early_stopping = EarlyStopping(patience=20, min_delta=0.001, verbose=args.verbose)
 
         for epoch in range(args.epochs):
             # Train
@@ -630,6 +910,17 @@ def main():
                 if val_acc > best_val_acc:
                     best_val_acc = val_acc
                     best_model_state = model.state_dict()
+
+            # Update learning rate scheduler
+            if scheduler is not None:
+                scheduler.step()
+
+            # Check early stopping
+            if early_stopping(val_loss):
+                print(f"\nEarly stopping triggered at epoch {epoch+1}")
+                print(f"  Best validation loss: {early_stopping.best_loss:.4f}")
+                print(f"  No improvement for {early_stopping.patience} epochs")
+                break
 
         # Store fold results
         fold_results.append({
