@@ -1,0 +1,4 @@
+phase,memory_score
+after_A_train,0.76
+after_B_train,0.72
+A_test,0.72

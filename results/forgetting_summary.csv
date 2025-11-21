@@ -1,0 +1,7 @@
+model_type,forgetting_score
+MBON_veto,0.013
+Wildtype,0.053
+EWC,0.080
+SI,0.100
+LwF,0.120
+Dense_ANN,0.150
