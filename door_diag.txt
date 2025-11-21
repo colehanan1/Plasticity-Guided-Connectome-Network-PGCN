@@ -1,0 +1,38 @@
+INFO: Loading cached DoOR data from /home/ramanlab/Documents/cole/VSCode/Plasticity-Guided-Connectome-Network-PGCN-/data/door_cache/door_response_matrix.csv
+======================================================================
+DoOR Integration Diagnostic Script
+======================================================================
+
+[1/6] Checking DoOR integration imports...
+✓ Successfully imported DoORIntegration from pgcn.data.door_integration
+✓ ODOR_NAME_MAP found with 7 mappings
+  Mappings:
+    'hexanol' → '1-hexanol'
+    'ethyl_butyrate' → 'ethyl butyrate'
+    'benzaldehyde' → 'benzaldehyde'
+    '3-octanol' → '3-octanol'
+    'citral' → 'citral'
+    'linalool' → 'linalool'
+    'apple_cider_vinegar' → 'acetic acid'
+
+[2/6] Checking cache directories...
+  ✓ Found: data/cache
+    Files: ['meta.json', 'kc_ab.csv', 'shen2025_appetitive_sez_pn.csv', 'shen2025_appetitive_sez_ln_ach.csv', 'shen2025_appetitive_connectivity_grn_gaba.npz', 'shen2025_appetitive_sez_ln_gaba.csv', 'dan_edges.parquet', 'shen2025_appetitive_grn.csv', 'edges.parquet', 'kc_apbp.csv']
+  ✓ Found: data/door_cache
+    Files: ['extraction_report.md', 'odorant_index.csv', 'metadata.json', 'response_matrix_norm.parquet', 'odor_metadata.parquet', 'response_matrix_non_norm.parquet', 'response_matrix_norm.npy', 'receptor_index.csv', 'door_response_matrix.csv', 'response_matrix_norm.csv']
+  ✓ Found: /home/ramanlab/Documents/cole/VSCode/Plasticity-Guided-Connectome-Network-PGCN-/data/cache
+    Files: ['meta.json', 'kc_ab.csv', 'shen2025_appetitive_sez_pn.csv', 'shen2025_appetitive_sez_ln_ach.csv', 'shen2025_appetitive_connectivity_grn_gaba.npz', 'shen2025_appetitive_sez_ln_gaba.csv', 'dan_edges.parquet', 'shen2025_appetitive_grn.csv', 'edges.parquet', 'kc_apbp.csv']
+  ✓ Found: /home/ramanlab/Documents/cole/VSCode/Plasticity-Guided-Connectome-Network-PGCN-/data/door_cache
+    Files: ['extraction_report.md', 'odorant_index.csv', 'metadata.json', 'response_matrix_norm.parquet', 'odor_metadata.parquet', 'response_matrix_non_norm.parquet', 'response_matrix_norm.npy', 'receptor_index.csv', 'door_response_matrix.csv', 'response_matrix_norm.csv']
+
+[3/6] Checking for DoOR data files...
+  ✓ Found: /home/ramanlab/Documents/cole/VSCode/Plasticity-Guided-Connectome-Network-PGCN-/data/door_cache/door_response_matrix.csv
+  ✓ Found: /home/ramanlab/Documents/cole/VSCode/Plasticity-Guided-Connectome-Network-PGCN-/data/door_cache/response_matrix_norm.csv
+  ✓ Found: /home/ramanlab/Documents/cole/VSCode/Plasticity-Guided-Connectome-Network-PGCN-/data/door_cache/response_matrix_norm.parquet
+  ✓ Found: /home/ramanlab/Documents/cole/VSCode/Plasticity-Guided-Connectome-Network-PGCN-/data/door_cache/odorant_index.csv
+  ✓ Found: /home/ramanlab/Documents/cole/VSCode/Plasticity-Guided-Connectome-Network-PGCN-/data/door_cache/odor_metadata.parquet
+
+[4/6] Attempting to initialize DoORIntegration...
+✗ FileNotFoundError: nodes.parquet not found at /home/ramanlab/Documents/cole/VSCode/Plasticity-Guided-Connectome-Network-PGCN-/data/door_cache/nodes.parquet. Run FlyWire extraction scripts.
+  Likely cause: nodes.parquet not found in cache directory
+  Run FlyWire extraction scripts first

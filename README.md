@@ -302,6 +302,135 @@ PYTHONPATH=src python -m pgcn.experiments.demo_or7a_experiments
 - Lin et al. (2024): Or7a cross-learning experiments in *Drosophila*
 - PGCN Or7a pathway mapping: `scripts/map_or7a_complete_pathway.py`
 
+### Connectome-Constrained Behavioral Prediction Network (CCBPN) - NEW ✅
+
+The **CCBPN module** adapts the landmark 2024 Nature study methodology (Lappalainen et al.) from visual motion detection to olfactory learning. CCBPN predicts both neural activity and behavioral outcomes from FlyWire connectome data alone, without recording neural activity, by combining fixed connectivity topology with task-driven optimization.
+
+**Key Innovation**: Unlike the 2024 Nature study which predicted motion selectivity in T4/T5 neurons, CCBPN predicts:
+- Odor discrimination performance (binary classification accuracy)
+- Memory decay timecourses (retention over 24-48 hours)
+- State-dependent decision-making (context-dependent generalization)
+
+directly from ORN→PN→KC→MBON connectivity + behavioral conditioning task constraints.
+
+#### Core Features
+
+**Architecture**:
+- **Fixed connectivity topology**: Each node = real FlyWire neuron, connected only if synaptic connection exists
+- **Recurrent dynamics**: Biologically-constrained temporal integration with dopamine modulation
+- **Task-driven optimization**: End-to-end training on behavioral conditioning tasks (not synthetic features)
+- **Dual predictions**: Generates both single-neuron responses AND behavioral outputs
+
+**Mathematical Form**:
+```
+τ_PN · dPN/dt = -PN + I_odor
+τ_KC · dKC/dt = -KC + ReLU(W_PN_KC @ PN)  [top 5% winners only]
+τ_MBON · dMBON/dt = -MBON + ReLU(W_KC_MBON @ KC)
+P(approach) = σ(W_readout @ MBON)
+```
+
+**Critical Constraint**: Connectivity masks `W_PN_KC`, `W_KC_MBON` remain **FIXED** during training (enforced via buffer registration and post-optimizer masking).
+
+#### Quick Start: Train CCBPN
+
+```bash
+# Train on odor discrimination task (default)
+python src/scripts/train_ccbpn.py \
+    --task odor_discrimination \
+    --epochs 100 \
+    --cache_dir data/cache
+
+# Expected output:
+# Loading FlyWire connectivity from data/cache...
+# Loaded circuit: 150 PNs → 2500 KCs → 34 MBONs
+# Training CCBPN (5-fold cross-validation)...
+# Fold 1/5: Best val acc=0.742
+# ...
+# Best model saved to results/ccbpn_odor_discrimination_best.pt
+```
+
+#### Validate Predictions
+
+```bash
+# Validate behavioral performance
+python src/scripts/validate_ccbpn.py \
+    --checkpoint results/ccbpn_odor_discrimination_best.pt \
+    --behavioral_data data/model_predictions.csv
+
+# Generate neuron-level predictions (KC odor tuning curves)
+python -c "
+from pgcn.analysis.ccbpn_validation import CCBPNValidator
+import torch
+
+validator = CCBPNValidator('results/ccbpn_odor_discrimination_best.pt', 'data/cache')
+test_odors = torch.randn(50, validator.model.n_pn)
+kc_predictions = validator.predict_neural_selectivity(test_odors, neuron_type='KC')
+print(kc_predictions.head())
+"
+```
+
+#### Mechanistic Insights: Shapley Analysis
+
+Identify discrimination-critical neurons (analogous to "Why are only 12/19 neurons motion-selective?" in Nature study):
+
+```python
+from pgcn.analysis.ccbpn_validation import CCBPNValidator
+
+validator = CCBPNValidator("results/ccbpn_best.pt", "data/cache")
+
+# Compute Shapley values for KC importance
+shapley_df = validator.compute_neuron_importance(
+    test_odors=test_odors,
+    test_labels=test_labels,
+    neuron_type='KC',
+    n_samples=100
+)
+
+# Top 20 discrimination-critical KCs
+critical_kcs = shapley_df.nlargest(20, 'shapley_value')
+print(f"Critical KCs: {critical_kcs['neuron_id'].tolist()}")
+```
+
+#### Expected Performance
+
+| Metric | Target | Notes |
+|--------|--------|-------|
+| **Discrimination Accuracy** | ≥70% | Binary classification (approach vs. avoid) |
+| **Memory Retention RMSE** | < 0.15 | 24-hour retention curve fit |
+| **Cross-Generalization** | r > 0.6 | Correlation with chemical similarity |
+| **KC Sparsity** | 4-6% | Biologically-constrained activation |
+
+#### Differences from Standard PGCN Experiments
+
+| Feature | Standard PGCN | CCBPN |
+|---------|--------------|-------|
+| **Connectivity** | Trainable weights | Fixed topology from FlyWire |
+| **Training data** | Synthetic features | Real behavioral conditioning curves |
+| **Optimization** | Task-agnostic | Task-driven (behavioral prediction) |
+| **Dynamics** | Feedforward/reservoir | Recurrent with temporal integration |
+| **Validation** | Synthetic ground truth | Real fly behavioral data |
+
+**Backward Compatibility**: CCBPN coexists with all existing PGCN modules (OlfactoryCircuit, DrosophilaReservoir, MultiTaskModel) without conflicts.
+
+#### Documentation
+
+- **[CCBPN Guide](docs/CCBPN_GUIDE.md)**: Comprehensive user guide with biological motivation, mathematical formulation, training tutorials, and troubleshooting
+- **Model Code**: `src/pgcn/models/ccbpn.py` (600+ lines with detailed docstrings)
+- **Training Pipeline**: `src/scripts/train_ccbpn.py` (full cross-validation workflow)
+- **Validation Suite**: `src/pgcn/analysis/ccbpn_validation.py` (behavioral + neuron-level validation)
+- **Tests**: `tests/models/test_ccbpn.py` (comprehensive test coverage)
+
+#### References
+
+**Primary Reference**:
+- Lappalainen et al. (2024) "Connectome-constrained networks predict neural activity across the fly visual system" *Nature* 634:1132-1140
+
+**FlyWire Connectome**:
+- Dorkenwald et al. (2023) "Neuronal wiring diagram of an adult brain" *bioRxiv*
+
+**Behavioral Conditioning**:
+- Tully & Quinn (1985) "Classical conditioning and retention in normal and mutant Drosophila" *J Comp Physiol A* 157:263-277
+
 ### Documentation
 
 For detailed information about the enhanced system:
