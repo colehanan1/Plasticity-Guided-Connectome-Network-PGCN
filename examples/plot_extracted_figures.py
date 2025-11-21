@@ -25,6 +25,10 @@ import argparse
 from pathlib import Path
 import numpy as np
 import pandas as pd
+
+# Use non-interactive backend to avoid Qt issues
+import matplotlib
+matplotlib.use('Agg')  # Must be before importing pyplot
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import FancyBboxPatch, Circle, FancyArrowPatch
@@ -150,7 +154,7 @@ def plot_behavioral_prediction(
     plt.savefig(output_pdf, bbox_inches='tight')
     print(f"✓ Saved PDF to: {output_pdf}")
 
-    plt.show()
+    plt.close()
 
 
 # ==============================================================================
@@ -292,7 +296,7 @@ def plot_model_schematic(
     plt.savefig(output_pdf, bbox_inches='tight')
     print(f"✓ Saved PDF to: {output_pdf}")
 
-    plt.show()
+    plt.close()
 
 
 # ==============================================================================
@@ -312,9 +316,29 @@ def plot_synapse_map(
     print("Creating Figure 3: Critical Synapse Map")
     print("="*70)
 
-    # Load veto mask
-    veto_mask = np.load(data_file)
-    print(f"✓ Loaded veto mask from: {data_file}")
+    # Load veto mask - try multiple file locations
+    mask_path = Path(data_file)
+    if not mask_path.exists():
+        # Try alternative names
+        alt_paths = [
+            Path(data_file).parent / "placeholder_mask.npy",
+            Path(data_file).parent / "veto_mask_odorpair0.npy",
+            Path(data_file).parent / "veto_mask_odorpair1.npy",
+        ]
+        for alt_path in alt_paths:
+            if alt_path.exists():
+                mask_path = alt_path
+                print(f"ℹ️  Using alternative mask file: {mask_path}")
+                break
+        else:
+            raise FileNotFoundError(
+                f"Could not find veto mask. Tried:\n"
+                f"  - {data_file}\n" +
+                "\n".join(f"  - {p}" for p in alt_paths)
+            )
+
+    veto_mask = np.load(mask_path)
+    print(f"✓ Loaded veto mask from: {mask_path}")
     print(f"  Shape: {veto_mask.shape}")
 
     # Load summary
@@ -419,7 +443,7 @@ def plot_synapse_map(
     plt.savefig(output_pdf, bbox_inches='tight')
     print(f"✓ Saved PDF to: {output_pdf}")
 
-    plt.show()
+    plt.close()
 
 
 # ==============================================================================
@@ -514,7 +538,7 @@ def plot_ml_comparison(
     plt.savefig(output_pdf, bbox_inches='tight')
     print(f"✓ Saved PDF to: {output_pdf}")
 
-    plt.show()
+    plt.close()
 
 
 # ==============================================================================
@@ -593,6 +617,8 @@ def main():
     print("  • figure2_model_schematic.png/pdf")
     print("  • figure3_synapse_map.png/pdf")
     print("  • figure4_ml_comparison.png/pdf")
+    print("\nNote: Figures saved to disk (non-interactive mode).")
+    print("      No plot windows will appear - open the files directly.")
     print("="*70 + "\n")
 
 
