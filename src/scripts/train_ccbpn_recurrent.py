@@ -206,26 +206,24 @@ class SequentialBehavioralDataset:
     def _generate_dopamine_signal(self, row: pd.Series) -> np.ndarray:
         """Generate dopamine signal for one trial.
 
-        CS+ trials get dopamine pulse after odor offset.
-        CS- trials get no dopamine.
+        CRITICAL FIX: Previously used row['prediction'] to determine dopamine,
+        which leaked the label directly to the model! This caused 100% accuracy
+        even on scrambled labels.
+
+        For now, we disable dopamine signals entirely (all zeros) since we don't
+        have reliable information about which trials are CS+ vs CS- independent
+        of the behavioral outcome.
+
+        In production, CS+/CS- status should come from experimental design,
+        not behavioral predictions.
 
         Returns
         -------
         np.ndarray
             Shape: (odor_duration,)
         """
+        # No dopamine signal (all zeros) to prevent label leakage
         dopamine = np.zeros(self.odor_duration, dtype=np.float32)
-
-        # Check if this is a CS+ trial (should be in data, but infer if missing)
-        # In production, this should come from the dataset
-        is_cs_plus = row.get('prediction', 0) > 0.5
-
-        if is_cs_plus:
-            # Dopamine pulse after odor offset (realistic timing)
-            dopamine_start = int(0.8 * self.odor_duration)  # 80% through trial
-            dopamine_end = min(self.odor_duration, dopamine_start + 10)
-            dopamine[dopamine_start:dopamine_end] = 1.0
-
         return dopamine
 
     def __len__(self) -> int:
