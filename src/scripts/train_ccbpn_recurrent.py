@@ -331,8 +331,12 @@ def train_one_epoch(
 
             optimizer.step()
 
-            # Update for next trial
-            previous_outcome = label_tensor.detach()
+            # CRITICAL FIX: Use MODEL'S PREDICTION as previous_outcome, not true label
+            # This prevents data leakage - model should see its own predictions,
+            # not ground truth. Training still uses true labels via loss function.
+            # This mimics realistic deployment where only predictions are available.
+            with torch.no_grad():
+                previous_outcome = (prediction > 0.5).float().detach()
 
             # Detach hidden state to prevent backprop through entire sequence
             # (Truncated BPTT - important for long sequences!)
@@ -409,8 +413,10 @@ def validate(
                 # Compute loss
                 loss = criterion(prediction, label_tensor)
 
-                # Update for next trial
-                previous_outcome = label_tensor
+                # CRITICAL FIX: Use MODEL'S PREDICTION as previous_outcome, not true label
+                # During validation, model must rely entirely on its own past predictions.
+                # This is an HONEST evaluation - no access to ground truth during inference.
+                previous_outcome = (prediction > 0.5).float()
 
                 # Metrics
                 total_loss += loss.item()
