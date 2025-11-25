@@ -25,6 +25,10 @@ import sys
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+import numpy as np
+from scipy import sparse
+from typing import Iterable, List
+
 from scripts.neural_network.ccbpn_v2_full import (
     CCBPN_V2,
     CCBPN_V2_Config,
@@ -35,7 +39,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger(__name__)
 
 
-def verify_shapes(config: CCBPN_V2_Config):
+def verify_shapes(config: CCBPN_V2_Config, seed: int = 42):
     """
     Verify connectivity matrix shapes and print summary.
 
@@ -47,7 +51,7 @@ def verify_shapes(config: CCBPN_V2_Config):
     logger.info("=" * 80)
 
     try:
-        network = CCBPN_V2(config, seed=42)
+        network = CCBPN_V2(config, seed=seed)
 
         logger.info(f"\n✓ Successfully loaded network")
         logger.info(f"\nConnectivity shapes:")
@@ -77,7 +81,7 @@ def verify_shapes(config: CCBPN_V2_Config):
 
 
 def run_training(config: CCBPN_V2_Config, n_trials_per_odor: int,
-                output_path: Path, compare_to_b1: bool):
+                output_path: Path, compare_to_b1: bool, seed: int):
     """
     Run complete training protocol.
 
@@ -86,13 +90,15 @@ def run_training(config: CCBPN_V2_Config, n_trials_per_odor: int,
         n_trials_per_odor: Trials per odor
         output_path: Path for output JSON
         compare_to_b1: Whether to compare to B1 model
+        seed: Random seed for initialization
     """
     logger.info("=" * 80)
     logger.info("RUNNING CCBPN V2.0 TRAINING")
     logger.info("=" * 80)
+    logger.info(f"Using seed: {seed}")
 
     # Initialize and train
-    network = CCBPN_V2(config, seed=42)
+    network = CCBPN_V2(config, seed=seed)
     trial_df = train_ccbpn_v2(network, n_trials_per_odor=n_trials_per_odor)
 
     # Extract final results
@@ -105,9 +111,16 @@ def run_training(config: CCBPN_V2_Config, n_trials_per_odor: int,
     # Ablation prediction
     ablation_pred = network.predict_ablation()
 
+    def _count_synapses(matrix) -> int:
+        """Return nonzero count for sparse or dense matrices."""
+        if sparse.issparse(matrix):
+            return int(matrix.nnz)
+        return int(np.count_nonzero(matrix))
+
     # Prepare output
     results = {
         'model': 'CCBPN v2.0 (Full)',
+        'seed': seed,
         'phases_integrated': [
             'Phase 1: FlyWire connectivity',
             'Phase 2: Antennal lobe circuits',
@@ -121,8 +134,10 @@ def run_training(config: CCBPN_V2_Config, n_trials_per_odor: int,
             'n_dan': len(network.dan_ids),
             'or7a_pns': len(network.or7a_indices),
             'or67b_pns': len(network.or67b_indices),
-            'pn_to_kc_synapses': int(network.W_pn_kc.nnz),
-            'kc_to_mbon_synapses': int(network.W_kc_mbon_dense.size),
+            'pn_to_kc_synapses': _count_synapses(network.W_pn_kc),
+            'kc_to_mbon_synapses': _count_synapses(
+                network.W_kc_mbon if hasattr(network, "W_kc_mbon") else network.W_kc_mbon_dense
+            ),
         },
         'training': {
             'n_trials_per_odor': n_trials_per_odor,
@@ -177,6 +192,45 @@ def run_training(config: CCBPN_V2_Config, n_trials_per_odor: int,
     return results
 
 
+def run_seed_sweep(config: CCBPN_V2_Config, n_trials_per_odor: int,
+                   output_path: Path, compare_to_b1: bool,
+                   seeds: Iterable[int]) -> List[dict]:
+    """
+    Run multiple seeds in one invocation and summarize metrics.
+    """
+    all_results = []
+
+    for seed in seeds:
+        # Derive per-seed output path to avoid overwrite
+        seed_output = output_path.with_name(f"{output_path.stem}_seed{seed}{output_path.suffix}")
+        results = run_training(
+            config=config,
+            n_trials_per_odor=n_trials_per_odor,
+            output_path=seed_output,
+            compare_to_b1=compare_to_b1,
+            seed=seed
+        )
+        all_results.append(results)
+
+    # Aggregate
+    benz = np.array([r['training']['benzaldehyde']['final'] for r in all_results])
+    hexn = np.array([r['training']['hexanol']['final'] for r in all_results])
+    abla = np.array([r['ablation']['b2_v2_prediction'] for r in all_results])
+
+    def summarize(name, arr):
+        logger.info(f"{name}: {arr.mean()*100:.2f} ± {arr.std(ddof=1)*100:.2f}% (n={len(arr)})")
+
+    logger.info("\n" + "=" * 80)
+    logger.info("MULTI-SEED SUMMARY")
+    logger.info("=" * 80)
+    summarize("Benzaldehyde", benz)
+    summarize("Hexanol", hexn)
+    summarize("Ablation", abla)
+    logger.info("=" * 80 + "\n")
+
+    return all_results
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -222,6 +276,19 @@ def main():
         help='Compare ablation prediction to B1 model'
     )
 
+    parser.add_argument(
+        '--seed',
+        type=int,
+        default=42,
+        help='Random seed for initialization (default: 42)'
+    )
+
+    parser.add_argument(
+        '--seed-sweep',
+        action='store_true',
+        help='Run a 10-seed sweep (42-51) and summarize results'
+    )
+
     args = parser.parse_args()
 
     # Set logging level
@@ -233,17 +300,28 @@ def main():
 
     # Verify shapes only
     if args.verify_shapes:
-        success = verify_shapes(config)
+        success = verify_shapes(config, seed=args.seed)
         sys.exit(0 if success else 1)
 
     # Run training
     output_path = Path(args.output)
-    results = run_training(
-        config=config,
-        n_trials_per_odor=args.n_trials,
-        output_path=output_path,
-        compare_to_b1=args.compare_to_b1
-    )
+    if args.seed_sweep:
+        seeds = range(42, 52)  # inclusive 42-51
+        results = run_seed_sweep(
+            config=config,
+            n_trials_per_odor=args.n_trials,
+            output_path=output_path,
+            compare_to_b1=args.compare_to_b1,
+            seeds=seeds
+        )
+    else:
+        results = run_training(
+            config=config,
+            n_trials_per_odor=args.n_trials,
+            output_path=output_path,
+            compare_to_b1=args.compare_to_b1,
+            seed=args.seed
+        )
 
     logger.info("🎉 CCBPN v2.0 execution complete!")
 

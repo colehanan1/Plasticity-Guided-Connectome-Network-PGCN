@@ -151,6 +151,48 @@ python src/scripts/neural_network/ccbpn_v2_runner.py \
 - `--verbose`: Enable detailed logging (DEBUG level)
 - `--verify-shapes`: Verify connectivity and exit (no training)
 - `--compare-to-b1`: Compare ablation prediction to B1 model
+- `--seed`: Random seed for initialization (default: 42)
+- `--seed-sweep`: Run 10 seeds (42-51) in one command and summarize
+
+### Multi-Seed Evaluation (10 seeds: 42-51)
+```bash
+# Run 10 seeds at once (outputs per-seed JSON + summary)
+python src/scripts/neural_network/ccbpn_v2_runner.py \
+    --seed-sweep \
+    --n-trials 50 \
+    --output results/ccbpn_v2/results.json
+
+# Or manually run seeds (if you want to customize)
+for seed in {42..51}; do
+    python src/scripts/neural_network/ccbpn_v2_runner.py \
+        --seed "$seed" \
+        --n-trials 50 \
+        --output results/ccbpn_v2/results_seed_${seed}.json
+done
+
+# Compute statistics (mean ± std across seeds)
+python - <<'PY'
+import glob, json, numpy as np
+
+records = []
+for path in glob.glob("results/ccbpn_v2/results_seed_*.json"):
+    with open(path) as f:
+        records.append(json.load(f))
+
+benz = np.array([r["training"]["benzaldehyde"]["final"] for r in records])
+hexn = np.array([r["training"]["hexanol"]["final"] for r in records])
+abla = np.array([r["ablation"]["b2_v2_prediction"] for r in records])
+
+def line(name, arr):
+    print(f"{name}: {arr.mean()*100:.1f} ± {arr.std(ddof=1)*100:.1f}% (n={len(arr)})")
+
+line("Benzaldehyde", benz)
+line("Hexanol", hexn)
+line("Ablation", abla)
+PY
+```
+Expected ballpark (from seed 42 run):  
+`Benzaldehyde ≈ 20.6%`, `Hexanol ≈ 73.2%`, `Ablation ≈ 70.3%`.
 
 ---
 

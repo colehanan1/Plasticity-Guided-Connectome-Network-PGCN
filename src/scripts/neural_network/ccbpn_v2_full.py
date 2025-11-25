@@ -655,6 +655,138 @@ class DopamineRPE:
 
 
 # ==============================================================================
+# DIAGNOSTIC FUNCTIONS
+# ==============================================================================
+
+def diagnose_signal_strength(network, or7a_door=0.576, or67b_door=0.746):
+    """
+    Trace signal strength through all circuit layers.
+
+    Identifies where signal is lost or improperly scaled.
+    Critical for validating that no hidden normalizations are needed.
+
+    Args:
+        network: CCBPN_V2 instance
+        or7a_door: Or7a DoOR concentration
+        or67b_door: Or67b DoOR concentration
+
+    Returns:
+        Dictionary with diagnostic metrics
+    """
+    print("\n" + "="*80)
+    print("SIGNAL STRENGTH DIAGNOSIS")
+    print("="*80)
+
+    # Connectivity sanity check (report actual synapse counts)
+    pn_kc_synapses = network.W_pn_kc.nnz if sparse.issparse(network.W_pn_kc) else np.count_nonzero(network.W_pn_kc)
+    kc_mbon_synapses = network.W_kc_mbon.nnz if sparse.issparse(network.W_kc_mbon) else np.count_nonzero(network.W_kc_mbon)
+    print(f"\n[CONNECTIVITY] Shapes and synapses:")
+    print(f"  PN→KC:  {network.W_pn_kc.shape}, {pn_kc_synapses} synapses")
+    print(f"  KC→MBON: {network.W_kc_mbon_dense.shape}, {kc_mbon_synapses} synapses")
+
+    # Layer 0: ORN responses
+    or7a_orn_firing = network.or7a_orns.respond_to_odor(or7a_door)
+    or67b_orn_firing = network.or67b_orns.respond_to_odor(or67b_door)
+
+    print(f"\n[LAYER 0] ORN Firing Rates:")
+    print(f"  Or7a ORNs: {or7a_orn_firing.mean():.1f} ± {or7a_orn_firing.std():.1f} Hz")
+    print(f"  Or7a range: {or7a_orn_firing.min():.1f} - {or7a_orn_firing.max():.1f} Hz")
+    print(f"  Or67b ORNs: {or67b_orn_firing.mean():.1f} ± {or67b_orn_firing.std():.1f} Hz")
+    print(f"  Or67b range: {or67b_orn_firing.min():.1f} - {or67b_orn_firing.max():.1f} Hz")
+
+    # Layer 1: ORN→PN convergence
+    or7a_pn_firing = network.or7a_orn_to_pn.forward(or7a_orn_firing)
+    or67b_pn_firing = network.or67b_orn_to_pn.forward(or67b_orn_firing)
+
+    print(f"\n[LAYER 1] PN Firing Rates (after ORN→PN integration):")
+    print(f"  Or7a PNs: {or7a_pn_firing.mean():.1f} ± {or7a_pn_firing.std():.1f} Hz")
+    print(f"  Or7a range: {or7a_pn_firing.min():.1f} - {or7a_pn_firing.max():.1f} Hz")
+    print(f"  Or67b PNs: {or67b_pn_firing.mean():.1f} ± {or67b_pn_firing.std():.1f} Hz")
+    print(f"  Or67b range: {or67b_pn_firing.min():.1f} - {or67b_pn_firing.max():.1f} Hz")
+
+    # Layer 2: Antennal lobe processing
+    pn_raw = network.activate_pns_via_orns(or7a_door, or67b_door)
+    pn_processed = network.antennal_lobe.forward(pn_raw)
+
+    print(f"\n[LAYER 2] PN Activity (after antennal lobe):")
+    print(f"  Mean: {pn_processed.mean():.3f}")
+    print(f"  Max: {pn_processed.max():.3f}")
+    print(f"  Non-zero: {(pn_processed > 0).sum()} / {len(pn_processed)}")
+    print(f"  Or7a PNs mean: {pn_processed[network.or7a_indices].mean():.3f}")
+    print(f"  Or67b PNs mean: {pn_processed[network.or67b_indices].mean():.3f}")
+
+    # Layer 3: KC inputs (CRITICAL - check for scaling issues)
+    kc_input_raw = network.W_pn_kc @ pn_processed
+
+    print(f"\n[LAYER 3] KC Inputs (BEFORE any normalization):")
+    print(f"  Raw max: {kc_input_raw.max():.6f}")
+    print(f"  Raw mean: {kc_input_raw.mean():.6f}")
+    print(f"  Raw std: {kc_input_raw.std():.6f}")
+    print(f"  Non-zero: {(kc_input_raw > 1e-6).sum()} / {len(kc_input_raw)}")
+
+    # Check if values are in expected range (should be 0.1-5.0 for rate-coded network)
+    if kc_input_raw.max() < 0.1:
+        print(f"  ⚠️  WARNING: KC inputs suspiciously SMALL (max={kc_input_raw.max():.6f})")
+        print(f"      Expected range: 0.1-5.0 for rate-coded network")
+        print(f"      PN→KC weights may need scaling UP")
+    elif kc_input_raw.max() > 10.0:
+        print(f"  ⚠️  WARNING: KC inputs suspiciously LARGE (max={kc_input_raw.max():.2f})")
+        print(f"      Expected range: 0.1-5.0 for rate-coded network")
+        print(f"      PN→KC weights may need scaling DOWN")
+    else:
+        print(f"  ✓ KC inputs in healthy range (0.1-10.0)")
+
+    # Layer 4: KC activity after k-WTA
+    mbon_activity, activations = network.forward(or7a_door, or67b_door, training=True)
+    kc_activity = activations['kc_activity']
+
+    print(f"\n[LAYER 4] KC Activity (after k-WTA):")
+    print(f"  Active KCs: {(kc_activity > 0).sum()} / {len(kc_activity)}")
+    print(f"  Sparsity: {(kc_activity > 0).sum() / len(kc_activity) * 100:.1f}%")
+    print(f"  Mean (active): {kc_activity[kc_activity > 0].mean():.4f}")
+    print(f"  Max: {kc_activity.max():.4f}")
+
+    # Layer 5: MBON outputs
+    print(f"\n[LAYER 5] MBON Activity:")
+    print(f"  Approach MBONs mean: {mbon_activity[:22].mean():.4f}")
+    print(f"  Avoid MBONs mean: {mbon_activity[22:].mean():.4f}")
+    print(f"  Valence (approach-avoid): {mbon_activity[:22].mean() - mbon_activity[22:].mean():.4f}")
+
+    # Signal loss analysis
+    print("\n" + "="*80)
+    print("SIGNAL LOSS ANALYSIS:")
+    print("="*80)
+    or7a_pn_mean = pn_processed[network.or7a_indices].mean()
+    signal_retention = (or7a_pn_mean / or7a_door) * 100
+
+    print(f"Input (Or7a DoOR):     {or7a_door:.3f}")
+    print(f"Output (Or7a PNs):     {or7a_pn_mean:.3f}")
+    print(f"Signal retention:      {signal_retention:.1f}%")
+    print(f"Signal loss:           {100 - signal_retention:.1f}%")
+
+    if signal_retention < 30:
+        print(f"\n⚠️  CRITICAL: Signal loss >70% indicates pathway too weak")
+        print(f"   Or7a ablation will be underestimated")
+    elif signal_retention < 50:
+        print(f"\n⚠️  WARNING: Signal loss >50% may affect ablation prediction")
+    else:
+        print(f"\n✓ Signal retention acceptable (>50%)")
+
+    print(f"\nKC max response:       {kc_activity.max():.6f}")
+    print(f"MBON max response:     {mbon_activity.max():.6f}")
+    print("="*80 + "\n")
+
+    return {
+        'orn_firing_or7a': or7a_orn_firing.mean(),
+        'pn_firing_or7a': or7a_pn_firing.mean(),
+        'pn_processed_or7a': or7a_pn_mean,
+        'kc_input_max': kc_input_raw.max(),
+        'kc_active_count': (kc_activity > 0).sum(),
+        'signal_retention_pct': signal_retention,
+    }
+
+
+# ==============================================================================
 # MAIN CCBPN v2.0 CLASS (ALL PHASES INTEGRATED)
 # ==============================================================================
 
@@ -665,7 +797,7 @@ class CCBPN_V2_Config:
     cache_dir: str = "data/cache"
 
     # KC processing
-    kc_sparsity: float = 0.05  # 5% active KCs (k-WTA)
+    kc_sparsity: float = 0.08  # 8% active KCs (increased from 5% for better signal)
 
     # Learning
     learning_rate: float = 0.01  # Increased 10x for faster learning
@@ -675,7 +807,7 @@ class CCBPN_V2_Config:
 
     # Antennal lobe
     al_inhibition_strength: float = 0.3
-    al_target_mean: float = 0.5
+    al_target_mean: float = 0.15  # Balanced to maintain signal without over-amplification
 
     # MBON opponent coding
     mbon_approach_frac: float = 0.5
@@ -747,6 +879,51 @@ class CCBPN_V2:
 
         logger.info(f"✓ Loaded connectivity: {len(self.pn_ids)} PNs, {len(self.kc_ids)} KCs, "
                    f"{len(self.mbon_ids)} MBONs")
+
+        # NEW: Automatic PN→KC weight scaling to prevent signal loss
+        logger.info("\n[SCALING] Testing PN→KC pathway strength...")
+
+        # Test with moderate PN activity (0.5 normalized units)
+        pn_test = np.ones(len(self.pn_ids)) * 0.5
+        kc_test_input = self.W_pn_kc @ pn_test
+        kc_test_max = np.max(np.abs(kc_test_input))
+
+        logger.info(f"  Test KC input range: max={kc_test_max:.6f}")
+
+        # Determine if scaling is needed
+        # Target: KC inputs in range 0.5-2.0 for rate-coded network
+        kc_scale_factor = 1.0
+
+        if kc_test_max < 0.1:
+            # KC inputs too small - scale UP
+            kc_scale_factor = 1.0 / (kc_test_max + 1e-8)
+            logger.info(f"  ⚠️  KC inputs too small (max={kc_test_max:.6f})")
+            logger.info(f"  Scaling PN→KC weights UP by {kc_scale_factor:.2f}×")
+
+            # Convert to dense if sparse (for scaling)
+            if sparse.issparse(self.W_pn_kc):
+                self.W_pn_kc = self.W_pn_kc.toarray()
+
+            self.W_pn_kc = self.W_pn_kc * kc_scale_factor
+
+        elif kc_test_max > 10.0:
+            # KC inputs too large - scale DOWN
+            kc_scale_factor = 1.0 / kc_test_max
+            logger.info(f"  ⚠️  KC inputs too large (max={kc_test_max:.2f})")
+            logger.info(f"  Scaling PN→KC weights DOWN by {kc_scale_factor:.3f}×")
+
+            if sparse.issparse(self.W_pn_kc):
+                self.W_pn_kc = self.W_pn_kc.toarray()
+
+            self.W_pn_kc = self.W_pn_kc * kc_scale_factor
+
+        else:
+            logger.info(f"  ✓ KC inputs in healthy range (0.1-10.0), no scaling needed")
+
+        # Verify scaling worked
+        kc_verify = self.W_pn_kc @ pn_test
+        logger.info(f"  After scaling: KC input max={np.max(np.abs(kc_verify)):.6f}")
+        logger.info(f"  Target range: 0.5-2.0 for optimal k-WTA competition")
 
         # Phase 0: Initialize ORN populations and ORN→PN convergence
         logger.info("\n[PHASE 0] Initializing ORN populations and ORN→PN layers...")
@@ -897,9 +1074,8 @@ class CCBPN_V2:
         # Step 3: Expand to KCs with k-WTA sparsification
         kc_input = self.W_pn_kc @ pn_processed  # Matrix-vector multiply
 
-        # Normalize KC inputs (FlyWire weights are large, need scaling)
-        if np.max(np.abs(kc_input)) > 1e-6:
-            kc_input = kc_input / (np.max(np.abs(kc_input)) + 1e-6)
+        # NO NORMALIZATION NEEDED - weights properly scaled during init
+        # (Old normalization hack removed - Fix 3)
 
         # k-winner-take-all
         k = int(len(self.kc_ids) * self.config.kc_sparsity)
@@ -1175,6 +1351,30 @@ def main():
         cache_dir="data/cache"
     )
     network = CCBPN_V2(config, seed=42)
+
+    # NEW: Run signal strength diagnostics
+    logger.info("\n" + "=" * 80)
+    logger.info("RUNNING SIGNAL STRENGTH DIAGNOSTICS")
+    logger.info("=" * 80)
+
+    diagnostics = diagnose_signal_strength(network)
+
+    # Validate signal retention
+    if diagnostics['signal_retention_pct'] < 30:
+        logger.warning("⚠️  Signal retention <30% - ablation will be underestimated!")
+    elif diagnostics['signal_retention_pct'] < 50:
+        logger.warning("⚠️  Signal retention <50% - may affect predictions")
+    else:
+        logger.info(f"✓ Signal retention {diagnostics['signal_retention_pct']:.1f}% is acceptable")
+
+    # Check KC input range
+    if diagnostics['kc_input_max'] < 0.1 or diagnostics['kc_input_max'] > 10.0:
+        logger.warning(f"⚠️  KC inputs out of range: {diagnostics['kc_input_max']:.6f}")
+        logger.warning("   PN→KC scaling may need adjustment")
+    else:
+        logger.info(f"✓ KC inputs in healthy range: {diagnostics['kc_input_max']:.6f}")
+
+    logger.info("=" * 80 + "\n")
 
     # Train
     trial_df = train_ccbpn_v2(network, n_trials_per_odor=50)
