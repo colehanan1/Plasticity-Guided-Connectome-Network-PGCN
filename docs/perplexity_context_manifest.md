@@ -1,0 +1,43 @@
+# Perplexity Context Manifest (≤40 files)
+
+Suggested files to include when giving Perplexity/Claude context for this repo. They cover governance, workflows, experiments, and key tooling.
+
+- AGENTS.md — hard constraints, validation rules, required commands
+- README.md — repository overview, capabilities, primary experiments
+- COMPLETE_PROJECT_SUMMARY.md — end-to-end status and milestones
+- SUMMARY_FOR_USER.md — concise project snapshot
+- CROSS_GENERALIZATION_README.md — cross-odor generalization framing
+- CROSS_GENERALIZATION_SUMMARY.md — findings from cross-generalization runs
+- CROSS_GENERALIZATION_ANALYSIS.md — analysis notes and interpretations
+- QUICK_PLAN.md — short execution plan for current priorities
+- NEXT_STEPS.md — prioritized follow-ups
+- PGCN_INTEGRATION_SUMMARY.md — integration state of PGCN components
+- DOOR_TOOLKIT_SETUP.md — environment setup for DoOR tooling
+- DOOR_INTEGRATION_SUMMARY.md — summary of DoOR ↔ FlyWire integration
+- DOOR_ORN_INTEGRATION_GUIDE.md — ORN identification/validation how-to
+- docs/DOOR_INTEGRATION_STATUS.md — latest DoOR integration status/details
+- docs/model_integration_status.md — cache commands and model integration checks
+- docs/execution-guide.md — how to run core workflows
+- docs/index-and-navigation.md — map to the broader documentation set
+- docs/statistical_reporting_format.md — required stats/effect size reporting
+- docs/quick-reference-guide.md — fast lookup for commands and patterns
+- docs/VETO_GATE_IMPLEMENTATION.md — veto gate design and rationale
+- docs/ENHANCED_CIRCUIT_GUIDE.md — enhanced circuit components
+- docs/FIGURES_GENERATION_SUMMARY.md — figure generation pipeline
+- docs/flywire-best-practices.md — FlyWire data handling guidance
+- docs/OR7A_COMPLETE_PATHWAY_GUIDE.md — Or7a pathway implementation notes
+- docs/LN_PN_CONNECTIVITY_ANALYSIS_GUIDE.md — LN↔PN connectivity analysis
+- docs/PENP_INTEGRATION_GUIDE.md — PENP integration walkthrough
+- analysis/cross_validation.py — grouped CV with required metrics/CLI flags
+- analysis/run_statistical_tests.py — standalone statistical testing entrypoint
+- analysis/statistical_tests.py — permutation/bootstrap/effect size utilities
+- configs/dataset_to_odor_mapping.yaml — dataset→odor ground-truth mapping
+- configs/trial_to_glomerulus.yaml — trial label → glomerulus assignments
+- scripts/analyze_alrn_mxlbn_orn_feeding.py — root ID → ORN mapping + DoOR stats
+- src/scripts/complete_orn_analysis.py — full DoOR + FlyWire ORN analysis CLI
+- src/scripts/dual_blocking_comparison.py — bidirectional blocking experiment runner
+- pgcn/connectivity_viz/README.md — connectivity viz usage
+- pgcn/connectivity_viz/IMPLEMENTATION_SUMMARY.md — viz implementation details
+- docs/door_database_quickstart.md — fast DoOR loading paths (rpy2/csv/zenodo)
+- docs/root_id_downstream_mapping.md — root ID → downstream connectivity guide
+- docs/changes/2025-12-01-documentation-refresh.md — changelog for the doc refresh

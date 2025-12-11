@@ -141,6 +141,7 @@ cython_debug/
 *.swp
 *.swo
 *~
+perplexity_context/
 
 # OS files
 .DS_Store

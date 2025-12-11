@@ -34,6 +34,11 @@ python -m pytest tests/ --coverage               # All tests with coverage
 python train_all_conditions.py                   # Train all experimental conditions
 ```
 
+## Change Documentation
+- For any substantial changes, add a dated summary in `docs/changes/` and list it here with a short note.
+- Current entries:
+  - **2025-12-01** — `docs/changes/2025-12-01-documentation-refresh.md` (README/tooling refresh, root ID mapping guide, DoOR quickstart, Perplexity manifest)
+
 ## Do
 
 - **Data Integrity**: Always validate that `len(df) == 440` and fly groupings are intact
@@ -46,6 +51,7 @@ python train_all_conditions.py                   # Train all experimental condit
 - **Chemical Similarity**: Base on functional groups + molecular weight + literature values
 - **Proper Validation**: Report accuracy, AUROC, cross-fly generalization for every model
 - **Scientific Rigor**: Include statistical significance testing, confidence intervals
+- **Context Sharing**: Keep `docs/perplexity_context_manifest.md` ≤40 high-signal items and refresh it when major docs change
 
 ## Don't  
 

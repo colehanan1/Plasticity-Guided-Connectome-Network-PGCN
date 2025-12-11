@@ -33,6 +33,40 @@ open results/monday/experiment_1_veto_gate_results.png
 - **Blocking experiment completed** with publication-quality plots
 - **Results folder** with comprehensive analysis and metrics
 
+_Note: all CLI scripts live in `src/scripts/`. If you see a command like `python scripts/<name>.py`, run it as `python src/scripts/<name>.py` from the repo root._
+
+## What you can do now (toolbox overview)
+- **Blocking experiments:** `python scripts/monday_startup_training.py` or `python src/scripts/dual_blocking_comparison.py --phase1-trials 10 --phase2-trials 30`
+- **Cross-odor generalization + stats:** `python analysis/cross_validation.py --folds 5` and `python analysis/run_statistical_tests.py --artifacts-dir artifacts/cross_validation`
+- **ORN/DoOR integration:** `python src/scripts/complete_orn_analysis.py --labels data/flywire/processed_labels.csv.gz --door-method csv --door-csv data/door_cache/door_response_matrix.csv`
+- **Root ID → downstream partners:** see the quick recipe below and the detailed guide in `docs/root_id_downstream_mapping.md`
+- **FlyWire cache + behavior-connectome links:** run `pgcn-cache --local-data data/flywire --out data/cache/` then `python analysis/behavior_connectome_analysis.py --cache-dir data/cache --trial-to-glomerulus configs/trial_to_glomerulus.yaml`
+- **Connectivity viz/figures:** follow `pgcn/connectivity_viz/README.md` and `docs/FIGURES_GENERATION_SUMMARY.md`
+
+### Root ID → downstream connections (fast path)
+```bash
+python scripts/analyze_alrn_mxlbn_orn_feeding.py \
+  --root-ids data/flywire/root_ids_or67b.txt \
+  --labels data/flywire/processed_labels.csv.gz \
+  --door-path data/cache/door_response_matrix.csv \
+  --output-dir data/analysis \
+  --results-dir results
+```
+- Outputs receptor counts, DoOR tuning stats, and a quick plot. For connectivity-aware tracing, load your `pre_root_id/post_root_id/syn_count` CSV into `src/pgcn/door/pathway_analyzer.py` as shown in `docs/root_id_downstream_mapping.md`.
+
+### DoOR database (fast path)
+```bash
+python - <<'PY'
+from pgcn.door import DoORDataManager
+door = DoORDataManager(method="csv", backup_csv_path="data/door_cache/door_response_matrix.csv")
+print(door.load_door_data()["response_matrix"].shape)
+PY
+```
+- For rpy2 installs or Zenodo fallback, see `docs/door_database_quickstart.md`.
+
+### Perplexity context bundle
+- Use `docs/perplexity_context_manifest.md` (≤40 items) when seeding Perplexity/Claude with context for this repo.
+
 ### Artifact Discovered: KC→MBON Initialization Bias
 
 Recent validation uncovered that copying hemibrain KC→MBON weights directly into
